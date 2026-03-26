@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "article-viewer",
+  "description": "Capability for the article viewer webview - allows invoking receive_html",
+  "windows": ["article-viewer"],
+  "permissions": [
+    "core:default"
+  ]
+}

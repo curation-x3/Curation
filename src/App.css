@@ -1,0 +1,552 @@
+:root {
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --bg-color: #0f1115;
+  --sidebar-bg: #161b22;
+  --sidebar-hover: #21262d;
+  --sidebar-active: #2d333b;
+  --card-bg: #1c2128;
+  --text-primary: #f0f6fc;
+  --text-muted: #8b949e;
+  --border-color: #30363d;
+  --list-bg: #0d1117;
+  --reader-bg: #0d1117;
+  --accent-red: #f85149;
+  --reader-max-width: 800px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-color);
+}
+
+/* 1. Sidebar (Accounts) */
+.sidebar {
+  width: 280px;
+  background-color: var(--sidebar-bg);
+  color: #dee2e6;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-right: 1px solid #2c2e33;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar.collapsed {
+  width: 72px !important;
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid #2c2e33;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+}
+
+.sidebar-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .sidebar-title span {
+  display: none;
+}
+
+.account-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+
+.account-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 18px;
+  cursor: pointer;
+  transition: background 0.2s;
+  gap: 12px;
+  width: 100%;
+}
+
+.account-item:hover {
+  background-color: var(--sidebar-hover);
+}
+
+.account-item.active {
+  background-color: var(--sidebar-active);
+  color: #fff;
+}
+
+.account-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #495057;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.account-info {
+  flex: 1;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+
+.sidebar.collapsed .account-info {
+  display: none;
+}
+
+.account-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unread-badge {
+  background-color: var(--accent-red);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.sidebar.collapsed .unread-badge {
+  position: absolute;
+  right: 15px;
+  top: 15px;
+}
+
+/* Resizer Handle */
+.resizer {
+  width: 5px;
+  background-color: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+
+.resizer:hover, .resizer.resizing {
+  background-color: var(--primary-color);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+/* 2. Article List */
+.article-list-pane {
+  background-color: var(--list-bg);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.list-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--list-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  gap: 8px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  outline: none;
+  background: #161b22;
+  color: var(--text-primary);
+}
+
+.search-input:focus {
+  border-color: var(--primary-color);
+  background: #1c2128;
+}
+
+.list-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.article-card {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex;
+  gap: 12px;
+  background-color: var(--list-bg);
+}
+
+.article-card:hover {
+  background-color: var(--sidebar-hover);
+}
+
+.article-card.active {
+  background-color: var(--sidebar-active);
+  border-left: 3px solid var(--primary-color);
+}
+
+.article-card.active {
+  background-color: var(--item-active);
+  border-left: 4px solid var(--primary-color);
+}
+
+.article-card-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.article-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-main);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-card-digest {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-card-meta {
+  font-size: 0.75rem;
+  color: #adb5bd;
+  margin-top: 4px;
+}
+
+.article-card-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 6px;
+  object-fit: cover;
+  background-color: #f1f3f5;
+  flex-shrink: 0;
+}
+
+/* 3. Reader View */
+.reader-pane {
+  flex: 1;
+  background-color: var(--bg-color);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.reader-toolbar {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.reader-content {
+  max-width: var(--reader-max-width);
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 60px;
+  background-color: transparent;
+}
+
+.reader-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.reader-empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.3;
+}
+
+/* Markdown Typography */
+.markdown-body {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: var(--text-primary) !important;
+  background-color: transparent !important;
+}
+
+.markdown-body * {
+  color: inherit;
+  border-color: var(--border-color) !important;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid var(--primary-color) !important;
+  background: var(--sidebar-hover) !important;
+  padding: 1rem 1.5rem;
+  margin: 1.5rem 0;
+  color: var(--text-muted) !important;
+  font-style: italic;
+  border-radius: 0 8px 8px 0;
+}
+
+.markdown-body code {
+  background-color: var(--sidebar-hover) !important;
+  color: #f0f6fc !important;
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+}
+
+.markdown-body pre {
+  background-color: var(--sidebar-bg) !important;
+  padding: 16px;
+  border-radius: 12px;
+  overflow: auto;
+}
+
+/* Buttons and Controls */
+.btn-icon {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:hover {
+  background-color: #f1f3f5;
+  color: var(--primary-color);
+}
+
+.primary-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.primary-btn:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Management Features */
+.article-card {
+  position: relative;
+}
+
+.article-card .btn-icon {
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 4px;
+}
+
+.article-card:hover .btn-icon {
+  opacity: 0.6;
+}
+
+.article-card .btn-icon:hover {
+  opacity: 1;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.sidebar.collapsed .account-avatar {
+  margin: 0 auto;
+}
+
+.sidebar-footer .primary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--primary-color);
+  width: 100%;
+  transition: transform 0.1s;
+}
+
+.sidebar-footer .primary-btn:active {
+  transform: scale(0.98);
+}
+
+/* Custom Scrollbar for Dark Theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Reader Specific Typography Overrides */
+.markdown-body hr {
+  height: 1px;
+  background-color: var(--border-color) !important;
+  border: none !important;
+  margin: 24px 0;
+}
+
+/* Settings Overlay & Modal */
+.settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.settings-modal {
+  width: 500px;
+  background: var(--card-bg);
+  border: 1px solid #2c2e33;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-header {
+  padding: 20px;
+  border-bottom: 1px solid #2c2e33;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-header h3 {
+  margin: 0;
+  color: #fff;
+  font-weight: 600;
+}
+
+.settings-body {
+  padding: 24px;
+}
+
+.settings-section {
+  margin-bottom: 28px;
+}
+
+.settings-section h4 {
+  margin: 0 0 12px 0;
+  color: var(--primary-color);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.settings-section p {
+  font-size: 0.9rem;
+  color: #c9d1d9; /* Brighter for subtext in dark mode */
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.settings-status {
+  margin-top: 15px;
+  font-size: 0.85rem;
+  color: #4ade80;
+  padding: 10px 14px;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 6px;
+}
+
+.delete-btn:hover {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
