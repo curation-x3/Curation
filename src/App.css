@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --primary-color: #3b82f6;
   --primary-hover: #2563eb;
@@ -323,6 +325,12 @@ body {
   line-height: 1.8;
   color: var(--text-primary) !important;
   background-color: transparent !important;
+}
+
+.markdown-body img {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
 }
 
 .markdown-body * {

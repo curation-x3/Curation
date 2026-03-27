@@ -3,6 +3,10 @@ import time
 import logging
 import httpx
 from typing import Optional, Dict, Any, List, TypedDict, Union
+from dotenv import load_dotenv
+
+# Load environment variables from .env if present
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +102,17 @@ class PostHistoryResponse(TypedDict):
     mp_ghid: str
     head_img: str
 
+class BalanceInfo(TypedDict):
+    """API 余额信息"""
+    code: Union[str, int]
+    remain_money: str
+    yesterday_money: str
+    request_time: str
+
 class WeChatAPIError(Exception):
     """Custom exception for WeChat API errors."""
     def __init__(self, code: int, message: str, data: Any = None):
-        self.code = code
+        self.code = int(code) if isinstance(code, str) and code.isdigit() else (0 if code == "0" else code)
         self.message = message
         self.data = data
         super().__init__(f"API Error {code}: {message}")
@@ -122,12 +133,17 @@ async def _request(method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
     elif "params" in kwargs:
          kwargs["params"].setdefault("key", api_key)
          kwargs["params"].setdefault("verifycode", "")
+    elif "data" in kwargs:
+         # For multipart/form-data
+         kwargs["data"].setdefault("key", api_key)
+         kwargs["data"].setdefault("verifycode", "")
 
     max_retries = 3
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 if method.upper() == "POST":
+                    # httpx uses 'data' for form-data
                     response = await client.post(url, **kwargs)
                 else:
                     response = await client.get(url, **kwargs)
@@ -150,7 +166,9 @@ async def _request(method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
                         continue
                     raise WeChatAPIError(50000, "Internal Server Error")
 
-                code = data.get("code", 0)
+                # The balance API might return code as string
+                raw_code = data.get("code", 0)
+                code = int(raw_code) if isinstance(raw_code, str) and raw_code.isdigit() else (0 if raw_code == "0" else raw_code)
                 
                 # Success
                 if code == 0:
@@ -229,3 +247,10 @@ async def get_post_history(biz: str = "", url: str = "", name: str = "", page: i
     }
     res = await _request("POST", "/fbmain/monitor/v3/post_history", json=payload)
     return res # type: ignore
+
+async def get_remain_money() -> BalanceInfo:
+    """
+    获取 API 余额
+    Endpoint: /fbmain/monitor/v3/get_remain_money (POST, multipart/form-data)
+    """
+    return await _request("POST", "/fbmain/monitor/v3/get_remain_money", data={}) # type: ignore

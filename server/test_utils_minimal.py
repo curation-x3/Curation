@@ -9,6 +9,7 @@ from utils import (
     get_article_html, 
     get_article_detail, 
     get_post_history,
+    get_remain_money,
     WeChatAPIError
 )
 
@@ -71,6 +72,26 @@ async def test_get_post_history():
         assert kwargs["json"]["page"] == 1
         assert kwargs["json"]["key"] == "test_key"
 
+async def test_get_remain_money():
+    mock_response = {
+        "code": "0",
+        "remain_money": "100.50",
+        "yesterday_money": "105.00",
+        "request_time": "2026-03-27 09:20:00"
+    }
+    
+    with patch("httpx.AsyncClient.post") as mock_post:
+        mock_post.return_value = Mock(status_code=200)
+        mock_post.return_value.json.return_value = mock_response
+        
+        result = await get_remain_money()
+        assert result["code"] == "0"
+        assert result["remain_money"] == "100.50"
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        # Should be in 'data' for form-data
+        assert kwargs["data"]["key"] == "test_key"
+
 if __name__ == "__main__":
     # Simple manual run if pytest is not used
     print("Running manual tests...")
@@ -82,6 +103,8 @@ if __name__ == "__main__":
         print("✅ get_article_html error test passed")
         loop.run_until_complete(test_get_post_history())
         print("✅ get_post_history test passed")
+        loop.run_until_complete(test_get_remain_money())
+        print("✅ get_remain_money test passed")
         print("\nAll manual tests passed!")
     except Exception as e:
         print(f"❌ Test failed: {e}")

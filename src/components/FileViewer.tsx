@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FileText, ChevronDown } from "lucide-react";
+
 
 const API_BASE = "http://127.0.0.1:8889";
 

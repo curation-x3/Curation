@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl};
 
 const SERVER_URL: &str = "http://127.0.0.1:8889/process";
 
@@ -34,7 +34,7 @@ const INIT_SCRIPT: &str = r#"
             await window.__TAURI_INTERNALS__.invoke('receive_article', { title, author, account, date, url, html });
             return true;
         } catch(e) {
-            console.error('[wechat-reader] extract failed:', e);
+            console.error('[Curation] extract failed:', e);
             return false;
         }
     };
@@ -43,18 +43,18 @@ const INIT_SCRIPT: &str = r#"
     (function() {
         const timer = setInterval(async () => {
             if (await window.__extractAndSend()) {
-                console.log('[wechat-reader] Auto-extracted successfully');
+                console.log('[Curation] Auto-extracted successfully');
                 clearInterval(timer);
             }
         }, 1000);
     })();
-    console.log('[wechat-reader] auto-extractor ready');
+    console.log('[Curation] auto-extractor ready');
 "#;
 
 /// Create a HIDDEN webview window to extract content.
 #[tauri::command]
 fn open_article(app: AppHandle, url: String) -> Result<(), String> {
-    println!("[wechat-reader] opening silent extractor: {}", url);
+    println!("[Curation] opening silent extractor: {}", url);
     let trimmed = url.trim();
     let parsed: url::Url = trimmed.parse().map_err(|e: url::ParseError| e.to_string())?;
 
@@ -94,7 +94,7 @@ async fn receive_article(
     html: String,
 ) -> Result<(), String> {
     let html_len = html.len();
-    println!("[wechat-reader] Rust received article: {} ({} chars)", title, html_len);
+    println!("[Curation] Rust received article: {} ({} chars)", title, html_len);
 
     // Close the extractor window immediately
     if let Some(sub) = app.webview_windows().get("article-viewer") {
@@ -160,6 +160,7 @@ async fn receive_article(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             open_article,
             resize_webview,
