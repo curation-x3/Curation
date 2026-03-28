@@ -8,8 +8,8 @@
 
 ## 账号订阅规则
 
-- 用户只能看到从自己**订阅日期（`subscribed_at`）起之后**发布的文章，之前的历史文章永远不可见
 - `subscribed_at` 在账号首次变为 `subscribed` 时记录，此后不再更新
+- 文章可见性不受 `subscribed_at` 限制，所有已存入 DB 的文章均可见
 
 ---
 
@@ -69,11 +69,7 @@
 
 ## 文章可见性过滤
 
-| 账号类型 | 过滤规则 |
-|---------|---------|
-| `subscribed` | `substr(publish_time, 1, 10) >= subscribed_at` |
-| `temporary` | 全部可见 |
-| 全部文章视图 | 按各账号规则过滤后合并 |
+所有账号（`subscribed` 和 `temporary`）的文章均全部可见，无订阅日期过滤限制。
 
 ---
 

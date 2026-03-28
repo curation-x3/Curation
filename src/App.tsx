@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { BookOpen, ExternalLink, Rss, ChevronLeft, Menu, Layers, X, ShieldCheck, FileText, Sparkles, LogOut } from 'lucide-react';
+import { BookOpen, ExternalLink, Rss, ChevronLeft, Menu, Layers, X, ShieldCheck, FileText, Sparkles, LogOut, UserMinus, UserPlus } from 'lucide-react';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
@@ -316,6 +316,27 @@ function AppMain({ currentUser, onLogout }: {
     }
   };
 
+  const handleUnsubscribe = async (e: React.MouseEvent, accountId: number) => {
+    e.stopPropagation();
+    if (!confirm("确定取消订阅该公众号？已有文章数据不会删除。")) return;
+    try {
+      await apiFetch(`/accounts/${accountId}/unsubscribe`, { method: "POST" });
+      fetchAccounts();
+    } catch (err) {
+      console.error("Unsubscribe failed", err);
+    }
+  };
+
+  const handleResubscribe = async (e: React.MouseEvent, accountId: number) => {
+    e.stopPropagation();
+    try {
+      await apiFetch(`/accounts/${accountId}/resubscribe`, { method: "POST" });
+      fetchAccounts();
+    } catch (err) {
+      console.error("Resubscribe failed", err);
+    }
+  };
+
   const subscribedAccounts = accounts.filter(a => !a.subscription_type || a.subscription_type === 'subscribed');
   const temporaryAccounts = accounts.filter(a => a.subscription_type === 'temporary');
 
@@ -373,6 +394,15 @@ function AppMain({ currentUser, onLogout }: {
               className={`account-item ${selectedAccountId === acc.id ? 'active' : ''}`}
               onClick={() => setSelectedAccountId(acc.id)}
               title={isSidebarCollapsed ? acc.name : ""}
+              style={{ position: 'relative' }}
+              onMouseEnter={e => {
+                const btn = e.currentTarget.querySelector('.account-action-btn') as HTMLElement | null;
+                if (btn) btn.style.opacity = '1';
+              }}
+              onMouseLeave={e => {
+                const btn = e.currentTarget.querySelector('.account-action-btn') as HTMLElement | null;
+                if (btn) btn.style.opacity = '0';
+              }}
             >
               <img
                 src={acc.avatar_url || "https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07xvMibqLuWicX7Y16H1xP81v6B0Sraia9zK0dYniamHwJxiaGvH6v97K8K1icYibib9eA/0"}
@@ -383,6 +413,22 @@ function AppMain({ currentUser, onLogout }: {
               <div className="account-info">
                 <div className="account-name">{acc.name}</div>
               </div>
+              {!isSidebarCollapsed && (
+                <button
+                  className="btn-icon account-action-btn"
+                  title="取消订阅"
+                  onClick={(e) => handleUnsubscribe(e, acc.id)}
+                  style={{
+                    opacity: 0,
+                    transition: 'opacity 0.15s',
+                    padding: 3,
+                    flexShrink: 0,
+                    background: 'none',
+                  }}
+                >
+                  <UserMinus size={13} style={{ color: '#f85149' }} />
+                </button>
+              )}
             </div>
           ))}
 
@@ -399,7 +445,17 @@ function AppMain({ currentUser, onLogout }: {
                   className={`account-item ${selectedAccountId === acc.id ? 'active' : ''}`}
                   onClick={() => setSelectedAccountId(acc.id)}
                   title={isSidebarCollapsed ? acc.name : ""}
-                  style={{ opacity: 0.8 }}
+                  style={{ opacity: 0.8, position: 'relative' }}
+                  onMouseEnter={e => {
+                    const btn = e.currentTarget.querySelector('.account-action-btn') as HTMLElement | null;
+                    if (btn) btn.style.opacity = '1';
+                    (e.currentTarget as HTMLElement).style.opacity = '1';
+                  }}
+                  onMouseLeave={e => {
+                    const btn = e.currentTarget.querySelector('.account-action-btn') as HTMLElement | null;
+                    if (btn) btn.style.opacity = '0';
+                    (e.currentTarget as HTMLElement).style.opacity = '0.8';
+                  }}
                 >
                   <img
                     src={acc.avatar_url || "https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07xvMibqLuWicX7Y16H1xP81v6B0Sraia9zK0dYniamHwJxiaGvH6v97K8K1icYibib9eA/0"}
@@ -410,6 +466,22 @@ function AppMain({ currentUser, onLogout }: {
                   <div className="account-info">
                     <div className="account-name">{acc.name}</div>
                   </div>
+                  {!isSidebarCollapsed && (
+                    <button
+                      className="btn-icon account-action-btn"
+                      title="订阅此公众号"
+                      onClick={(e) => handleResubscribe(e, acc.id)}
+                      style={{
+                        opacity: 0,
+                        transition: 'opacity 0.15s',
+                        padding: 3,
+                        flexShrink: 0,
+                        background: 'none',
+                      }}
+                    >
+                      <UserPlus size={13} style={{ color: '#3fb950' }} />
+                    </button>
+                  )}
                 </div>
               ))}
             </>
