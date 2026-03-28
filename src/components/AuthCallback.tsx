@@ -16,14 +16,18 @@ let _callbackPromise: Promise<CallbackResult> | null = null;
 
 function getCallbackResult(): Promise<CallbackResult> {
   if (!_callbackPromise) {
-    _callbackPromise = authingClient
+    const timeout = new Promise<CallbackResult>(resolve =>
+      setTimeout(() => resolve({ error: `Token exchange timed out (15s). Origin: ${window.location.origin} URL: ${window.location.href}` }), 15000)
+    );
+    const exchange = authingClient
       .handleRedirectCallback()
       .then((res: any) => {
         const idToken = res?.idToken ?? "";
-        if (!idToken) return { error: "未能获取 ID Token，请重试" };
+        if (!idToken) return { error: `No ID token returned. Response: ${JSON.stringify(res)}` };
         return { idToken };
       })
-      .catch((e: any) => ({ error: e?.message ?? "认证过程发生错误" }));
+      .catch((e: any) => ({ error: `${e?.message ?? "Auth error"} (${e?.code ?? ""})` }));
+    _callbackPromise = Promise.race([exchange, timeout]);
   }
   return _callbackPromise;
 }
