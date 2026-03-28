@@ -108,8 +108,8 @@ function AppMain({ currentUser, onLogout }: {
 
   // Layout States
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
-  const [listWidth, setListWidth] = useState(360);
+  const [sidebarWidth, setSidebarWidth] = useState(() => Number(localStorage.getItem('curation_sidebar_width') || 200));
+  const [listWidth, setListWidth] = useState(() => Number(localStorage.getItem('curation_list_width') || 260));
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingList, setIsResizingList] = useState(false);
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -262,6 +262,8 @@ function AppMain({ currentUser, onLogout }: {
     };
 
     const handleMouseUp = () => {
+      if (isResizingSidebar) localStorage.setItem('curation_sidebar_width', String(sidebarWidth));
+      if (isResizingList) localStorage.setItem('curation_list_width', String(listWidth));
       setIsResizingSidebar(false);
       setIsResizingList(false);
       document.body.style.cursor = 'default';
@@ -335,7 +337,7 @@ function AppMain({ currentUser, onLogout }: {
       {/* Pane 1: Sidebar (Accounts) */}
       <aside
         className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}
-        style={{ width: isSidebarCollapsed ? 72 : 280 }}
+        style={{ width: isSidebarCollapsed ? 72 : sidebarWidth }}
       >
         <div className="sidebar-header">
           <h2 className="sidebar-title">
