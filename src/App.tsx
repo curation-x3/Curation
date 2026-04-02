@@ -87,6 +87,7 @@ interface Article {
   contentFormat?: "html" | "markdown";
 
   word_count?: number;
+  read_status?: number;
 
   // Full-fidelity API fields
   hashid?: string;
@@ -278,6 +279,10 @@ function AppMain({ currentUser, onLogout }: {
         content_source: resp.source,
       });
       setAnalysisStatus(analysisResp.analysis_status ?? "none");
+      // Mark as read if analysis content was loaded
+      if (resp.source === "analysis" && resp.content) {
+        apiFetch(`/articles/${art.id}/read?status=1`, { method: "POST" }).catch(() => {});
+      }
       // Refresh article list so admin panel reflects updated html_path/markdown_path
       fetchArticles(selectedAccountId ?? -1);
     });
@@ -346,6 +351,10 @@ function AppMain({ currentUser, onLogout }: {
         } : null);
         setViewRaw(false);
         setNotification(`「${activeArticle?.title?.slice(0, 20) ?? ""}」AI 总结已生成`);
+        // Mark as read when analysis completes
+        apiFetch(`/articles/${selectedArticleId}/read?status=1`, { method: "POST" })
+          .then(() => fetchArticles(selectedAccountId ?? -1))
+          .catch(() => {});
       }
     }, 5000);
     return () => clearInterval(id);
@@ -680,7 +689,7 @@ function AppMain({ currentUser, onLogout }: {
                     onClick={() => setSelectedArticleId(art.id)}
                   >
                     <div className="article-card-left">
-                      <div className="article-card-title">{art.title}</div>
+                      <div className={`article-card-title ${art.read_status ? 'read' : ''}`}>{art.title}</div>
                       {art.digest && <div className="article-card-digest">{art.digest}</div>}
                       <div className="article-card-meta">
                         {art.publish_time}{art.word_count ? ` · 约${art.word_count}字 · 阅读约${Math.max(1, Math.round(art.word_count / 400))}分钟` : ''}{art.account && <> · <span

@@ -259,6 +259,11 @@ body {
   font-weight: 600;
   line-height: 1.4;
   color: var(--text-main);
+}
+
+.article-card-title.read {
+  font-weight: 400;
+  color: var(--text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
