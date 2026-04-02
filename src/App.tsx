@@ -86,6 +86,8 @@ interface Article {
   rawHtml?: string;
   contentFormat?: "html" | "markdown";
 
+  word_count?: number;
+
   // Full-fidelity API fields
   hashid?: string;
   idx?: string;
@@ -230,6 +232,8 @@ function AppMain({ currentUser, onLogout }: {
   const [isAddArticleOpen, setIsAddArticleOpen] = useState(false);
   const [viewRaw, setViewRaw] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState<"none" | "pending" | "running" | "done" | "failed">("none");
+  const [summaryWordCount, setSummaryWordCount] = useState(0);
+  const [rawWordCount, setRawWordCount] = useState(0);
   const [notification, setNotification] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
 
@@ -254,12 +258,16 @@ function AppMain({ currentUser, onLogout }: {
     const art = articles.find(a => a.id === selectedArticleId);
     if (!art) return;
     setAnalysisStatus("none");
+    setSummaryWordCount(0);
+    setRawWordCount(0);
     Promise.all([
       apiFetch(`/articles/${art.id}/content`).then(r => r.json()),
       apiFetch(`/articles/${art.id}/raw`).then(r => r.json()),
       apiFetch(`/articles/${art.id}/request-analysis`, { method: "POST" }).then(r => r.json()),
     ]).then(([resp, rawResp, analysisResp]) => {
       setViewRaw(resp.source !== "analysis");
+      setSummaryWordCount(resp.word_count ?? 0);
+      setRawWordCount(resp.raw_word_count ?? 0);
       setActiveArticle({
         ...art,
         markdown: resp.content,
@@ -327,6 +335,8 @@ function AppMain({ currentUser, onLogout }: {
           apiFetch(`/articles/${selectedArticleId}/content`).then(r => r.json()),
           apiFetch(`/articles/${selectedArticleId}/raw`).then(r => r.json()),
         ]);
+        setSummaryWordCount(contentResp.word_count ?? 0);
+        setRawWordCount(contentResp.raw_word_count ?? 0);
         setActiveArticle(prev => prev ? {
           ...prev,
           markdown: contentResp.content,
@@ -666,7 +676,7 @@ function AppMain({ currentUser, onLogout }: {
                 <div className="article-card-title">{art.title}</div>
                 {art.digest && <div className="article-card-digest">{art.digest}</div>}
                 <div className="article-card-meta">
-                  {art.publish_time}{art.account && <> · <span
+                  {art.publish_time}{art.word_count ? ` · 约${art.word_count}字 · 阅读约${Math.max(1, Math.round(art.word_count / 400))}分钟` : ''}{art.account && <> · <span
                     onClick={e => { e.stopPropagation(); if (art.account_id) setSelectedAccountId(art.account_id); }}
                     style={{ cursor: 'pointer', color: 'var(--primary-color)', textDecoration: 'none' }}
                     onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
@@ -844,6 +854,29 @@ function AppMain({ currentUser, onLogout }: {
                 <ExternalLink size={18} />
               </button>
             </div>
+            {/* Word count info bar */}
+            {activeArticle.content_source === "analysis" && summaryWordCount > 0 && rawWordCount > 0 && (
+              <div style={{
+                padding: '6px 16px', fontSize: '0.78rem', color: '#8b949e',
+                background: '#161b22', borderBottom: '1px solid #21262d',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span>全文约{summaryWordCount}字 · 阅读约{Math.max(1, Math.round(summaryWordCount / 400))}分钟（原文约{rawWordCount}字）</span>
+                {summaryWordCount / rawWordCount > 0.7 && (
+                  <span style={{ color: '#d29922', marginLeft: 4 }}>
+                    — AI 认为这是一篇值得完整阅读的文章
+                  </span>
+                )}
+              </div>
+            )}
+            {activeArticle.content_source !== "analysis" && rawWordCount > 0 && viewRaw && (
+              <div style={{
+                padding: '6px 16px', fontSize: '0.78rem', color: '#8b949e',
+                background: '#161b22', borderBottom: '1px solid #21262d',
+              }}>
+                全文约{rawWordCount}字 · 阅读约{Math.max(1, Math.round(rawWordCount / 400))}分钟
+              </div>
+            )}
             <div className="reader-content animate-in">
               {!viewRaw && (analysisStatus === "pending" || analysisStatus === "running") ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16, color: '#8b949e' }}>
