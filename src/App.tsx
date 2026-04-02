@@ -783,7 +783,10 @@ function AppMain({ currentUser, onLogout }: {
                   }}
                 />
               ) : adminView === "queue" ? (
-                <AnalysisQueuePanel />
+                <AnalysisQueuePanel onNavigateToArticle={(id) => {
+                  setSelectedArticleId(id);
+                  setIsAdminMode(false);
+                }} />
               ) : adminView === "invites" ? (
                 <InviteManagementPanel />
               ) : adminView === "users" ? (

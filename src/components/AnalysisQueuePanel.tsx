@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Play, ExternalLink } from "lucide-react";
+import type { AgentManifest } from "../types";
+import { apiFetch } from "../lib/api";
 
 interface QueueEntry {
   id: number;
@@ -15,6 +17,11 @@ interface QueueEntry {
 interface Strategy {
   auto_launch: boolean;
   max_concurrency: number;
+  default_backend: string;
+}
+
+interface Props {
+  onNavigateToArticle?: (articleId: number) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -31,12 +38,12 @@ const STATUS_COLOR: Record<string, string> = {
   failed: "#f85149",
 };
 
-import { apiFetch } from "../lib/api";
-
-export function AnalysisQueuePanel() {
+export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
   const [queue, setQueue] = useState<QueueEntry[]>([]);
-  const [strategy, setStrategy] = useState<Strategy>({ auto_launch: true, max_concurrency: 2 });
+  const [strategy, setStrategy] = useState<Strategy>({ auto_launch: true, max_concurrency: 2, default_backend: "" });
+  const [manifest, setManifest] = useState<AgentManifest | null>(null);
   const [loading, setLoading] = useState(false);
+  const [runningArticles, setRunningArticles] = useState<Set<number>>(new Set());
 
   const fetchData = async () => {
     setLoading(true);
@@ -52,9 +59,22 @@ export function AnalysisQueuePanel() {
     }
   };
 
+  // Fetch manifest for backend options
+  useEffect(() => {
+    apiFetch(`/agent/versions?n=1`)
+      .then(r => r.json())
+      .then(resp => {
+        const vs = resp.data ?? [];
+        if (vs.length > 0 && vs[0].manifest) {
+          setManifest(vs[0].manifest);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetchData();
-    const id = setInterval(fetchData, 10000);
+    const id = setInterval(fetchData, 5000);
     return () => clearInterval(id);
   }, []);
 
@@ -67,6 +87,18 @@ export function AnalysisQueuePanel() {
       body: JSON.stringify(patch),
     });
   };
+
+  const triggerRun = async (articleId: number) => {
+    setRunningArticles(prev => new Set(prev).add(articleId));
+    try {
+      await apiFetch(`/queue/${articleId}/run`, { method: "POST" });
+      await fetchData();
+    } finally {
+      setRunningArticles(prev => { const s = new Set(prev); s.delete(articleId); return s; });
+    }
+  };
+
+  const backends = manifest ? Object.keys(manifest.backends) : [];
 
   return (
     <div style={{ padding: "18px 24px", overflowY: "auto", height: "100%" }}>
@@ -121,6 +153,25 @@ export function AnalysisQueuePanel() {
               ))}
             </select>
           </label>
+
+          {/* Default backend */}
+          {backends.length > 0 && (
+            <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: "0.85rem", color: "#e6edf3" }}>默认后端</span>
+              <select
+                value={strategy.default_backend}
+                onChange={e => patchStrategy({ default_backend: e.target.value })}
+                style={{
+                  background: "#21262d", border: "1px solid #30363d", borderRadius: 5,
+                  color: "#e6edf3", padding: "3px 8px", fontSize: "0.85rem", cursor: "pointer",
+                }}
+              >
+                {backends.map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
 
@@ -138,6 +189,7 @@ export function AnalysisQueuePanel() {
                 <th style={{ padding: "8px 14px", textAlign: "left", fontWeight: 500 }}>文章</th>
                 <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500, whiteSpace: "nowrap" }}>请求次数</th>
                 <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500 }}>状态</th>
+                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500 }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -150,8 +202,17 @@ export function AnalysisQueuePanel() {
                   }}
                 >
                   <td style={{ padding: "9px 14px", color: "#e6edf3", maxWidth: 340 }}>
-                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
                       {entry.article_title}
+                      {onNavigateToArticle && (
+                        <button
+                          onClick={() => onNavigateToArticle(entry.article_id)}
+                          title="跳转到文章"
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#58a6ff", padding: 0, display: "flex" }}
+                        >
+                          <ExternalLink size={12} />
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td style={{ padding: "9px 14px", textAlign: "center", color: "#e6edf3" }}>
@@ -165,6 +226,24 @@ export function AnalysisQueuePanel() {
                     }}>
                       {STATUS_LABEL[entry.status] ?? entry.status}
                     </span>
+                  </td>
+                  <td style={{ padding: "9px 14px", textAlign: "center" }}>
+                    {(entry.status === "pending" || entry.status === "failed") && (
+                      <button
+                        onClick={() => triggerRun(entry.article_id)}
+                        disabled={runningArticles.has(entry.article_id)}
+                        title="立即运行"
+                        style={{
+                          background: "#238636", border: "none", borderRadius: 4,
+                          color: "#fff", padding: "3px 10px", cursor: "pointer",
+                          fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 4,
+                          opacity: runningArticles.has(entry.article_id) ? 0.5 : 1,
+                        }}
+                      >
+                        <Play size={11} />
+                        运行
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
