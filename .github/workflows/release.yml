@@ -42,6 +42,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
           VITE_AUTHING_APP_ID: ${{ vars.VITE_AUTHING_APP_ID }}
           VITE_AUTHING_DOMAIN: ${{ vars.VITE_AUTHING_DOMAIN }}
           VITE_AUTHING_REDIRECT_URI: ${{ vars.VITE_AUTHING_REDIRECT_URI }}
@@ -77,9 +78,9 @@ jobs:
 
             ---
 
-            ## Requirements
+            ## Notes
 
-            This app requires **Curation Server** to be running locally. Contact the admin for setup instructions if you haven't received them.
+            App connects to the cloud backend automatically. No local server setup needed.
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: false

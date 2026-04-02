@@ -43,14 +43,25 @@ export interface AnalysisRun {
   created_at: string;
 }
 
+export interface BackendInfo {
+  canonical_id: string;
+  description: string;
+}
+
+export interface AgentManifest {
+  stages: string[];
+  backends: Record<string, BackendInfo>;
+  default_backend?: string;
+}
+
 export interface AgentVersion {
   hash: string;
   short_hash: string;
   message: string;
   date: string;
+  manifest?: AgentManifest;
 }
 
 export type StageStatus = "pending" | "running" | "done" | "failed";
 
-export const STAGES = ["deconstruct", "evaluate", "synthesize", "write"] as const;
-export type Stage = typeof STAGES[number];
+export type Stage = string;

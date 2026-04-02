@@ -2,11 +2,9 @@ import { useEffect, useState } from "react";
 import { Play, RefreshCw, ChevronDown, ChevronRight, Eye, Columns2, List, Radio } from "lucide-react";
 import { RunProgress } from "./RunProgress";
 import { FileViewer } from "./FileViewer";
-import type { Article, AnalysisRun, AgentVersion, Stage } from "../types";
-import { STAGES } from "../types";
+import type { Article, AnalysisRun, AgentVersion, AgentManifest, Stage } from "../types";
 
 import { apiFetch } from "../lib/api";
-const BACKENDS = ["claude", "minimax", "sonnet"] as const;
 
 interface Props {
   article: Article;
@@ -94,6 +92,7 @@ function ComparePane({
 export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
   const [versions, setVersions] = useState<AgentVersion[]>([]);
   const [selectedHash, setSelectedHash] = useState<string>("");
+  const [manifest, setManifest] = useState<AgentManifest | null>(null);
   const [backend, setBackend] = useState<string>("claude");
   const [triggering, setTriggering] = useState(false);
 
@@ -103,17 +102,41 @@ export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
 
   const [compareMode, setCompareMode] = useState(false);
 
-  // Load agent versions
+  // Load agent versions (HEAD version includes manifest)
   useEffect(() => {
     apiFetch(`/agent/versions?n=20`)
       .then(r => r.json())
       .then(resp => {
         const vs: AgentVersion[] = resp.data ?? [];
         setVersions(vs);
-        if (vs.length > 0) setSelectedHash(vs[0].hash);
+        if (vs.length > 0) {
+          setSelectedHash(vs[0].hash);
+          if (vs[0].manifest) {
+            setManifest(vs[0].manifest);
+            if (vs[0].manifest.default_backend) setBackend(vs[0].manifest.default_backend);
+          }
+        }
       })
       .catch(() => {});
   }, []);
+
+  // Fetch manifest when user selects a different agent version
+  useEffect(() => {
+    if (!selectedHash) return;
+    const v = versions.find(v => v.hash === selectedHash);
+    if (v?.manifest) { setManifest(v.manifest); return; }
+    apiFetch(`/agent/versions/${selectedHash}/manifest`)
+      .then(r => r.json())
+      .then(resp => {
+        const m = resp.data as AgentManifest;
+        setManifest(m);
+        // Cache it on the version object
+        setVersions(prev => prev.map(v =>
+          v.hash === selectedHash ? { ...v, manifest: m } : v
+        ));
+      })
+      .catch(() => {});
+  }, [selectedHash]);
 
   const loadRuns = () =>
     apiFetch(`/articles/${article.id}/runs`)
@@ -198,8 +221,9 @@ export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
             ))}
           </select>
           <div className="flex gap-1">
-            {BACKENDS.map(b => (
+            {(manifest ? Object.keys(manifest.backends) : ["claude"]).map(b => (
               <button key={b} onClick={() => setBackend(b)}
+                title={manifest?.backends[b]?.description}
                 className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
                   backend === b ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                 }`}>
@@ -214,6 +238,18 @@ export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
             一条龙运行
           </button>
         </div>
+        {/* Manifest info */}
+        {manifest && (
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            <span>阶段: {manifest.stages.join(" → ")}</span>
+            <span className="text-gray-600">|</span>
+            <span>当前后端: <span className="text-blue-400">{backend}</span>
+              {manifest.backends[backend]?.description && (
+                <span className="text-gray-600 ml-1">({manifest.backends[backend].description})</span>
+              )}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -265,11 +301,11 @@ export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
                     {/* Expanded detail */}
                     {isExpanded && (
                       <div className="px-10 pb-3 space-y-3">
-                        <RunProgress run={run} onUpdate={handleRunUpdate} />
+                        <RunProgress run={run} stages={manifest?.stages ?? []} onUpdate={handleRunUpdate} />
 
                         {/* Stage re-trigger */}
                         <div className="flex flex-wrap gap-1.5 pt-1">
-                          {STAGES.map(stage => {
+                          {(manifest?.stages ?? []).map(stage => {
                             const status  = run[`${stage}_status` as keyof AnalysisRun] as string;
                             const elapsed = run[`${stage}_elapsed_s` as keyof AnalysisRun] as number | null;
                             return (

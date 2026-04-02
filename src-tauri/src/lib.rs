@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl};
 
-const SERVER_URL: &str = "http://127.0.0.1:8889/process";
+fn server_process_url() -> String {
+    std::env::var("CURATION_SERVER_PROCESS_URL").unwrap_or_else(|_| {
+        "http://127.0.0.1:8889/process".to_string()
+    })
+}
 
 #[derive(Serialize, Deserialize)]
 struct ArticlePayload {
@@ -124,7 +128,8 @@ async fn receive_article(
         html,
     };
 
-    match client.post(SERVER_URL).json(&payload).send().await {
+    let url = server_process_url();
+    match client.post(&url).json(&payload).send().await {
         Ok(resp) => {
             let status = resp.status();
             if status.is_success() {

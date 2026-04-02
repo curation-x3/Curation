@@ -24,7 +24,7 @@ curation-app/
 **三个仓库协作：**
 - `curation-app`（本仓库）：前端 + 后端服务
 - `curation-data`（外部目录）：文章内容缓存、分析结果，路径通过 `CURATION_DATA_DIR` 指定
-- `curation-agent`（外部仓库）：AI 分析 pipeline，路径通过 `CURATION_AGENT_REPO` 指定
+- `curation-agent`（外部仓库）：AI 分析 pipeline，路径通过 `CURATION_AGENT_REPO` 指定。Agent 根目录的 `manifest.yaml` 定义了可用的 stages 和 backends，server 从各版本 worktree 中动态读取
 
 ---
 

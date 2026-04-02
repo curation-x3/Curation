@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle, XCircle, Loader2, Clock } from "lucide-react";
 import type { AnalysisRun, Stage } from "../types";
-import { STAGES } from "../types";
-
-const WS_BASE = "ws://127.0.0.1:8889";
+import { apiFetch, getAuthToken, getWsBase } from "../lib/api";
 
 interface Props {
   run: AnalysisRun;
+  stages: string[];
   onUpdate: (updated: AnalysisRun) => void;
 }
 
@@ -53,7 +52,7 @@ function StageRow({ stage, run }: { stage: Stage; run: AnalysisRun }) {
   );
 }
 
-export function RunProgress({ run, onUpdate }: Props) {
+export function RunProgress({ run, stages, onUpdate }: Props) {
   const wsRef = useRef<WebSocket | null>(null);
   const [localRun, setLocalRun] = useState<AnalysisRun>(run);
 
@@ -65,7 +64,12 @@ export function RunProgress({ run, onUpdate }: Props) {
     // Only connect if run is active
     if (!["pending", "running"].includes(run.overall_status)) return;
 
-    const ws = new WebSocket(`${WS_BASE}/runs/${run.id}/progress`);
+    const token = getAuthToken();
+    if (!token) return;
+
+    const wsBase = getWsBase();
+    const qs = new URLSearchParams({ token });
+    const ws = new WebSocket(`${wsBase}/runs/${run.id}/progress?${qs.toString()}`);
     wsRef.current = ws;
 
     ws.onmessage = (e) => {
@@ -75,8 +79,7 @@ export function RunProgress({ run, onUpdate }: Props) {
           setLocalRun(event.data);
           onUpdate(event.data);
         } else if (event.type === "stage_start" || event.type === "stage_end") {
-          // Refresh run data from server
-          fetch(`http://127.0.0.1:8889/runs/${run.id}`)
+          apiFetch(`/runs/${run.id}`)
             .then(r => r.json())
             .then(resp => {
               if (resp.data) {
@@ -85,7 +88,7 @@ export function RunProgress({ run, onUpdate }: Props) {
               }
             });
         } else if (event.type === "done" || event.type === "failed") {
-          fetch(`http://127.0.0.1:8889/runs/${run.id}`)
+          apiFetch(`/runs/${run.id}`)
             .then(r => r.json())
             .then(resp => {
               if (resp.data) {
@@ -103,13 +106,13 @@ export function RunProgress({ run, onUpdate }: Props) {
     };
   }, [run.id, run.overall_status]);
 
-  const totalElapsed = STAGES
+  const totalElapsed = stages
     .map(s => localRun[`${s}_elapsed_s` as keyof AnalysisRun] as number | null)
     .reduce((a, b) => (a ?? 0) + (b ?? 0), 0);
 
   return (
     <div className="space-y-0.5">
-      {STAGES.map(stage => (
+      {stages.map(stage => (
         <StageRow key={stage} stage={stage} run={localRun} />
       ))}
       {totalElapsed !== null && totalElapsed > 0 && (

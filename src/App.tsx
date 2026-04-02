@@ -20,6 +20,27 @@ import { apiFetch } from './lib/api';
 import { authingClient } from './lib/authing';
 import "./App.css";
 
+async function apiFailureDetail(res: Response): Promise<string> {
+  try {
+    const j = (await res.json()) as { detail?: unknown };
+    const d = j.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) {
+      return d
+        .map((item) =>
+          item && typeof item === "object" && "msg" in item
+            ? String((item as { msg: unknown }).msg)
+            : JSON.stringify(item),
+        )
+        .join(" ");
+    }
+    if (d != null) return String(d);
+  } catch {
+    /* ignore non-JSON body */
+  }
+  return res.statusText || `HTTP ${res.status}`;
+}
+
 interface Account {
   id: number;
   biz: string;
@@ -60,6 +81,22 @@ interface Article {
   alias?: string;
   signature?: string;
   create_time?: string;
+}
+
+/** Initial three-pane width ratio — sidebar : list : reader = 1 : 1.8 : 4 (reader is flex remainder; subtracts list–reader resizer). */
+const LAYOUT_RATIO_SIDEBAR = 1;
+const LAYOUT_RATIO_LIST = 1.8;
+const LAYOUT_RATIO_READER = 4;
+const LAYOUT_RATIO_SUM = LAYOUT_RATIO_SIDEBAR + LAYOUT_RATIO_LIST + LAYOUT_RATIO_READER;
+const LIST_READER_RESIZER_PX = 5;
+
+function initialColumnWidthsFromViewport(): { sidebar: number; list: number } {
+  const w = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const avail = Math.max(0, w - LIST_READER_RESIZER_PX);
+  const unit = avail / LAYOUT_RATIO_SUM;
+  const sidebar = Math.max(150, Math.min(500, Math.round(unit * LAYOUT_RATIO_SIDEBAR)));
+  const list = Math.max(200, Math.min(600, Math.round(unit * LAYOUT_RATIO_LIST)));
+  return { sidebar, list };
 }
 
 function App() {
@@ -109,8 +146,22 @@ function AppMain({ currentUser, onLogout }: {
 
   // Layout States
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(() => Number(localStorage.getItem('curation_sidebar_width') || 200));
-  const [listWidth, setListWidth] = useState(() => Number(localStorage.getItem('curation_list_width') || 260));
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const raw = localStorage.getItem("curation_sidebar_width");
+    if (raw != null && raw !== "") {
+      const n = Number(raw);
+      if (!Number.isNaN(n)) return n;
+    }
+    return initialColumnWidthsFromViewport().sidebar;
+  });
+  const [listWidth, setListWidth] = useState(() => {
+    const raw = localStorage.getItem("curation_list_width");
+    if (raw != null && raw !== "") {
+      const n = Number(raw);
+      if (!Number.isNaN(n)) return n;
+    }
+    return initialColumnWidthsFromViewport().list;
+  });
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingList, setIsResizingList] = useState(false);
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -320,20 +371,32 @@ function AppMain({ currentUser, onLogout }: {
     e.stopPropagation();
     if (!confirm("确定取消订阅该公众号？已有文章数据不会删除。")) return;
     try {
-      await apiFetch(`/accounts/${accountId}/unsubscribe`, { method: "POST" });
+      const res = await apiFetch(`/accounts/${accountId}/unsubscribe`, { method: "POST" });
+      if (!res.ok) {
+        const msg = await apiFailureDetail(res);
+        alert(`取消订阅失败：${msg}`);
+        return;
+      }
       fetchAccounts();
     } catch (err) {
       console.error("Unsubscribe failed", err);
+      alert("取消订阅失败：网络错误");
     }
   };
 
   const handleResubscribe = async (e: React.MouseEvent, accountId: number) => {
     e.stopPropagation();
     try {
-      await apiFetch(`/accounts/${accountId}/resubscribe`, { method: "POST" });
+      const res = await apiFetch(`/accounts/${accountId}/resubscribe`, { method: "POST" });
+      if (!res.ok) {
+        const msg = await apiFailureDetail(res);
+        alert(`恢复订阅失败：${msg}`);
+        return;
+      }
       fetchAccounts();
     } catch (err) {
       console.error("Resubscribe failed", err);
+      alert("恢复订阅失败：网络错误");
     }
   };
 
