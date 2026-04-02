@@ -99,6 +99,39 @@ function initialColumnWidthsFromViewport(): { sidebar: number; list: number } {
   return { sidebar, list };
 }
 
+function UpdateBanner() {
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+
+  useEffect(() => {
+    const doCheck = () => check()
+      .then(u => {
+        console.log('[updater] check result:', u ? `update available: ${u.version}` : 'up to date');
+        if (u) setPendingUpdate(u);
+      })
+      .catch(e => console.error('[updater] check failed:', e));
+    doCheck();
+    const timer = setInterval(doCheck, 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (!pendingUpdate) return null;
+
+  return (
+    <button onClick={async () => {
+      await pendingUpdate.downloadAndInstall();
+      await relaunch();
+    }} style={{
+      position: 'fixed', top: 12, right: 16, zIndex: 200,
+      background: '#1f6feb', color: '#fff', border: 'none',
+      borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
+      fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6,
+      boxShadow: '0 2px 8px rgba(31,111,235,0.4)',
+    }}>
+      ↑ 新版本可用，点击重启安装
+    </button>
+  );
+}
+
 function App() {
   const { state: authState, logout } = useAuth();
 
@@ -106,6 +139,7 @@ function App() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center",
         justifyContent: "center", background: "#0d1117", color: "#8b949e", fontSize: 14 }}>
+        <UpdateBanner />
         加载中…
       </div>
     );
@@ -118,7 +152,12 @@ function App() {
   }
 
   if (authState.status === "unauthenticated") {
-    return <LoginScreen />;
+    return (
+      <>
+        <UpdateBanner />
+        <LoginScreen />
+      </>
+    );
   }
 
   const currentUser = authState.user;
@@ -130,7 +169,12 @@ function App() {
     });
   }
 
-  return <AppMain key={currentUser.id} currentUser={currentUser} onLogout={handleLogout} />;
+  return (
+    <>
+      <UpdateBanner />
+      <AppMain key={currentUser.id} currentUser={currentUser} onLogout={handleLogout} />
+    </>
+  );
 }
 
 function AppMain({ currentUser, onLogout }: {
@@ -172,7 +216,6 @@ function AppMain({ currentUser, onLogout }: {
   const [viewRaw, setViewRaw] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState<"none" | "pending" | "running" | "done" | "failed">("none");
   const [notification, setNotification] = useState<string | null>(null);
-  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
@@ -181,19 +224,6 @@ function AppMain({ currentUser, onLogout }: {
   useEffect(() => {
     fetchAccounts();
     fetchArticles(-1);
-  }, []);
-
-  // Check for updates every minute
-  useEffect(() => {
-    const doCheck = () => check()
-      .then(u => {
-        console.log('[updater] check result:', u ? `update available: ${u.version}` : 'up to date');
-        if (u) setPendingUpdate(u);
-      })
-      .catch(e => console.error('[updater] check failed:', e));
-    doCheck();
-    const timer = setInterval(doCheck, 60 * 1000);
-    return () => clearInterval(timer);
   }, []);
 
   // Load Articles when Account changes
@@ -403,25 +433,8 @@ function AppMain({ currentUser, onLogout }: {
   const subscribedAccounts = accounts.filter(a => !a.subscription_type || a.subscription_type === 'subscribed');
   const temporaryAccounts = accounts.filter(a => a.subscription_type === 'temporary');
 
-  const handleInstallUpdate = async () => {
-    if (!pendingUpdate) return;
-    await pendingUpdate.downloadAndInstall();
-    await relaunch();
-  };
-
   return (
     <div className="app-container">
-      {pendingUpdate && (
-        <button onClick={handleInstallUpdate} style={{
-          position: 'fixed', top: 12, right: 16, zIndex: 200,
-          background: '#1f6feb', color: '#fff', border: 'none',
-          borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
-          fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6,
-          boxShadow: '0 2px 8px rgba(31,111,235,0.4)',
-        }}>
-          ↑ 新版本可用，点击重启安装
-        </button>
-      )}
       {/* Pane 1: Sidebar (Accounts) */}
       <aside
         className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}
