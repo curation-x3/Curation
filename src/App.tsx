@@ -666,34 +666,44 @@ function AppMain({ currentUser, onLogout }: {
           </div>
         </header>
         <div className="list-content">
-          {articles.filter(a => a.title.toLowerCase().includes(searchQuery.toLowerCase())).map(art => (
-            <div 
-              key={art.id} 
-              className={`article-card ${selectedArticleId === art.id ? 'active' : ''}`}
-              onClick={() => setSelectedArticleId(art.id)}
-            >
-              <div className="article-card-left">
-                <div className="article-card-title">{art.title}</div>
-                {art.digest && <div className="article-card-digest">{art.digest}</div>}
-                <div className="article-card-meta">
-                  {art.publish_time}{art.word_count ? ` · 约${art.word_count}字 · 阅读约${Math.max(1, Math.round(art.word_count / 400))}分钟` : ''}{art.account && <> · <span
-                    onClick={e => { e.stopPropagation(); if (art.account_id) setSelectedAccountId(art.account_id); }}
-                    style={{ cursor: 'pointer', color: 'var(--primary-color)', textDecoration: 'none' }}
-                    onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                    onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-                  >{art.account}</span></>}
+          {(() => {
+            let lastDate = '';
+            return articles.filter(a => a.title.toLowerCase().includes(searchQuery.toLowerCase())).map(art => {
+              const dateStr = (art.publish_time || '').split(' ')[0] || '';
+              const showSeparator = dateStr && dateStr !== lastDate;
+              if (dateStr) lastDate = dateStr;
+              return (
+                <div key={art.id}>
+                  {showSeparator && <div className="date-separator">{dateStr}</div>}
+                  <div
+                    className={`article-card ${selectedArticleId === art.id ? 'active' : ''}`}
+                    onClick={() => setSelectedArticleId(art.id)}
+                  >
+                    <div className="article-card-left">
+                      <div className="article-card-title">{art.title}</div>
+                      {art.digest && <div className="article-card-digest">{art.digest}</div>}
+                      <div className="article-card-meta">
+                        {art.publish_time}{art.word_count ? ` · 约${art.word_count}字 · 阅读约${Math.max(1, Math.round(art.word_count / 400))}分钟` : ''}{art.account && <> · <span
+                          onClick={e => { e.stopPropagation(); if (art.account_id) setSelectedAccountId(art.account_id); }}
+                          style={{ cursor: 'pointer', color: 'var(--primary-color)', textDecoration: 'none' }}
+                          onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                          onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                        >{art.account}</span></>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                      {art.cover_url && (
+                        <img src={art.cover_url} alt="Cover" className="article-card-thumb" referrerPolicy="no-referrer" />
+                      )}
+                      <button className="btn-icon delete-btn" onClick={(e) => handleDeleteArticle(e, art.id)}>
+                        <X size={14} style={{ color: '#f85149' }} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
-                {art.cover_url && (
-                  <img src={art.cover_url} alt="Cover" className="article-card-thumb" referrerPolicy="no-referrer" />
-                )}
-                <button className="btn-icon delete-btn" onClick={(e) => handleDeleteArticle(e, art.id)}>
-                  <X size={14} style={{ color: '#f85149' }} />
-                </button>
-              </div>
-            </div>
-          ))}
+              );
+            });
+          })()}
         </div>
       </section>
 

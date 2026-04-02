@@ -207,6 +207,22 @@ body {
   overflow-y: auto;
 }
 
+.date-separator {
+  padding: 8px 20px 4px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.date-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
 .article-card {
   padding: 15px 20px;
   border-bottom: 1px solid var(--border-color);
