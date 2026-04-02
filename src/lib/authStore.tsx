@@ -50,9 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, { status: "loading" });
 
   useEffect(() => {
-    // Restore session from sessionStorage
+    // Restore session from localStorage
     try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
+      const raw = localStorage.getItem(SESSION_KEY);
       if (raw) {
         const { token, user } = JSON.parse(raw);
         setAuthToken(token);
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handler = () => {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
       setAuthToken(null);
       dispatch({ type: "LOGOUT" });
     };
@@ -77,13 +77,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback((token: string, user: AppUser) => {
     setAuthToken(token);
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token, user }));
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, user }));
     dispatch({ type: "LOGIN", user, token });
   }, []);
 
   const logout = useCallback(() => {
     setAuthToken(null);
-    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
     dispatch({ type: "LOGOUT" });
   }, []);
 
