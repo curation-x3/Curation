@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { BookOpen, ExternalLink, Rss, ChevronLeft, Menu, Layers, X, ShieldCheck, FileText, Sparkles, LogOut, UserMinus, UserPlus } from 'lucide-react';
+import { BookOpen, ExternalLink, Rss, ChevronLeft, Menu, Layers, X, ShieldCheck, FileText, Sparkles, LogOut, UserMinus, UserPlus, Play, Loader2, CheckCircle, RotateCcw, AlertCircle } from 'lucide-react';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
@@ -92,6 +92,7 @@ interface Article {
 
   word_count?: number;
   read_status?: number;
+  queue_status?: "pending" | "running" | "done" | "failed" | null;
 
   // Full-fidelity API fields
   hashid?: string;
@@ -438,6 +439,21 @@ function AppMain({ currentUser, onLogout }: {
     }
   };
 
+  const handleEnqueueArticle = async (e: React.MouseEvent, art: Article) => {
+    e.stopPropagation();
+    try {
+      await apiFetch(`/articles/${art.id}/request-analysis`, { method: 'POST' });
+      // Update local state immediately
+      setArticles(prev => prev.map(a =>
+        a.id === art.id ? { ...a, queue_status: a.queue_status === "done" ? "pending" : "pending" } : a
+      ));
+      // Refresh after a short delay to get actual status
+      setTimeout(() => fetchArticles(selectedAccountId || -1), 1000);
+    } catch (err) {
+      console.error("Enqueue failed", err);
+    }
+  };
+
   const handleDeleteArticle = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
     if (!confirm("确定要删除这篇文章吗？")) return;
@@ -719,13 +735,53 @@ function AppMain({ currentUser, onLogout }: {
                         >{art.account}</span></>}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
                       {art.cover_url && (
                         <img src={art.cover_url} alt="Cover" className="article-card-thumb" referrerPolicy="no-referrer" />
                       )}
-                      <button className="btn-icon delete-btn" onClick={(e) => handleDeleteArticle(e, art.id)}>
-                        <X size={14} style={{ color: '#f85149' }} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        {/* Analysis status + action button */}
+                        {(() => {
+                          const qs = art.queue_status;
+                          const hasSummary = art.serving_run_id != null;
+                          if (qs === "running") return (
+                            <span title="分析中" style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#58a6ff', fontSize: '0.72rem' }}>
+                              <Loader2 size={13} className="animate-spin" />
+                            </span>
+                          );
+                          if (qs === "pending") return (
+                            <span title="排队中" style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#8b949e', fontSize: '0.72rem' }}>
+                              <Loader2 size={13} />
+                            </span>
+                          );
+                          if (qs === "failed") return (
+                            <button className="btn-icon" title="分析失败，点击重试"
+                              onClick={(e) => handleEnqueueArticle(e, art)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#f85149', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
+                              <AlertCircle size={13} />
+                              <RotateCcw size={11} />
+                            </button>
+                          );
+                          if (hasSummary) return (
+                            <button className="btn-icon" title="已有AI总结，点击重新生成"
+                              onClick={(e) => handleEnqueueArticle(e, art)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#3fb950', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
+                              <CheckCircle size={13} />
+                            </button>
+                          );
+                          // No analysis yet
+                          return (
+                            <button className="btn-icon" title="生成AI总结"
+                              onClick={(e) => handleEnqueueArticle(e, art)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#8b949e', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
+                              <Play size={13} />
+                            </button>
+                          );
+                        })()}
+                        <button className="btn-icon delete-btn" onClick={(e) => handleDeleteArticle(e, art.id)}>
+                          <X size={14} style={{ color: '#f85149' }} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
