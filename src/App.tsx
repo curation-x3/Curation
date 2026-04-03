@@ -731,7 +731,7 @@ function AppMain({ currentUser, onLogout }: {
                   background: '#238636', border: 'none', borderRadius: 6,
                   color: '#fff', padding: '5px 10px', cursor: 'pointer',
                   fontSize: '0.75rem', whiteSpace: 'nowrap', display: 'flex',
-                  alignItems: 'center', gap: 4, shrinkFlex: 0,
+                  alignItems: 'center', gap: 4, flexShrink: 0,
                 }}
               >
                 <Sparkles size={12} />
