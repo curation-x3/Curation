@@ -3,6 +3,7 @@ import { apiFetch } from "../lib/api";
 
 interface AppUser {
   id: number;
+  phone: string | null;
   email: string;
   username: string;
   role: "admin" | "user";
@@ -45,8 +46,8 @@ export function UserManagementPanel() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ color: "#8b949e", borderBottom: "1px solid #30363d" }}>
+              <th style={th}>手机号</th>
               <th style={th}>邮箱</th>
-              <th style={th}>用户名</th>
               <th style={th}>角色</th>
               <th style={th}>状态</th>
               <th style={th}>注册时间</th>
@@ -56,24 +57,10 @@ export function UserManagementPanel() {
           <tbody>
             {users.map((u) => (
               <tr key={u.id} style={{ borderBottom: "1px solid #21262d" }}>
-                <td style={td}>{u.email || "—"}</td>
-                <td style={{ ...td, color: "#8b949e" }}>{u.username || "—"}</td>
-                <td style={td}>
-                  <select
-                    value={u.role}
-                    onChange={(e) => handleUpdate(u.id, { role: e.target.value })}
-                    style={{
-                      background: "#0d1117",
-                      border: "1px solid #30363d",
-                      borderRadius: 4,
-                      color: u.role === "admin" ? "#f0883e" : "#e6edf3",
-                      fontSize: 12,
-                      padding: "2px 6px",
-                    }}
-                  >
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </select>
+                <td style={td}>{u.phone || "—"}</td>
+                <td style={{ ...td, color: "#8b949e" }}>{u.email || "—"}</td>
+                <td style={{ ...td, color: u.role === "admin" ? "#f0883e" : "#8b949e", fontSize: 12 }}>
+                  {u.role}
                 </td>
                 <td style={td}>
                   <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
