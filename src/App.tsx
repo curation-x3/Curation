@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BookOpen, ExternalLink, Rss, ChevronLeft, Menu, Layers, X, ShieldCheck, FileText, Sparkles, LogOut, UserMinus, UserPlus } from 'lucide-react';
@@ -266,6 +266,19 @@ function AppMain({ currentUser, onLogout }: {
     }
   }, [selectedAccountId]);
 
+  // Animate out the previous article when switching selection (if it was read)
+  const prevSelectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prevId = prevSelectedRef.current;
+    if (prevId && prevId !== selectedArticleId) {
+      const prevArt = articles.find(a => a.short_id === prevId);
+      if (prevArt && prevArt.read_status) {
+        setHidingArticleId(prevId);
+      }
+    }
+    prevSelectedRef.current = selectedArticleId;
+  }, [selectedArticleId]);
+
   // Load full content + request analysis when Article selection changes
   useEffect(() => {
     if (selectedArticleId === null) return;
@@ -307,10 +320,9 @@ function AppMain({ currentUser, onLogout }: {
         content_source: resp.source,
       });
       setAnalysisStatus(analysisResp.analysis_status ?? "none");
-      // Mark as read when content is viewed
+      // Mark as read when content is viewed (animation deferred to next selection change)
       if (!art.read_status) {
         apiFetch(`/articles/${art.short_id}/read?status=1`, { method: "POST" }).catch(() => {});
-        setHidingArticleId(art.short_id);
         setArticles(prev => prev.map(a => a.short_id === art.short_id ? { ...a, read_status: 1 } : a));
       }
       // Refresh article list so admin panel reflects updated html_path/markdown_path
