@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Play, ExternalLink, RotateCcw, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { RefreshCw, Play, ExternalLink, RotateCcw, Trash2, ArrowUp, ArrowDown, ChevronRight, ChevronDown } from "lucide-react";
 import type { AgentBackends } from "../types";
 import { apiFetch } from "../lib/api";
 
@@ -8,11 +8,22 @@ interface QueueEntry {
   article_id: string;
   article_title: string;
   article_publish_time: string | null;
+  serving_run_id: number | null;
   request_count: number;
   status: "pending" | "running" | "done" | "failed";
   run_id: number | null;
   created_at: string;
   updated_at: string;
+}
+
+interface RunEntry {
+  id: number;
+  article_id: string;
+  backend: string;
+  overall_status: string;
+  elapsed_s: number | null;
+  error_msg: string | null;
+  created_at: string;
 }
 
 interface Strategy {
@@ -86,6 +97,9 @@ export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
   const [publishDateFilter, setPublishDateFilter] = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [expandedArticle, setExpandedArticle] = useState<string | null>(null);
+  const [articleRuns, setArticleRuns] = useState<RunEntry[]>([]);
+  const [loadingRuns, setLoadingRuns] = useState(false);
 
   const toggleStatus = (s: string) => {
     setStatusFilters(prev => {
@@ -178,9 +192,28 @@ export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
     await fetchData();
   };
 
-  const removeEntry = async (articleId: string) => {
-    await apiFetch(`/queue/${articleId}`, { method: "DELETE" });
+  const toggleExpand = async (articleId: string) => {
+    if (expandedArticle === articleId) {
+      setExpandedArticle(null);
+      return;
+    }
+    setExpandedArticle(articleId);
+    setLoadingRuns(true);
+    try {
+      const resp = await apiFetch(`/articles/${articleId}/runs`).then(r => r.json());
+      if (resp.status === "ok") setArticleRuns(resp.data);
+    } finally {
+      setLoadingRuns(false);
+    }
+  };
+
+  const deleteRun = async (runId: number) => {
+    await apiFetch(`/runs/${runId}`, { method: "DELETE" });
     await fetchData();
+    if (expandedArticle) {
+      const resp = await apiFetch(`/articles/${expandedArticle}/runs`).then(r => r.json());
+      if (resp.status === "ok") setArticleRuns(resp.data);
+    }
   };
 
   const backends = backendsInfo ? Object.keys(backendsInfo.backends) : [];
@@ -320,104 +353,186 @@ export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
             <thead>
               <tr style={{ background: "#161b22", color: "#8b949e" }}>
+                <th style={{ padding: "8px 4px", width: 28 }} />
                 <th style={{ padding: "8px 14px", textAlign: "left", fontWeight: 500 }}>文章</th>
                 <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500, whiteSpace: "nowrap" }}>发布时间</th>
+                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500 }}>分析状态</th>
+                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500 }}>推送状态</th>
                 {thSortable("request_count", "请求次数")}
                 {thSortable("created_at", "入队时间")}
-                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500 }}>状态</th>
                 <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: 500 }}>操作</th>
               </tr>
             </thead>
             <tbody>
-              {filteredQueue.map((entry, i) => (
-                <tr
-                  key={entry.id}
-                  style={{
-                    borderTop: i > 0 ? "1px solid #21262d" : "none",
-                    background: i % 2 === 0 ? "#0d1117" : "transparent",
-                  }}
-                >
-                  <td style={{ padding: "9px 14px", color: "#e6edf3", maxWidth: 300 }}>
-                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
-                      {entry.article_title}
-                      {onNavigateToArticle && (
-                        <button
-                          onClick={() => onNavigateToArticle(entry.article_id)}
-                          title="跳转到文章"
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#58a6ff", padding: 0, display: "flex", flexShrink: 0 }}
-                        >
-                          <ExternalLink size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td style={{ padding: "9px 14px", textAlign: "center", color: "#8b949e", whiteSpace: "nowrap", fontSize: "0.78rem" }}>
-                    {formatPublishTime(entry.article_publish_time)}
-                  </td>
-                  <td style={{ padding: "9px 14px", textAlign: "center", color: "#e6edf3" }}>
-                    {entry.request_count}
-                  </td>
-                  <td style={{ padding: "9px 14px", textAlign: "center", color: "#8b949e", whiteSpace: "nowrap", fontSize: "0.78rem" }}>
-                    {formatQueueTime(entry.created_at)}
-                  </td>
-                  <td style={{ padding: "9px 14px", textAlign: "center" }}>
-                    <span style={{
-                      color: STATUS_COLOR[entry.status] ?? "#8b949e",
-                      background: (STATUS_COLOR[entry.status] ?? "#8b949e") + "22",
-                      borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem",
-                    }}>
-                      {STATUS_LABEL[entry.status] ?? entry.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: "9px 14px", textAlign: "center" }}>
-                    <div style={{ display: "inline-flex", gap: 6 }}>
-                      {entry.status === "pending" && (
-                        <button
-                          onClick={() => triggerRun(entry.article_id)}
-                          disabled={runningArticles.has(entry.article_id)}
-                          title="立即运行"
-                          style={{
-                            background: "#238636", border: "none", borderRadius: 4,
-                            color: "#fff", padding: "3px 10px", cursor: "pointer",
-                            fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 4,
-                            opacity: runningArticles.has(entry.article_id) ? 0.5 : 1,
-                          }}
-                        >
-                          <Play size={11} />
-                          运行
-                        </button>
-                      )}
-                      {entry.status === "failed" && (
-                        <button
-                          onClick={() => retryEntry(entry.article_id)}
-                          title="重试"
-                          style={{
-                            background: "#1f6feb", border: "none", borderRadius: 4,
-                            color: "#fff", padding: "3px 10px", cursor: "pointer",
-                            fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 4,
-                          }}
-                        >
-                          <RotateCcw size={11} />
-                          重试
-                        </button>
-                      )}
-                      {entry.status !== "running" && (
-                        <button
-                          onClick={() => removeEntry(entry.article_id)}
-                          title="移出队列"
-                          style={{
-                            background: "none", border: "1px solid #30363d", borderRadius: 4,
-                            color: "#8b949e", padding: "3px 8px", cursor: "pointer",
-                            fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 4,
-                          }}
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filteredQueue.map((entry, i) => {
+                const isExpanded = expandedArticle === entry.article_id;
+                return (
+                  <>
+                    <tr
+                      key={entry.id}
+                      style={{
+                        borderTop: i > 0 ? "1px solid #21262d" : "none",
+                        background: i % 2 === 0 ? "#0d1117" : "transparent",
+                      }}
+                    >
+                      <td
+                        onClick={() => toggleExpand(entry.article_id)}
+                        style={{ padding: "9px 4px", textAlign: "center", cursor: "pointer", color: "#8b949e" }}
+                      >
+                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </td>
+                      <td style={{ padding: "9px 14px", color: "#e6edf3", maxWidth: 300 }}>
+                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                          {entry.article_title}
+                          {onNavigateToArticle && (
+                            <button
+                              onClick={() => onNavigateToArticle(entry.article_id)}
+                              title="跳转到文章"
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#58a6ff", padding: 0, display: "flex", flexShrink: 0 }}
+                            >
+                              <ExternalLink size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "center", color: "#8b949e", whiteSpace: "nowrap", fontSize: "0.78rem" }}>
+                        {formatPublishTime(entry.article_publish_time)}
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "center" }}>
+                        <span style={{
+                          color: STATUS_COLOR[entry.status] ?? "#8b949e",
+                          background: (STATUS_COLOR[entry.status] ?? "#8b949e") + "22",
+                          borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem",
+                        }}>
+                          {STATUS_LABEL[entry.status] ?? entry.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "center" }}>
+                        <span style={{
+                          color: entry.serving_run_id ? "#3fb950" : "#8b949e",
+                          background: entry.serving_run_id ? "#3fb95022" : "#8b949e22",
+                          borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem",
+                        }}>
+                          {entry.serving_run_id ? "已推送" : "未推送"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "center", color: "#e6edf3" }}>
+                        {entry.request_count}
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "center", color: "#8b949e", whiteSpace: "nowrap", fontSize: "0.78rem" }}>
+                        {formatQueueTime(entry.created_at)}
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "center" }}>
+                        <div style={{ display: "inline-flex", gap: 6 }}>
+                          {entry.status === "pending" && (
+                            <button
+                              onClick={() => triggerRun(entry.article_id)}
+                              disabled={runningArticles.has(entry.article_id)}
+                              title="立即运行"
+                              style={{
+                                background: "#238636", border: "none", borderRadius: 4,
+                                color: "#fff", padding: "3px 10px", cursor: "pointer",
+                                fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 4,
+                                opacity: runningArticles.has(entry.article_id) ? 0.5 : 1,
+                              }}
+                            >
+                              <Play size={11} />
+                              运行
+                            </button>
+                          )}
+                          {(entry.status === "failed" || entry.status === "done") && (
+                            <button
+                              onClick={() => retryEntry(entry.article_id)}
+                              title="重新分析"
+                              style={{
+                                background: "#1f6feb", border: "none", borderRadius: 4,
+                                color: "#fff", padding: "3px 10px", cursor: "pointer",
+                                fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 4,
+                              }}
+                            >
+                              <RotateCcw size={11} />
+                              重新分析
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${entry.id}-runs`} style={{ borderTop: "none" }}>
+                        <td colSpan={8} style={{ padding: 0, background: "#161b22" }}>
+                          {loadingRuns ? (
+                            <div style={{ padding: "12px 24px", color: "#8b949e", fontSize: "0.8rem" }}>加载中...</div>
+                          ) : articleRuns.length === 0 ? (
+                            <div style={{ padding: "12px 24px", color: "#8b949e", fontSize: "0.8rem" }}>无分析记录</div>
+                          ) : (
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                              <thead>
+                                <tr style={{ color: "#8b949e" }}>
+                                  <th style={{ padding: "6px 14px", textAlign: "left", fontWeight: 500 }}>Run ID</th>
+                                  <th style={{ padding: "6px 14px", textAlign: "center", fontWeight: 500 }}>Backend</th>
+                                  <th style={{ padding: "6px 14px", textAlign: "center", fontWeight: 500 }}>状态</th>
+                                  <th style={{ padding: "6px 14px", textAlign: "center", fontWeight: 500 }}>耗时</th>
+                                  <th style={{ padding: "6px 14px", textAlign: "center", fontWeight: 500 }}>时间</th>
+                                  <th style={{ padding: "6px 14px", textAlign: "center", fontWeight: 500 }}>操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {articleRuns.map(run => (
+                                  <tr key={run.id} style={{ borderTop: "1px solid #21262d" }}>
+                                    <td style={{ padding: "6px 14px", color: "#e6edf3" }}>
+                                      <span>#{run.id}</span>
+                                      {run.id === entry.serving_run_id && (
+                                        <span style={{
+                                          marginLeft: 8, color: "#3fb950", fontSize: "0.72rem",
+                                          background: "#3fb95022", borderRadius: 4, padding: "1px 6px",
+                                        }}>
+                                          当前推送
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: "6px 14px", textAlign: "center", color: "#e6edf3" }}>
+                                      {run.backend}
+                                    </td>
+                                    <td style={{ padding: "6px 14px", textAlign: "center" }}>
+                                      <span style={{
+                                        color: STATUS_COLOR[run.overall_status] ?? "#8b949e",
+                                        background: (STATUS_COLOR[run.overall_status] ?? "#8b949e") + "22",
+                                        borderRadius: 4, padding: "2px 8px", fontSize: "0.74rem",
+                                      }}>
+                                        {STATUS_LABEL[run.overall_status] ?? run.overall_status}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: "6px 14px", textAlign: "center", color: "#8b949e" }}>
+                                      {run.elapsed_s != null ? `${run.elapsed_s.toFixed(1)}s` : "—"}
+                                    </td>
+                                    <td style={{ padding: "6px 14px", textAlign: "center", color: "#8b949e", whiteSpace: "nowrap" }}>
+                                      {formatQueueTime(run.created_at)}
+                                    </td>
+                                    <td style={{ padding: "6px 14px", textAlign: "center" }}>
+                                      <button
+                                        onClick={() => deleteRun(run.id)}
+                                        title="删除"
+                                        style={{
+                                          background: "none", border: "1px solid #30363d", borderRadius: 4,
+                                          color: "#8b949e", padding: "3px 8px", cursor: "pointer",
+                                          fontSize: "0.74rem", display: "inline-flex", alignItems: "center", gap: 4,
+                                        }}
+                                      >
+                                        <Trash2 size={11} />
+                                        删除
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
             </tbody>
           </table>
         </div>
