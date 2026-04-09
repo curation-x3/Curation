@@ -60,7 +60,7 @@ jobs:
         with:
           args: ${{ matrix.args }}
           tagName: v__VERSION__
-          releaseName: 'Curation v__VERSION__'
+          releaseName: 'v__VERSION__'
           releaseBody: |
             ## Downloads
 
@@ -94,7 +94,7 @@ jobs:
             ## Notes
 
             App connects to the cloud backend automatically. No local server setup needed.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
 

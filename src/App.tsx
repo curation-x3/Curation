@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
 import { BookOpen, ExternalLink, Rss, ChevronLeft, Menu, Layers, X, ShieldCheck, FileText, Sparkles, LogOut, UserMinus, UserPlus } from 'lucide-react';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -115,6 +117,55 @@ function stripFrontmatter(md: string): string {
   if (end === -1) return md;
   return md.slice(end + 3).trim();
 }
+
+const mdComponents: any = {
+  img: ({node, ...props}: any) => (
+    <img {...props} referrerPolicy="no-referrer" loading="lazy" />
+  ),
+  table: ({ children, ...props }: any) => (
+    <div style={{ overflowX: 'auto', margin: '16px 0', borderRadius: 8, overflow: 'hidden', border: '1px solid #30363d' }}>
+      <table {...props} style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>{children}</table>
+    </div>
+  ),
+  th: ({ children, ...props }: any) => (
+    <th {...props} style={{
+      padding: '11px 16px', textAlign: 'left', fontWeight: 600,
+      background: '#1f2937', color: '#f9fafb', borderBottom: '2px solid #3b82f6',
+    }}>{children}</th>
+  ),
+  td: ({ children, ...props }: any) => (
+    <td {...props} style={{ padding: '9px 16px', color: '#c9d1d9' }}>{children}</td>
+  ),
+  tbody: ({ children, ...props }: any) => (
+    <tbody {...props}>
+      {Array.isArray(children) ? children.map((child: any, i: number) => {
+        if (!child) return child;
+        return (
+          <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : '#161b22' }}>
+            {child.props?.children}
+          </tr>
+        );
+      }) : children}
+    </tbody>
+  ),
+  pre: ({ children, ...props }: any) => (
+    <pre {...props} style={{
+      background: '#0d1117', border: '1px solid #30363d', borderRadius: 8,
+      padding: '16px', overflow: 'auto', fontSize: '0.83rem', lineHeight: 1.6,
+      margin: '16px 0',
+    }}>{children}</pre>
+  ),
+  code: ({ children, className, ...props }: any) => {
+    const isBlock = className?.startsWith('hljs') || className?.startsWith('language-');
+    if (isBlock) return <code className={className} {...props}>{children}</code>;
+    return (
+      <code style={{
+        background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: 4,
+        fontSize: '0.85em', color: '#93c5fd',
+      }} {...props}>{children}</code>
+    );
+  },
+};
 
 /** Initial three-pane width ratio — sidebar : list : reader = 1 : 1.8 : 4 (reader is flex remainder; subtracts list–reader resizer). */
 const LAYOUT_RATIO_SIDEBAR = 1;
@@ -1155,11 +1206,8 @@ function AppMain({ currentUser, onLogout }: {
                             <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 12 }}>{card.title}</h3>
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm]}
-                              components={{
-                                img: ({node, ...props}) => (
-                                  <img {...props} referrerPolicy="no-referrer" loading="lazy" />
-                                )
-                              }}
+                              rehypePlugins={[rehypeHighlight]}
+                              components={mdComponents}
                             >
                               {stripFrontmatter(card.content)}
                             </ReactMarkdown>
@@ -1169,11 +1217,8 @@ function AppMain({ currentUser, onLogout }: {
                     ) : (
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
-                        components={{
-                          img: ({node, ...props}) => (
-                            <img {...props} referrerPolicy="no-referrer" loading="lazy" />
-                          )
-                        }}
+                        rehypePlugins={[rehypeHighlight]}
+                        components={mdComponents}
                       >
                         {(viewRaw ? activeArticle.rawMarkdown : activeArticle.markdown) || ""}
                       </ReactMarkdown>
@@ -1285,11 +1330,8 @@ function AppMain({ currentUser, onLogout }: {
                   <div className="markdown-body">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
-                      components={{
-                        img: ({node, ...props}) => (
-                          <img {...props} referrerPolicy="no-referrer" loading="lazy" />
-                        )
-                      }}
+                      rehypePlugins={[rehypeHighlight]}
+                      components={mdComponents}
                     >
                       {stripFrontmatter(activeCard.content || "")}
                     </ReactMarkdown>
