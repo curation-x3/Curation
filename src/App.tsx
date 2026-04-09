@@ -263,7 +263,8 @@ function AppMain({ currentUser, onLogout }: {
   // Card view state
   type AppMode = "articles" | "cards";
   const [appMode, setAppMode] = useState<AppMode>("articles");
-  const [cardViewDate, setCardViewDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [cardViewDate, setCardViewDate] = useState<string | null>(null); // null = 全部
+  const [cardDates, setCardDates] = useState<string[]>([]);
   const [cardViewTab, setCardViewTab] = useState<"aggregated" | "source">("aggregated");
   const [cardList, setCardList] = useState<any[]>([]);
   const [activeCard, setActiveCard] = useState<any>(null);
@@ -427,17 +428,42 @@ function AppMain({ currentUser, onLogout }: {
     return () => clearTimeout(id);
   }, [notification]);
 
+  // Generate recent 14 days for card date list
+  useEffect(() => {
+    if (appMode !== "cards") return;
+    const dates: string[] = [];
+    const today = new Date();
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().split("T")[0]);
+    }
+    setCardDates(dates);
+  }, [appMode]);
+
   // Card list loading
   useEffect(() => {
     if (appMode !== "cards") return;
     const load = async () => {
       try {
-        if (cardViewTab === "aggregated") {
-          const resp = await fetchAggregatedCards(cardViewDate);
-          setCardList(resp.cards || []);
+        if (cardViewDate) {
+          if (cardViewTab === "aggregated") {
+            const resp = await fetchAggregatedCards(cardViewDate);
+            setCardList(resp.cards || []);
+          } else {
+            const resp = await fetchCardsByDate(cardViewDate);
+            setCardList(resp.cards || []);
+          }
         } else {
-          const resp = await fetchCardsByDate(cardViewDate);
-          setCardList(resp.cards || []);
+          // "全部": load today's cards as default
+          const today = new Date().toISOString().split("T")[0];
+          if (cardViewTab === "aggregated") {
+            const resp = await fetchAggregatedCards(today);
+            setCardList(resp.cards || []);
+          } else {
+            const resp = await fetchCardsByDate(today);
+            setCardList(resp.cards || []);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch cards", err);
@@ -735,18 +761,51 @@ function AppMain({ currentUser, onLogout }: {
         </div>
 
         {/* Card mode sidebar: date picker */}
-        {appMode === "cards" && !isSidebarCollapsed && (
-          <div style={{ padding: '10px 14px', flex: 1 }}>
-            <input
-              type="date"
-              value={cardViewDate}
-              onChange={(e) => setCardViewDate(e.target.value)}
-              style={{
-                width: '100%', padding: '8px', borderRadius: 6,
-                border: '1px solid #30363d', background: '#0d1117', color: '#e6edf3',
-                fontSize: '0.85rem',
-              }}
-            />
+        {appMode === "cards" && (
+          <div className="account-list">
+            {/* 全部卡片 */}
+            <div
+              className={`account-item ${cardViewDate === null ? 'active' : ''}`}
+              onClick={() => setCardViewDate(null)}
+              title="全部卡片"
+            >
+              <div className="account-avatar" style={{ background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                <Layers size={18} />
+              </div>
+              {!isSidebarCollapsed && (
+                <div className="account-info">
+                  <div className="account-name">全部卡片</div>
+                </div>
+              )}
+            </div>
+            {/* 日期列表 */}
+            {cardDates.map((date) => {
+              const d = new Date(date + 'T00:00:00');
+              const isToday = date === new Date().toISOString().split("T")[0];
+              const label = isToday ? '今天' : `${d.getMonth() + 1}月${d.getDate()}日`;
+              const weekday = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+              return (
+                <div
+                  key={date}
+                  className={`account-item ${cardViewDate === date ? 'active' : ''}`}
+                  onClick={() => setCardViewDate(date)}
+                  title={isSidebarCollapsed ? `${label} 周${weekday}` : ""}
+                >
+                  <div className="account-avatar" style={{
+                    background: '#21262d', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: isToday ? '#3b82f6' : '#8b949e', fontSize: '0.75rem', fontWeight: 600,
+                  }}>
+                    {d.getDate()}
+                  </div>
+                  {!isSidebarCollapsed && (
+                    <div className="account-info">
+                      <div className="account-name">{label}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#8b949e' }}>周{weekday}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
