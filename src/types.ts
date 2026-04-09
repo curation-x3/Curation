@@ -16,11 +16,29 @@ export interface Article {
   author?: string;
   account?: string;
   markdown?: string;
+  rawMarkdown?: string;
   html_path?: string;
   markdown_path?: string;
   account_id?: number;
   serving_run_id?: number | null;
-  content_source?: "analysis" | "raw" | "empty" | "not_loaded";
+  content_source?: "analysis" | "raw" | "empty" | "not_loaded" | "enqueued" | "error";
+  cards?: { card_id: string; title: string; content: string; unpushed?: string | any[] }[];
+  article_meta?: { title: string; url: string; publish_time: string; author: string; article_id?: string };
+  rawHtml?: string;
+  contentFormat?: "html" | "markdown";
+  word_count?: number;
+  read_status?: number;
+  dismissed?: number;
+  queue_status?: "pending" | "running" | "done" | "failed" | null;
+  hashid?: string;
+  idx?: string;
+  ip_wording?: string;
+  is_original?: boolean;
+  send_to_fans_num?: number;
+  user_name?: string;
+  alias?: string;
+  signature?: string;
+  create_time?: string;
 }
 
 export interface AnalysisRun {
