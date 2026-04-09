@@ -64,3 +64,33 @@ export async function fetchSignedStaticUrl(relpath: string): Promise<string> {
   const j = (await r.json()) as { url: string };
   return `${API_BASE}${j.url}`;
 }
+
+export async function fetchArticleCards(articleId: string) {
+  const resp = await apiFetch(`/articles/${articleId}/cards`);
+  return resp.json();
+}
+
+export async function fetchCardContent(cardId: string) {
+  const resp = await apiFetch(`/cards/${cardId}/content`);
+  return resp.json();
+}
+
+export async function fetchCardsByDate(date: string) {
+  const resp = await apiFetch(`/cards?date=${date}`);
+  return resp.json();
+}
+
+export async function fetchAggregatedCards(date: string) {
+  const resp = await apiFetch(`/aggregated-cards?date=${date}`);
+  return resp.json();
+}
+
+export async function fetchAggregatedCardContent(cardId: string) {
+  const resp = await apiFetch(`/aggregated-cards/${cardId}/content`);
+  return resp.json();
+}
+
+export async function triggerAggregation(date: string) {
+  const resp = await apiFetch(`/aggregate?date=${date}`, { method: "POST" });
+  return resp.json();
+}
