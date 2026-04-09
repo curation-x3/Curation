@@ -87,6 +87,7 @@ interface Article {
   account_id?: number;
   serving_run_id?: number | null;
   content_source?: "analysis" | "raw" | "empty" | "not_loaded";
+  cards?: { card_id: string; title: string; content: string }[];
   rawHtml?: string;
   contentFormat?: "html" | "markdown";
 
@@ -105,6 +106,14 @@ interface Article {
   alias?: string;
   signature?: string;
   create_time?: string;
+}
+
+/** Strip YAML frontmatter (---...---) from markdown content. */
+function stripFrontmatter(md: string): string {
+  if (!md.startsWith("---")) return md;
+  const end = md.indexOf("---", 3);
+  if (end === -1) return md;
+  return md.slice(end + 3).trim();
 }
 
 /** Initial three-pane width ratio — sidebar : list : reader = 1 : 1.8 : 4 (reader is flex remainder; subtracts list–reader resizer). */
@@ -313,6 +322,7 @@ function AppMain({ currentUser, onLogout }: {
       setActiveArticle({
         ...art,
         markdown: resp.content,
+        cards: resp.source === "analysis" && resp.cards ? resp.cards : undefined,
         rawMarkdown: rawResp.content,
         rawHtml: rawResp.format === "html" ? rawResp.content : undefined,
         contentFormat: rawResp.format,
@@ -352,6 +362,7 @@ function AppMain({ currentUser, onLogout }: {
           setActiveArticle(prev => prev ? {
             ...prev,
             markdown: resp.content,
+            cards: resp.source === "analysis" && resp.cards ? resp.cards : undefined,
             serving_run_id: resp.serving_run_id,
             content_source: resp.source,
           } : null);
@@ -387,6 +398,7 @@ function AppMain({ currentUser, onLogout }: {
         setActiveArticle(prev => prev ? {
           ...prev,
           markdown: contentResp.content,
+          cards: contentResp.source === "analysis" && contentResp.cards ? contentResp.cards : undefined,
           rawMarkdown: rawResp.content,
           serving_run_id: contentResp.serving_run_id,
           content_source: contentResp.source,
@@ -972,10 +984,28 @@ function AppMain({ currentUser, onLogout }: {
                 <>
                   <div className="markdown-body">
                     {viewRaw && activeArticle.contentFormat === "html" ? (
-                      <div 
-                        className="rich-text-content" 
-                        dangerouslySetInnerHTML={{ __html: activeArticle.rawMarkdown || "" }} 
+                      <div
+                        className="rich-text-content"
+                        dangerouslySetInnerHTML={{ __html: activeArticle.rawMarkdown || "" }}
                       />
+                    ) : !viewRaw && activeArticle.cards && activeArticle.cards.length > 0 ? (
+                      <>
+                        {activeArticle.cards.map((card) => (
+                          <div key={card.card_id} className="mb-6 border border-gray-200 rounded-lg p-4" style={{ marginBottom: 24, border: '1px solid #30363d', borderRadius: 8, padding: 16 }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 12 }}>{card.title}</h3>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                img: ({node, ...props}) => (
+                                  <img {...props} referrerPolicy="no-referrer" loading="lazy" />
+                                )
+                              }}
+                            >
+                              {stripFrontmatter(card.content)}
+                            </ReactMarkdown>
+                          </div>
+                        ))}
+                      </>
                     ) : (
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
