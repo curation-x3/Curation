@@ -4,6 +4,13 @@ export interface Account {
   name: string;
   avatar_url?: string;
   description?: string;
+  last_monitored_at?: string;
+  article_count?: number;
+  subscription_type?: "subscribed" | "temporary";
+  avg_daily_freq?: number;
+  estimated_daily_cost?: number;
+  total_cost?: number;
+  sync_count?: number;
 }
 
 export interface Article {

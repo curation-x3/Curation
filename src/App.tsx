@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useLayout } from "./hooks/useLayout";
+import type { Account, Article } from "./types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -60,58 +62,6 @@ async function apiFailureDetail(res: Response): Promise<string> {
   return res.statusText || `HTTP ${res.status}`;
 }
 
-interface Account {
-  id: number;
-  biz: string;
-  name: string;
-  avatar_url?: string;
-  description?: string;
-  last_monitored_at?: string;
-  article_count?: number;
-  subscription_type?: "subscribed" | "temporary";
-  avg_daily_freq?: number;
-  estimated_daily_cost?: number;
-  total_cost?: number;
-  sync_count?: number;
-}
-
-interface Article {
-  short_id: string;
-  title: string;
-  url: string;
-  publish_time: string;
-  digest?: string;
-  cover_url?: string;
-  author?: string;
-  account?: string;
-  markdown?: string;
-  rawMarkdown?: string;
-  html_path?: string;
-  markdown_path?: string;
-  account_id?: number;
-  serving_run_id?: number | null;
-  content_source?: "analysis" | "raw" | "empty" | "not_loaded" | "enqueued" | "error";
-  cards?: { card_id: string; title: string; content: string; unpushed?: string | any[] }[];
-  article_meta?: { title: string; url: string; publish_time: string; author: string; article_id?: string };
-  rawHtml?: string;
-  contentFormat?: "html" | "markdown";
-
-  word_count?: number;
-  read_status?: number;
-  dismissed?: number;
-  queue_status?: "pending" | "running" | "done" | "failed" | null;
-
-  // Full-fidelity API fields
-  hashid?: string;
-  idx?: string;
-  ip_wording?: string;
-  is_original?: boolean;
-  send_to_fans_num?: number;
-  user_name?: string;
-  alias?: string;
-  signature?: string;
-  create_time?: string;
-}
 
 /** Strip YAML frontmatter (---...---) from markdown content. */
 function stripFrontmatter(md: string): string {
@@ -169,22 +119,6 @@ const mdComponents: any = {
     );
   },
 };
-
-/** Initial three-pane width ratio — sidebar : list : reader = 1 : 1.8 : 4 (reader is flex remainder; subtracts list–reader resizer). */
-const LAYOUT_RATIO_SIDEBAR = 1;
-const LAYOUT_RATIO_LIST = 1.8;
-const LAYOUT_RATIO_READER = 4;
-const LAYOUT_RATIO_SUM = LAYOUT_RATIO_SIDEBAR + LAYOUT_RATIO_LIST + LAYOUT_RATIO_READER;
-const LIST_READER_RESIZER_PX = 5;
-
-function initialColumnWidthsFromViewport(): { sidebar: number; list: number } {
-  const w = typeof window !== "undefined" ? window.innerWidth : 1200;
-  const avail = Math.max(0, w - LIST_READER_RESIZER_PX);
-  const unit = avail / LAYOUT_RATIO_SUM;
-  const sidebar = Math.max(150, Math.min(500, Math.round(unit * LAYOUT_RATIO_SIDEBAR)));
-  const list = Math.max(200, Math.min(600, Math.round(unit * LAYOUT_RATIO_LIST)));
-  return { sidebar, list };
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -321,26 +255,8 @@ function AppMain({ currentUser, onLogout }: {
   const [viewMode, setViewMode] = useState<"unprocessed" | "all">("unprocessed");
   const [hidingArticleId, setHidingArticleId] = useState<string | null>(null);
 
-  // Layout States
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const raw = localStorage.getItem("curation_sidebar_width");
-    if (raw != null && raw !== "") {
-      const n = Number(raw);
-      if (!Number.isNaN(n)) return n;
-    }
-    return initialColumnWidthsFromViewport().sidebar;
-  });
-  const [listWidth, setListWidth] = useState(() => {
-    const raw = localStorage.getItem("curation_list_width");
-    if (raw != null && raw !== "") {
-      const n = Number(raw);
-      if (!Number.isNaN(n)) return n;
-    }
-    return initialColumnWidthsFromViewport().list;
-  });
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const [isResizingList, setIsResizingList] = useState(false);
+  // Layout
+  const { isSidebarCollapsed, sidebarWidth, listWidth, isResizingList, startResizeList, toggleSidebar } = useLayout();
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [adminView, setAdminView] = useState<"management" | "analysis" | "queue" | "aggregation" | "invites" | "users">("management");
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -615,39 +531,6 @@ function AppMain({ currentUser, onLogout }: {
     }
   }, [cardList, pendingJumpCardId]);
 
-  // Resizing logic (kept as before)
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isResizingSidebar && !isSidebarCollapsed) {
-        const newWidth = Math.max(150, Math.min(500, e.clientX));
-        setSidebarWidth(newWidth);
-      } else if (isResizingList) {
-        const currentSidebarWidth = isSidebarCollapsed ? 72 : sidebarWidth;
-        const newWidth = Math.max(200, Math.min(600, e.clientX - currentSidebarWidth));
-        setListWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (isResizingSidebar) localStorage.setItem('curation_sidebar_width', String(sidebarWidth));
-      if (isResizingList) localStorage.setItem('curation_list_width', String(listWidth));
-      setIsResizingSidebar(false);
-      setIsResizingList(false);
-      document.body.style.cursor = 'default';
-    };
-
-    if (isResizingSidebar || isResizingList) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-    }
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizingSidebar, isResizingList, sidebarWidth, isSidebarCollapsed]);
-
   const fetchAccounts = async () => {
     try {
       const resp = await apiFetch(`/accounts`).then(r => r.json());
@@ -733,7 +616,7 @@ function AppMain({ currentUser, onLogout }: {
             <Rss size={20} />
             <span>公众号订阅</span>
           </h2>
-          <button className="btn-icon" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
+          <button className="btn-icon" onClick={toggleSidebar}>
             {isSidebarCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
@@ -1082,7 +965,7 @@ function AppMain({ currentUser, onLogout }: {
       {/* Resizer 2 (articles mode) */}
       {appMode === "articles" && <div
         className={`resizer ${isResizingList ? 'resizing' : ''}`}
-        onMouseDown={() => setIsResizingList(true)}
+        onMouseDown={startResizeList}
       />}
 
       {/* Pane 3: Reader View / Admin Panel (articles mode) */}
@@ -1435,7 +1318,7 @@ function AppMain({ currentUser, onLogout }: {
           {/* Resizer */}
           <div
             className={`resizer ${isResizingList ? 'resizing' : ''}`}
-            onMouseDown={() => setIsResizingList(true)}
+            onMouseDown={startResizeList}
           />
 
           {/* Card reader pane */}
