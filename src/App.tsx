@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useLayout } from "./hooks/useLayout";
-import type { Account, Article } from "./types";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useAccounts } from "./hooks/useAccounts";
+import type { Article } from "./types";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -246,7 +247,8 @@ function AppMain({ currentUser, onLogout }: {
   currentUser: { id: number; email: string; username: string; role: string };
   onLogout: () => void;
 }) {
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const { data: accounts = [] } = useAccounts();
+  const queryClient = useQueryClient();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(-1); // -1 for All Articles
   const [articles, setArticles] = useState<Article[]>([]);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
@@ -281,9 +283,8 @@ function AppMain({ currentUser, onLogout }: {
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
 
-  // Initial Load: Fetch Accounts and All Articles
+  // Initial Load: Fetch All Articles
   useEffect(() => {
-    fetchAccounts();
     fetchArticles(-1);
   }, []);
 
@@ -410,7 +411,6 @@ function AppMain({ currentUser, onLogout }: {
   // 5-minute auto-refresh
   useEffect(() => {
     const id = setInterval(() => {
-      fetchAccounts();
       fetchArticles(selectedAccountId ?? -1);
     }, 5 * 60 * 1000);
     return () => clearInterval(id);
@@ -531,15 +531,6 @@ function AppMain({ currentUser, onLogout }: {
     }
   }, [cardList, pendingJumpCardId]);
 
-  const fetchAccounts = async () => {
-    try {
-      const resp = await apiFetch(`/accounts`).then(r => r.json());
-      if (resp.status === "ok") setAccounts(resp.data);
-    } catch (err) {
-      console.error("Failed to fetch accounts", err);
-    }
-  };
-
   const fetchArticles = async (accountId: number) => {
     const path = accountId === -1 ? `/articles` : `/articles?account_id=${accountId}`;
     try {
@@ -578,7 +569,7 @@ function AppMain({ currentUser, onLogout }: {
         alert(`取消订阅失败：${msg}`);
         return;
       }
-      fetchAccounts();
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
     } catch (err) {
       console.error("Unsubscribe failed", err);
       alert("取消订阅失败：网络错误");
@@ -594,7 +585,7 @@ function AppMain({ currentUser, onLogout }: {
         alert(`恢复订阅失败：${msg}`);
         return;
       }
-      fetchAccounts();
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
     } catch (err) {
       console.error("Resubscribe failed", err);
       alert("恢复订阅失败：网络错误");
@@ -867,13 +858,13 @@ function AppMain({ currentUser, onLogout }: {
         <SubscribeModal
           open={isSubscribeOpen}
           onClose={() => setIsSubscribeOpen(false)}
-          onSuccess={() => { setIsSubscribeOpen(false); fetchAccounts(); }}
+          onSuccess={() => { setIsSubscribeOpen(false); queryClient.invalidateQueries({ queryKey: ["accounts"] }); }}
         />
         <AddArticleModal
           open={isAddArticleOpen}
           onClose={() => setIsAddArticleOpen(false)}
           accounts={accounts}
-          onRefresh={() => { fetchAccounts(); fetchArticles(selectedAccountId ?? -1); }}
+          onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); fetchArticles(selectedAccountId ?? -1); }}
         />
       </aside>
 
@@ -1061,7 +1052,7 @@ function AppMain({ currentUser, onLogout }: {
                 <AdminManagementPanel
                   accounts={accounts}
                   articles={articles}
-                  onRefresh={() => { fetchAccounts(); fetchArticles(selectedAccountId ?? -1); }}
+                  onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); fetchArticles(selectedAccountId ?? -1); }}
                   onSelectArticle={(id) => {
                     setSelectedArticleId(id);
                     setAdminView("analysis");
