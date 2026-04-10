@@ -37,7 +37,6 @@ getVersion()
   })
   .catch(() => {});
 
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -86,7 +85,6 @@ function UpdateBanner() {
     </button>
   );
 }
-
 
 function App() {
   const { state: authState, logout } = useAuth();
