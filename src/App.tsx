@@ -17,6 +17,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { AuthCallback } from './components/AuthCallback';
 import { InviteManagementPanel } from './components/InviteManagementPanel';
 import { UserManagementPanel } from './components/UserManagementPanel';
+import AggregationQueuePanel from "./components/AggregationQueuePanel";
 import { useAuth } from './lib/authStore';
 import { apiFetch, API_BASE, WS_BASE, fetchCardsByDate, fetchAggregatedCards, fetchCardContent, fetchAggregatedCardContent } from './lib/api';
 import { authingClient } from './lib/authing';
@@ -329,7 +330,7 @@ function AppMain({ currentUser, onLogout }: {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingList, setIsResizingList] = useState(false);
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [adminView, setAdminView] = useState<"management" | "analysis" | "queue" | "invites" | "users">("management");
+  const [adminView, setAdminView] = useState<"management" | "analysis" | "queue" | "aggregation" | "invites" | "users">("management");
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isSubscribeOpen, setIsSubscribeOpen] = useState(false);
   const [isAddArticleOpen, setIsAddArticleOpen] = useState(false);
@@ -1116,6 +1117,16 @@ function AppMain({ currentUser, onLogout }: {
                 >
                   任务队列
                 </button>
+                <button
+                  onClick={() => setAdminView("aggregation")}
+                  style={{
+                    fontSize: '0.75rem', padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                    background: adminView === "aggregation" ? '#1f6feb' : '#21262d',
+                    color: adminView === "aggregation" ? '#fff' : '#8b949e',
+                  }}
+                >
+                  聚合队列
+                </button>
                 {currentUser.role === "admin" && (
                   <>
                     <button
@@ -1166,6 +1177,8 @@ function AppMain({ currentUser, onLogout }: {
                   setSelectedArticleId(id);
                   setIsAdminMode(false);
                 }} />
+              ) : adminView === "aggregation" ? (
+                <AggregationQueuePanel />
               ) : adminView === "invites" ? (
                 <InviteManagementPanel />
               ) : adminView === "users" ? (
