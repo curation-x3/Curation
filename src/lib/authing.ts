@@ -9,7 +9,12 @@ if (!appId || !domain) {
   console.warn("[Authing] VITE_AUTHING_APP_ID or VITE_AUTHING_DOMAIN not set");
 }
 
-export const authingClient = new Authing({ appId, domain, redirectUri });
+export const authingClient = new Authing({
+  appId,
+  domain,
+  redirectUri,
+  scope: "openid profile email phone",
+});
 
 // Tauri WKWebView may clear sessionStorage across origin navigations during redirect flow.
 // Patch the internal transactionProvider (PKCE state) to use localStorage which persists.
