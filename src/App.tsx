@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLayout } from "./hooks/useLayout";
 import { useAccounts } from "./hooks/useAccounts";
 import type { Article } from "./types";
+import { useArticles, useArticleContent, useAnalysisStatus, useMarkRead, useDismissArticle } from "./hooks/useArticles";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -250,12 +251,32 @@ function AppMain({ currentUser, onLogout }: {
   const { data: accounts = [] } = useAccounts();
   const queryClient = useQueryClient();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(-1); // -1 for All Articles
-  const [articles, setArticles] = useState<Article[]>([]);
+  const { data: articles = [] } = useArticles(selectedAccountId);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
-  const [activeArticle, setActiveArticle] = useState<Article | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"unprocessed" | "all">("unprocessed");
   const [hidingArticleId, setHidingArticleId] = useState<string | null>(null);
+
+  // Article content via React Query
+  const { data: articleContent } = useArticleContent(selectedArticleId);
+  const baseArticle = articles.find(a => a.short_id === selectedArticleId) ?? null;
+  const activeArticle: (Article & { summaryWordCount?: number; rawWordCount?: number }) | null =
+    baseArticle && articleContent
+      ? { ...baseArticle, ...articleContent }
+      : baseArticle;
+
+  // Word counts derived from content
+  const summaryWordCount = articleContent?.summaryWordCount ?? 0;
+  const rawWordCount = articleContent?.rawWordCount ?? 0;
+
+  // Analysis polling
+  const contentAnalysisStatus = articleContent?.analysisStatus ?? "none";
+  const { data: polledStatus } = useAnalysisStatus(selectedArticleId, contentAnalysisStatus);
+  const analysisStatus = polledStatus ?? contentAnalysisStatus;
+
+  // Optimistic mutations
+  const markRead = useMarkRead(selectedAccountId);
+  const dismissArticle = useDismissArticle(selectedAccountId);
 
   // Layout
   const { isSidebarCollapsed, sidebarWidth, listWidth, isResizingList, startResizeList, toggleSidebar } = useLayout();
@@ -265,9 +286,6 @@ function AppMain({ currentUser, onLogout }: {
   const [isSubscribeOpen, setIsSubscribeOpen] = useState(false);
   const [isAddArticleOpen, setIsAddArticleOpen] = useState(false);
   const [viewRaw, setViewRaw] = useState(false);
-  const [analysisStatus, setAnalysisStatus] = useState<"none" | "pending" | "running" | "done" | "failed">("none");
-  const [summaryWordCount, setSummaryWordCount] = useState(0);
-  const [rawWordCount, setRawWordCount] = useState(0);
   const [notification, setNotification] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
 
@@ -283,18 +301,6 @@ function AppMain({ currentUser, onLogout }: {
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
 
-  // Initial Load: Fetch All Articles
-  useEffect(() => {
-    fetchArticles(-1);
-  }, []);
-
-  // Load Articles when Account changes
-  useEffect(() => {
-    if (selectedAccountId !== null) {
-      fetchArticles(selectedAccountId);
-    }
-  }, [selectedAccountId]);
-
   // Animate out the previous article when switching selection (if it was read)
   const prevSelectedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -308,72 +314,15 @@ function AppMain({ currentUser, onLogout }: {
     prevSelectedRef.current = selectedArticleId;
   }, [selectedArticleId]);
 
-  // Load full content when article selection changes (no enqueue trigger)
+  // Auto-set viewRaw based on content source
   useEffect(() => {
-    if (selectedArticleId === null) return;
-    const art = articles.find(a => a.short_id === selectedArticleId);
-    if (!art) return;
-    setAnalysisStatus("none");
-    setSummaryWordCount(0);
-    setRawWordCount(0);
-    Promise.all([
-      apiFetch(`/articles/${art.short_id}/content`).then(r => r.json()),
-      apiFetch(`/articles/${art.short_id}/raw`).then(r => r.json()),
-      apiFetch(`/articles/${art.short_id}/analysis-status`).then(r => r.json()),
-    ]).then(async ([resp, rawResp, statusResp]) => {
-      // Auto-enqueued (no runs yet) → enter polling
-      if (resp.source === "enqueued") {
-        setActiveArticle({
-          ...art,
-          markdown: undefined,
-          rawMarkdown: rawResp.content,
-          rawHtml: rawResp.format === "html" ? rawResp.content : undefined,
-          contentFormat: rawResp.format,
-          serving_run_id: undefined,
-          content_source: "enqueued",
-        });
-        setViewRaw(true);
-        setAnalysisStatus("pending");
-        return;
-      }
-      // Error from /content (no_serving_run, no_cards, card_files_missing)
-      if (resp.source === "error") {
-        console.error(`[content] Article ${art.short_id}: ${resp.error}`, resp.missing ?? "");
-        setActiveArticle({
-          ...art,
-          markdown: undefined,
-          rawMarkdown: rawResp.content,
-          rawHtml: rawResp.format === "html" ? rawResp.content : undefined,
-          contentFormat: rawResp.format,
-          serving_run_id: resp.serving_run_id,
-          content_source: "error",
-        });
-        setViewRaw(true);
-        setAnalysisStatus(statusResp.analysis_status ?? "none");
-        return;
-      }
-      // Normal analysis content
-      setViewRaw(resp.source !== "analysis");
-      setSummaryWordCount(resp.word_count ?? 0);
-      setRawWordCount(resp.raw_word_count ?? 0);
-      setActiveArticle({
-        ...art,
-        markdown: resp.content,
-        cards: resp.source === "analysis" && resp.cards ? resp.cards : undefined,
-        article_meta: resp.article_meta,
-        rawMarkdown: rawResp.content,
-        rawHtml: rawResp.format === "html" ? rawResp.content : undefined,
-        contentFormat: rawResp.format,
-        serving_run_id: resp.serving_run_id,
-        content_source: resp.source,
-      });
-      setAnalysisStatus(statusResp.analysis_status ?? "none");
-      // Refresh article list so admin panel reflects updated html_path/markdown_path
-      fetchArticles(selectedAccountId ?? -1);
-    }).catch(err => {
-      console.error(`[content] Failed to load article ${art.short_id}:`, err);
-    });
-  }, [selectedArticleId]);
+    if (!articleContent) return;
+    if (articleContent.content_source === "enqueued" || articleContent.content_source === "error") {
+      setViewRaw(true);
+    } else if (articleContent.content_source === "analysis") {
+      setViewRaw(false);
+    }
+  }, [articleContent]);
 
   // Admin tab: auto-switch to analysis when article selected in admin mode
   useEffect(() => {
@@ -385,75 +334,13 @@ function AppMain({ currentUser, onLogout }: {
     if (!isAdminMode) setAdminView("management");
   }, [isAdminMode]);
 
-  // Version check: if serving_run_id changes in the article list, refresh content
+  // Notification when analysis completes
   useEffect(() => {
-    if (!activeArticle) return;
-    const updated = articles.find(a => a.short_id === activeArticle.short_id);
-    if (!updated) return;
-    if (updated.serving_run_id !== activeArticle.serving_run_id) {
-      apiFetch(`/articles/${activeArticle.short_id}/content`)
-        .then(r => r.json())
-        .then(resp => {
-          setActiveArticle(prev => prev ? {
-            ...prev,
-            markdown: resp.content,
-            cards: resp.source === "analysis" && resp.cards ? resp.cards : undefined,
-            article_meta: resp.article_meta,
-            serving_run_id: resp.serving_run_id,
-            content_source: resp.source,
-          } : null);
-        });
-      // Also reset to analysis view when serving run changes
+    if (polledStatus === "done" && activeArticle) {
+      setNotification(`「${activeArticle.title?.slice(0, 20) ?? ""}」AI 总结已生成`);
       setViewRaw(false);
     }
-  }, [articles]);
-
-  // 5-minute auto-refresh
-  useEffect(() => {
-    const id = setInterval(() => {
-      fetchArticles(selectedAccountId ?? -1);
-    }, 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [selectedAccountId]);
-
-  // Poll analysis status while pending/running
-  useEffect(() => {
-    if (!selectedArticleId || (analysisStatus !== "pending" && analysisStatus !== "running")) return;
-    const id = setInterval(async () => {
-      try {
-        const resp = await apiFetch(`/articles/${selectedArticleId}/analysis-status`).then(r => r.json());
-        const newStatus = resp.analysis_status;
-        setAnalysisStatus(newStatus);
-        if (newStatus === "done") {
-          const [contentResp, rawResp] = await Promise.all([
-            apiFetch(`/articles/${selectedArticleId}/content`).then(r => r.json()),
-            apiFetch(`/articles/${selectedArticleId}/raw`).then(r => r.json()),
-          ]);
-          if (contentResp.source === "error") {
-            console.error(`[polling] Article ${selectedArticleId}: ${contentResp.error}`, contentResp.missing ?? "");
-            return;
-          }
-          setSummaryWordCount(contentResp.word_count ?? 0);
-          setRawWordCount(contentResp.raw_word_count ?? 0);
-          setActiveArticle(prev => prev ? {
-            ...prev,
-            markdown: contentResp.content,
-            cards: contentResp.source === "analysis" && contentResp.cards ? contentResp.cards : undefined,
-            article_meta: contentResp.article_meta,
-            rawMarkdown: rawResp.content,
-            serving_run_id: contentResp.serving_run_id,
-            content_source: contentResp.source,
-          } : null);
-          setViewRaw(false);
-          setNotification(`「${activeArticle?.title?.slice(0, 20) ?? ""}」AI 总结已生成`);
-          fetchArticles(selectedAccountId ?? -1);
-        }
-      } catch (err) {
-        console.error(`[polling] Failed for article ${selectedArticleId}:`, err);
-      }
-    }, 5000);
-    return () => clearInterval(id);
-  }, [selectedArticleId, analysisStatus]);
+  }, [polledStatus]);
 
   // Auto-dismiss notification after 5s
   useEffect(() => {
@@ -531,32 +418,15 @@ function AppMain({ currentUser, onLogout }: {
     }
   }, [cardList, pendingJumpCardId]);
 
-  const fetchArticles = async (accountId: number) => {
-    const path = accountId === -1 ? `/articles` : `/articles?account_id=${accountId}`;
-    try {
-      const resp = await apiFetch(path).then(r => r.json());
-      if (resp.status === "ok") setArticles(resp.data);
-    } catch (err) {
-      console.error("Failed to fetch articles", err);
-    }
-  };
-
-  const handleMarkRead = async (e: React.MouseEvent, id: string) => {
+  const handleMarkRead = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    await apiFetch(`/articles/${id}/read?status=1`, { method: "POST" }).catch(() => {});
-    setArticles(prev => prev.map(a => a.short_id === id ? { ...a, read_status: 1 } : a));
+    markRead.mutate(id);
   };
 
-  const handleDismissArticle = async (e: React.MouseEvent, id: string) => {
+  const handleDismissArticle = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setHidingArticleId(id);
-    try {
-      await apiFetch(`/articles/${id}/dismiss`, { method: 'POST' });
-      setArticles(prev => prev.map(a => a.short_id === id ? { ...a, dismissed: 1 } : a));
-    } catch (err) {
-      console.error("Dismiss failed", err);
-      setHidingArticleId(null);
-    }
+    dismissArticle.mutate(id);
   };
 
   const handleUnsubscribe = async (e: React.MouseEvent, accountId: number) => {
@@ -864,7 +734,7 @@ function AppMain({ currentUser, onLogout }: {
           open={isAddArticleOpen}
           onClose={() => setIsAddArticleOpen(false)}
           accounts={accounts}
-          onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); fetchArticles(selectedAccountId ?? -1); }}
+          onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); queryClient.invalidateQueries({ queryKey: ["articles"] }); }}
         />
       </aside>
 
@@ -1052,7 +922,7 @@ function AppMain({ currentUser, onLogout }: {
                 <AdminManagementPanel
                   accounts={accounts}
                   articles={articles}
-                  onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); fetchArticles(selectedAccountId ?? -1); }}
+                  onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); queryClient.invalidateQueries({ queryKey: ["articles"] }); }}
                   onSelectArticle={(id) => {
                     setSelectedArticleId(id);
                     setAdminView("analysis");
@@ -1072,7 +942,7 @@ function AppMain({ currentUser, onLogout }: {
               ) : activeArticle ? (
                 <ArticleAdminPanel
                   article={activeArticle}
-                  onArticleUpdate={() => fetchArticles(selectedAccountId ?? -1)}
+                  onArticleUpdate={() => queryClient.invalidateQueries({ queryKey: ["articles"] })}
                 />
               ) : (
                 <div className="reader-empty">
