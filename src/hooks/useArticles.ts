@@ -1,10 +1,12 @@
+import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../lib/api";
 import type { Article } from "../types";
 
-async function fetchArticleList(accountId: number): Promise<Article[]> {
-  const path = accountId === -1 ? "/articles" : `/articles?account_id=${accountId}`;
-  const resp = await apiFetch(path).then(r => r.json());
+const ARTICLES_KEY = ["articles"] as const;
+
+async function fetchAllArticles(): Promise<Article[]> {
+  const resp = await apiFetch("/articles").then(r => r.json());
   return resp.status === "ok" ? resp.data : [];
 }
 
@@ -69,11 +71,23 @@ export async function fetchArticleContent(articleId: string): Promise<ArticleCon
   };
 }
 
+/**
+ * Single source of truth: fetches all articles once, derives filtered view via `select`.
+ * Switching accounts is instant — no refetch, just a re-run of the selector.
+ */
 export function useArticles(accountId: number | null) {
+  const filterByAccount = useCallback(
+    (data: Article[]) =>
+      accountId != null && accountId !== -1
+        ? data.filter(a => a.account_id === accountId)
+        : data,
+    [accountId],
+  );
+
   return useQuery({
-    queryKey: ["articles", accountId ?? -1],
-    queryFn: () => fetchArticleList(accountId ?? -1),
-    enabled: accountId !== null,
+    queryKey: ARTICLES_KEY,
+    queryFn: fetchAllArticles,
+    select: filterByAccount,
   });
 }
 
@@ -95,7 +109,7 @@ export function useAnalysisStatus(articleId: string | null, currentStatus: strin
       const newStatus = resp.analysis_status;
       if (newStatus === "done") {
         queryClient.invalidateQueries({ queryKey: ["articleContent", articleId] });
-        queryClient.invalidateQueries({ queryKey: ["articles"] });
+        queryClient.invalidateQueries({ queryKey: ARTICLES_KEY });
       }
       return newStatus as string;
     },
@@ -104,47 +118,49 @@ export function useAnalysisStatus(articleId: string | null, currentStatus: strin
   });
 }
 
-export function useMarkRead(accountId: number | null) {
+/**
+ * Optimistic updates operate on the single ARTICLES_KEY cache.
+ * All filtered views (via select) automatically reflect the change.
+ */
+export function useMarkRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (articleId: string) => {
       await apiFetch(`/articles/${articleId}/read?status=1`, { method: "POST" });
     },
     onMutate: async (articleId) => {
-      const key = ["articles", accountId ?? -1];
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<Article[]>(key);
-      queryClient.setQueryData<Article[]>(key, (old) =>
+      await queryClient.cancelQueries({ queryKey: ARTICLES_KEY });
+      const previous = queryClient.getQueryData<Article[]>(ARTICLES_KEY);
+      queryClient.setQueryData<Article[]>(ARTICLES_KEY, (old) =>
         old?.map(a => a.short_id === articleId ? { ...a, read_status: 1 } : a)
       );
       return { previous };
     },
     onError: (_err, _articleId, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(["articles", accountId ?? -1], context.previous);
+        queryClient.setQueryData(ARTICLES_KEY, context.previous);
       }
     },
   });
 }
 
-export function useDismissArticle(accountId: number | null) {
+export function useDismissArticle() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (articleId: string) => {
       await apiFetch(`/articles/${articleId}/dismiss`, { method: "POST" });
     },
     onMutate: async (articleId) => {
-      const key = ["articles", accountId ?? -1];
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<Article[]>(key);
-      queryClient.setQueryData<Article[]>(key, (old) =>
+      await queryClient.cancelQueries({ queryKey: ARTICLES_KEY });
+      const previous = queryClient.getQueryData<Article[]>(ARTICLES_KEY);
+      queryClient.setQueryData<Article[]>(ARTICLES_KEY, (old) =>
         old?.map(a => a.short_id === articleId ? { ...a, dismissed: 1 } : a)
       );
       return { previous };
     },
     onError: (_err, _articleId, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(["articles", accountId ?? -1], context.previous);
+        queryClient.setQueryData(ARTICLES_KEY, context.previous);
       }
     },
   });

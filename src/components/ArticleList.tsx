@@ -28,8 +28,8 @@ export function ArticleList({
   const [viewMode, setViewMode] = useState<"unprocessed" | "all">("unprocessed");
   const [hidingArticleId, setHidingArticleId] = useState<string | null>(null);
 
-  const markRead = useMarkRead(accountId);
-  const dismissArticle = useDismissArticle(accountId);
+  const markRead = useMarkRead();
+  const dismissArticle = useDismissArticle();
 
   const handleMarkRead = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
