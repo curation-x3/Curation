@@ -33,7 +33,7 @@ export function useCardList(date: string | null, tab: "aggregated" | "source", e
   return useQuery({
     queryKey: ["cards", date, tab],
     queryFn: () => loadCardList(date, tab),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
     enabled,
   });
 }

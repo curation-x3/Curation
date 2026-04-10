@@ -11,11 +11,16 @@ interface ArticleReaderProps {
   analysisStatus: string;
   viewRaw: boolean;
   onViewRawChange: (v: boolean) => void;
+  isContentLoading?: boolean;
 }
 
-export function ArticleReader({ article, analysisStatus, viewRaw, onViewRawChange }: ArticleReaderProps) {
+export function ArticleReader({ article, analysisStatus, viewRaw, onViewRawChange, isContentLoading }: ArticleReaderProps) {
   const summaryWordCount = article.summaryWordCount ?? 0;
   const rawWordCount = article.rawWordCount ?? 0;
+
+  if (isContentLoading) return (
+    <div style={{padding:'2rem',textAlign:'center',color:'#8b949e'}}>加载文章内容...</div>
+  );
 
   return (
     <>

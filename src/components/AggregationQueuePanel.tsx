@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { RefreshCw, Play, RotateCcw, Trash2, ArrowUp, ArrowDown, ChevronRight, ChevronDown } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AggregationQueueEntry, AggregationRunEntry, AggregationStrategy } from "../types";
 import { apiFetch } from "../lib/api";
 
@@ -23,9 +24,30 @@ type SortField = "created_at" | "date" | "status" | "request_count";
 type SortDir = "asc" | "desc";
 
 export default function AggregationQueuePanel() {
-  const [queue, setQueue] = useState<AggregationQueueEntry[]>([]);
-  const [strategy, setStrategy] = useState<AggregationStrategy>({ auto_launch: true, max_concurrency: 1, default_backend: "" });
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: queueData, isLoading: isLoadingQueue, isFetching } = useQuery({
+    queryKey: ["aggregationQueue"],
+    queryFn: async () => {
+      const resp = await apiFetch("/aggregation-queue").then(r => r.json());
+      return resp.status === "ok" ? (resp.data as AggregationQueueEntry[]) : [];
+    },
+    refetchInterval: 5000,
+  });
+  const queue = queueData ?? [];
+
+  const { data: strategyData } = useQuery({
+    queryKey: ["aggregationStrategy"],
+    queryFn: async () => {
+      const resp = await apiFetch("/aggregation-strategy").then(r => r.json());
+      return resp.status === "ok" ? (resp.data as AggregationStrategy) : { auto_launch: true, max_concurrency: 1, default_backend: "" };
+    },
+    refetchInterval: 5000,
+  });
+  const strategy = strategyData ?? { auto_launch: true, max_concurrency: 1, default_backend: "" };
+
+  const loading = isFetching;
+
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["prereq", "pending", "running", "done", "failed"]));
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -33,47 +55,51 @@ export default function AggregationQueuePanel() {
   const [entryRuns, setEntryRuns] = useState<AggregationRunEntry[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [qResp, sResp] = await Promise.all([
-        apiFetch("/aggregation-queue").then(r => r.json()),
-        apiFetch("/aggregation-strategy").then(r => r.json()),
-      ]);
-      if (qResp.status === "ok") setQueue(qResp.data);
-      if (sResp.status === "ok") setStrategy(sResp.data);
-    } finally {
-      setLoading(false);
-    }
+  const invalidateQueue = () => {
+    queryClient.invalidateQueries({ queryKey: ["aggregationQueue"] });
   };
-
-  useEffect(() => {
-    fetchData();
-    const iv = setInterval(fetchData, 5000);
-    return () => clearInterval(iv);
-  }, []);
 
   const patchStrategy = async (patch: Partial<AggregationStrategy>) => {
     const resp = await apiFetch("/aggregation-strategy", {
       method: "PATCH",
       body: JSON.stringify(patch),
     }).then(r => r.json());
-    if (resp.status === "ok") setStrategy(resp.data);
+    if (resp.status === "ok") {
+      queryClient.invalidateQueries({ queryKey: ["aggregationStrategy"] });
+    }
   };
+
+  const triggerRunMutation = useMutation({
+    mutationFn: async ({ userId, date }: { userId: number; date: string }) => {
+      await apiFetch(`/aggregation-queue/${userId}/${date}/run`, { method: "POST" });
+    },
+    onSuccess: () => invalidateQueue(),
+  });
 
   const triggerRun = async (userId: number, date: string) => {
-    await apiFetch(`/aggregation-queue/${userId}/${date}/run`, { method: "POST" });
-    await fetchData();
+    await triggerRunMutation.mutateAsync({ userId, date });
   };
+
+  const retryMutation = useMutation({
+    mutationFn: async ({ userId, date }: { userId: number; date: string }) => {
+      await apiFetch(`/aggregation-queue/${userId}/${date}/retry`, { method: "POST" });
+    },
+    onSuccess: () => invalidateQueue(),
+  });
 
   const retryEntry = async (userId: number, date: string) => {
-    await apiFetch(`/aggregation-queue/${userId}/${date}/retry`, { method: "POST" });
-    await fetchData();
+    await retryMutation.mutateAsync({ userId, date });
   };
 
+  const deleteRunMutation = useMutation({
+    mutationFn: async (runId: number) => {
+      await apiFetch(`/aggregation-runs/${runId}`, { method: "DELETE" });
+    },
+    onSuccess: () => invalidateQueue(),
+  });
+
   const deleteRun = async (runId: number) => {
-    await apiFetch(`/aggregation-runs/${runId}`, { method: "DELETE" });
-    await fetchData();
+    await deleteRunMutation.mutateAsync(runId);
   };
 
   const toggleExpand = async (userId: number, date: string) => {
@@ -135,11 +161,13 @@ export default function AggregationQueuePanel() {
     return `${Math.floor(s / 60)}m${Math.round(s % 60)}s`;
   };
 
+  if (isLoadingQueue) return <div style={{padding:'2rem',textAlign:'center',color:'#8b949e'}}>加载队列...</div>;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {/* Strategy controls */}
       <div style={{ padding: "8px 12px", borderBottom: "1px solid #30363d", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <button className="btn-icon" onClick={fetchData} title="刷新" style={{ padding: 4 }}>
+        <button className="btn-icon" onClick={() => invalidateQueue()} title="刷新" style={{ padding: 4 }}>
           <RefreshCw size={14} className={loading ? "spin" : ""} />
         </button>
 

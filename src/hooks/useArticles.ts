@@ -109,7 +109,9 @@ export function useAnalysisStatus(articleId: string | null, currentStatus: strin
       const newStatus = resp.analysis_status;
       if (newStatus === "done") {
         queryClient.invalidateQueries({ queryKey: ["articleContent", articleId] });
-        queryClient.invalidateQueries({ queryKey: ARTICLES_KEY });
+        queryClient.setQueryData<Article[]>(ARTICLES_KEY, (old) =>
+          old?.map(a => a.short_id === articleId ? { ...a, queue_status: "done" } : a)
+        );
       }
       return newStatus as string;
     },

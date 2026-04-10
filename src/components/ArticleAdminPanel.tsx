@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Play, RefreshCw, ChevronDown, ChevronRight, Eye, Columns2, List, Radio, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { RunProgress } from "./RunProgress";
 import { FileViewer } from "./FileViewer";
 import type { Article, AnalysisRun, AgentBackends } from "../types";
@@ -80,7 +81,6 @@ function ComparePane({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
-  const [backendsInfo, setBackendsInfo] = useState<AgentBackends | null>(null);
   const [backend, setBackend] = useState<string>("claude");
   const [triggering, setTriggering] = useState(false);
 
@@ -91,25 +91,34 @@ export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
   const [compareMode, setCompareMode] = useState(false);
 
   // Load available backends from agent
+  const { data: backendsInfo, isLoading: isLoadingBackends } = useQuery({
+    queryKey: ["analysisBackends"],
+    queryFn: async () => {
+      const resp = await apiFetch(`/agent/backends`).then(r => r.json());
+      return (resp.data as AgentBackends) ?? null;
+    },
+    staleTime: 60 * 1000,
+  });
+
+  // Set default backend when data loads
   useEffect(() => {
-    apiFetch(`/agent/backends`)
-      .then(r => r.json())
-      .then(resp => {
-        const data: AgentBackends = resp.data;
-        if (data) {
-          setBackendsInfo(data);
-          if (data.default) setBackend(data.default);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (backendsInfo?.default) setBackend(backendsInfo.default);
+  }, [backendsInfo]);
+
+  const { isLoading: isLoadingRuns } = useQuery({
+    queryKey: ["articleRuns", article.short_id],
+    queryFn: async () => {
+      const resp = await apiFetch(`/articles/${article.short_id}/runs`).then(r => r.json());
+      const data = resp.data ?? [];
+      setRuns(data);
+      return data;
+    },
+  });
 
   const loadRuns = () =>
     apiFetch(`/articles/${article.short_id}/runs`)
       .then(r => r.json())
       .then(resp => setRuns(resp.data ?? []));
-
-  useEffect(() => { loadRuns(); }, [article.short_id]);
 
   // ── Trigger ────────────────────────────────────────────────────────────────
 
@@ -215,7 +224,9 @@ export function ArticleAdminPanel({ article, onArticleUpdate }: Props) {
         ) : (
           /* ── History list ── */
           <div className="flex-1 overflow-y-auto">
-            {runs.length === 0 ? (
+            {(isLoadingRuns || isLoadingBackends) ? (
+              <div className="text-center text-gray-500 py-12">加载中...</div>
+            ) : runs.length === 0 ? (
               <div className="text-center text-gray-500 py-12">暂无分析记录</div>
             ) : (
               runs.map(run => {

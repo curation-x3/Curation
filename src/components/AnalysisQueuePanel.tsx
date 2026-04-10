@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { RefreshCw, Play, ExternalLink, RotateCcw, Trash2, ArrowUp, ArrowDown, ChevronRight, ChevronDown } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AgentBackends } from "../types";
 import { apiFetch } from "../lib/api";
 
@@ -88,10 +89,39 @@ function formatQueueTime(t: string): string {
 }
 
 export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
-  const [queue, setQueue] = useState<QueueEntry[]>([]);
-  const [strategy, setStrategy] = useState<Strategy>({ auto_launch: true, max_concurrency: 2, default_backend: "" });
-  const [backendsInfo, setBackendsInfo] = useState<AgentBackends | null>(null);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: queueData, isLoading: isLoadingQueue, isFetching } = useQuery({
+    queryKey: ["analysisQueue"],
+    queryFn: async () => {
+      const resp = await apiFetch(`/queue`).then(r => r.json());
+      return resp.status === "ok" ? (resp.data as QueueEntry[]) : [];
+    },
+    refetchInterval: 5000,
+  });
+  const queue = queueData ?? [];
+
+  const { data: strategyData } = useQuery({
+    queryKey: ["analysisStrategy"],
+    queryFn: async () => {
+      const resp = await apiFetch(`/strategy`).then(r => r.json());
+      return resp.status === "ok" ? (resp.data as Strategy) : { auto_launch: true, max_concurrency: 2, default_backend: "" };
+    },
+    refetchInterval: 5000,
+  });
+  const strategy = strategyData ?? { auto_launch: true, max_concurrency: 2, default_backend: "" };
+
+  const { data: backendsInfo } = useQuery({
+    queryKey: ["analysisBackends"],
+    queryFn: async () => {
+      const resp = await apiFetch(`/agent/backends`).then(r => r.json());
+      return (resp.data as AgentBackends) ?? null;
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const loading = isFetching;
+
   const [runningArticles, setRunningArticles] = useState<Set<string>>(new Set());
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["pending", "running", "done", "failed"]));
   const [publishDateFilter, setPublishDateFilter] = useState<string>("");
@@ -139,59 +169,44 @@ export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
     return items;
   }, [queue, statusFilters, publishDateFilter, sortField, sortDir]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [qResp, sResp] = await Promise.all([
-        apiFetch(`/queue`).then(r => r.json()),
-        apiFetch(`/strategy`).then(r => r.json()),
-      ]);
-      if (qResp.status === "ok") setQueue(qResp.data);
-      if (sResp.status === "ok") setStrategy(sResp.data);
-    } finally {
-      setLoading(false);
-    }
+  const invalidateQueue = () => {
+    queryClient.invalidateQueries({ queryKey: ["analysisQueue"] });
   };
 
-  // Fetch available backends
-  useEffect(() => {
-    apiFetch(`/agent/backends`)
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.data) setBackendsInfo(resp.data);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, 5000);
-    return () => clearInterval(id);
-  }, []);
-
   const patchStrategy = async (patch: Partial<Strategy>) => {
-    const updated = { ...strategy, ...patch };
-    setStrategy(updated);
     await apiFetch(`/strategy`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
+    queryClient.invalidateQueries({ queryKey: ["analysisStrategy"] });
   };
+
+  const triggerRunMutation = useMutation({
+    mutationFn: async (articleId: string) => {
+      await apiFetch(`/queue/${articleId}/run`, { method: "POST" });
+    },
+    onSuccess: () => invalidateQueue(),
+  });
 
   const triggerRun = async (articleId: string) => {
     setRunningArticles(prev => new Set(prev).add(articleId));
     try {
-      await apiFetch(`/queue/${articleId}/run`, { method: "POST" });
-      await fetchData();
+      await triggerRunMutation.mutateAsync(articleId);
     } finally {
       setRunningArticles(prev => { const s = new Set(prev); s.delete(articleId); return s; });
     }
   };
 
+  const retryMutation = useMutation({
+    mutationFn: async (articleId: string) => {
+      await apiFetch(`/queue/${articleId}/retry`, { method: "POST" });
+    },
+    onSuccess: () => invalidateQueue(),
+  });
+
   const retryEntry = async (articleId: string) => {
-    await apiFetch(`/queue/${articleId}/retry`, { method: "POST" });
-    await fetchData();
+    await retryMutation.mutateAsync(articleId);
   };
 
   const toggleExpand = async (articleId: string) => {
@@ -211,7 +226,7 @@ export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
 
   const deleteRun = async (runId: number) => {
     await apiFetch(`/runs/${runId}`, { method: "DELETE" });
-    await fetchData();
+    invalidateQueue();
     if (expandedArticle) {
       const resp = await apiFetch(`/articles/${expandedArticle}/runs`).then(r => r.json());
       if (resp.status === "ok") setArticleRuns(resp.data);
@@ -240,6 +255,8 @@ export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
     </th>
   );
 
+  if (isLoadingQueue) return <div style={{padding:'2rem',textAlign:'center',color:'#8b949e'}}>加载队列...</div>;
+
   return (
     <div style={{ padding: "18px 24px", overflowY: "auto", height: "100%" }}>
       {/* Strategy settings */}
@@ -247,7 +264,7 @@ export function AnalysisQueuePanel({ onNavigateToArticle }: Props) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <h3 style={{ margin: 0, fontSize: "0.9rem", color: "#e6edf3" }}>执行策略</h3>
           <button
-            onClick={fetchData}
+            onClick={() => invalidateQueue()}
             style={{ background: "none", border: "none", cursor: "pointer", color: "#8b949e", display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem" }}
           >
             <RefreshCw size={13} className={loading ? "animate-spin" : ""} />

@@ -19,10 +19,11 @@ interface ArticleListProps {
   onSelectAccount: (id: number) => void;
   accountId: number | null;
   listWidth: number;
+  isLoading?: boolean;
 }
 
 export function ArticleList({
-  articles, selectedArticleId, onSelectArticle, onSelectAccount, accountId, listWidth,
+  articles, selectedArticleId, onSelectArticle, onSelectAccount, accountId: _accountId, listWidth, isLoading,
 }: ArticleListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"unprocessed" | "all">("unprocessed");
@@ -56,6 +57,12 @@ export function ArticleList({
     }),
   );
 
+  if (isLoading) return (
+    <section className="article-list-pane" style={{ width: listWidth }}>
+      <div style={{padding:'2rem',textAlign:'center',color:'#8b949e'}}>加载中...</div>
+    </section>
+  );
+
   return (
     <section className="article-list-pane" style={{ width: listWidth }}>
       <header className="list-header">
@@ -83,7 +90,7 @@ export function ArticleList({
         {(() => {
           let lastDate = '';
           return filteredArticles.map(art => {
-            const dateStr = (art.publish_time || '').split(' ')[0] || '';
+            const dateStr = (art.publish_time || '').slice(0, 10) || '';
             const showSeparator = dateStr && dateStr !== lastDate;
             if (dateStr) lastDate = dateStr;
             return (
@@ -105,7 +112,7 @@ export function ArticleList({
                       <div className={`article-card-title ${art.read_status ? 'read' : ''}`}>{art.title}</div>
                       {art.digest && <div className="article-card-digest">{art.digest}</div>}
                       <div className="article-card-meta">
-                        {art.publish_time}{art.word_count ? ` · 约${art.word_count}字 · 阅读约${Math.max(1, Math.round(art.word_count / 400))}分钟` : ''}{art.account && <> · <span
+                        {(art.publish_time || '').replace('T', ' ').slice(0, 16)}{art.word_count ? ` · 约${art.word_count}字 · 阅读约${Math.max(1, Math.round(art.word_count / 400))}分钟` : ''}{art.account && <> · <span
                           onClick={e => { e.stopPropagation(); if (art.account_id) onSelectAccount(art.account_id); }}
                           style={{ cursor: 'pointer', color: 'var(--primary-color)', textDecoration: 'none' }}
                           onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}

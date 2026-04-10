@@ -42,7 +42,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
       retry: 1,
     },
   },
@@ -136,11 +136,11 @@ function AppMain({ currentUser, onLogout }: {
   onLogout: () => void;
 }) {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(-1); // -1 for All Articles
-  const { data: articles = [] } = useArticles(selectedAccountId);
+  const { data: articles = [], isLoading: isLoadingArticles } = useArticles(selectedAccountId);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
   // Article content via React Query
-  const { data: articleContent } = useArticleContent(selectedArticleId);
+  const { data: articleContent, isLoading: isContentLoading } = useArticleContent(selectedArticleId);
   const baseArticle = articles.find(a => a.short_id === selectedArticleId) ?? null;
   const activeArticle: (Article & { summaryWordCount?: number; rawWordCount?: number }) | null =
     baseArticle && articleContent
@@ -270,6 +270,7 @@ function AppMain({ currentUser, onLogout }: {
           onSelectAccount={setSelectedAccountId}
           accountId={selectedAccountId}
           listWidth={listWidth}
+          isLoading={isLoadingArticles}
         />
       )}
 
@@ -290,6 +291,7 @@ function AppMain({ currentUser, onLogout }: {
             currentUser={currentUser}
             onSelectArticle={setSelectedArticleId}
             onExitAdmin={() => setIsAdminMode(false)}
+            isLoadingArticles={isLoadingArticles}
           />
         ) : activeArticle ? (
           <ArticleReader
@@ -297,6 +299,7 @@ function AppMain({ currentUser, onLogout }: {
             analysisStatus={analysisStatus}
             viewRaw={viewRaw}
             onViewRawChange={setViewRaw}
+            isContentLoading={isContentLoading}
           />
         ) : (
           <div className="reader-empty">

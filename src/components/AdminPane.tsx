@@ -19,11 +19,12 @@ interface AdminPaneProps {
   currentUser: { role: string };
   onSelectArticle: (id: string) => void;
   onExitAdmin: () => void;
+  isLoadingArticles?: boolean;
 }
 
 export function AdminPane({
   adminView, onAdminViewChange, activeArticle, articles, currentUser,
-  onSelectArticle, onExitAdmin,
+  onSelectArticle, onExitAdmin, isLoadingArticles,
 }: AdminPaneProps) {
   const { data: accounts = [] } = useAccounts();
   const queryClient = useQueryClient();
@@ -119,6 +120,7 @@ export function AdminPane({
           <AdminManagementPanel
             accounts={accounts}
             articles={articles}
+            isLoading={isLoadingArticles}
             onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); queryClient.invalidateQueries({ queryKey: ["articles"] }); }}
             onSelectArticle={(id) => {
               onSelectArticle(id);

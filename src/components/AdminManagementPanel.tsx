@@ -33,9 +33,10 @@ interface Props {
   articles: Article[];
   onRefresh: () => void;
   onSelectArticle: (articleId: string) => void;
+  isLoading?: boolean;
 }
 
-export function AdminManagementPanel({ accounts, articles, onRefresh, onSelectArticle }: Props) {
+export function AdminManagementPanel({ accounts, articles, onRefresh, onSelectArticle, isLoading }: Props) {
   const [activeTab, setActiveTab] = useState<"accounts" | "articles">("accounts");
   const [filterAccountId, setFilterAccountId] = useState<number | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["none", "pending", "running", "failed", "done"]));
@@ -198,6 +199,8 @@ export function AdminManagementPanel({ accounts, articles, onRefresh, onSelectAr
   });
 
   const filterAccountName = filterAccountId != null ? accounts.find(a => a.id === filterAccountId)?.name : null;
+
+  if (isLoading) return <div style={{padding:'2rem',textAlign:'center',color:'#8b949e'}}>加载中...</div>;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
