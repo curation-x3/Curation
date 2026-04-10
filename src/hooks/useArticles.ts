@@ -15,7 +15,7 @@ export interface ArticleContent {
   rawMarkdown?: string;
   rawHtml?: string;
   contentFormat?: "html" | "markdown";
-  serving_run_id?: number;
+  serving_run_id?: number | null;
   content_source: Article["content_source"];
   summaryWordCount: number;
   rawWordCount: number;
