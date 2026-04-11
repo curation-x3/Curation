@@ -47,6 +47,14 @@ export function useCardContent(cardId: string | null, tab: "aggregated" | "sourc
   });
 }
 
+export function useCardDates() {
+  return useQuery({
+    queryKey: ["cardDates"],
+    queryFn: () => apiFetch("/cards/dates").then(r => r.json()) as Promise<{ source: string[]; aggregated: string[] }>,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useMarkCardRead(date: string | null, tab: "aggregated" | "source") {
   const queryClient = useQueryClient();
   return useMutation({

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useLayout } from "./hooks/useLayout";
 import type { Article } from "./types";
 import { useArticles, useArticleContent, useAnalysisStatus } from "./hooks/useArticles";
-import { useCardList, useCardContent } from "./hooks/useCards";
+import { useCardList, useCardContent, useCardDates } from "./hooks/useCards";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import 'highlight.js/styles/github-dark.css';
 import { BookOpen, X, Sparkles } from 'lucide-react';
@@ -213,18 +213,13 @@ function AppMain({ currentUser, onLogout }: {
     return () => clearTimeout(id);
   }, [notification]);
 
-  // Generate recent 14 days for card date list
+  // Dates where the user actually has cards
+  const { data: cardDatesData } = useCardDates();
   const cardDates = useMemo(() => {
-    if (appMode !== "cards") return [];
-    const dates: string[] = [];
-    const today = new Date();
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().split("T")[0]);
-    }
-    return dates;
-  }, [appMode]);
+    if (!cardDatesData) return [];
+    const all = new Set([...cardDatesData.source, ...cardDatesData.aggregated]);
+    return Array.from(all).sort((a, b) => b.localeCompare(a));
+  }, [cardDatesData]);
 
   function jumpToSourceCard(id: string) {
     setPendingJumpCardId(id);
