@@ -10,6 +10,7 @@ const STATUS_LABEL: Record<string, string> = {
   running: "处理中",
   done: "已完成",
   failed: "失败",
+  skipped: "已跳过",
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -18,6 +19,7 @@ const STATUS_COLOR: Record<string, string> = {
   running: "#f0a500",
   done: "#3fb950",
   failed: "#f85149",
+  skipped: "#484f58",
 };
 
 type SortField = "created_at" | "date" | "status" | "request_count";
@@ -48,7 +50,7 @@ export default function AggregationQueuePanel() {
 
   const loading = isFetching;
 
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["prereq", "pending", "running", "done", "failed"]));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["prereq", "pending", "running", "done", "failed", "skipped"]));
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
@@ -270,7 +272,7 @@ export default function AggregationQueuePanel() {
                     <td style={{ padding: "6px 8px", color: "#8b949e", textAlign: "center" }}>{entry.request_count}</td>
                     <td style={{ padding: "6px 8px", color: "#8b949e" }}>{fmtTime(entry.created_at)}</td>
                     <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      {(entry.status === "pending" || entry.status === "prereq") && (
+                      {(entry.status === "pending" || entry.status === "prereq" || entry.status === "skipped") && (
                         <button
                           onClick={() => triggerRun(entry.user_id, entry.date)}
                           style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: 4, border: "none", cursor: "pointer", background: "#238636", color: "#fff", marginRight: 4 }}
