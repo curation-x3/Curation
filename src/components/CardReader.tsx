@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -22,6 +22,11 @@ export function CardReader({ card, onJumpToSource, onJumpToArticle, onSelectAcco
   const markCardRead = useMarkCardRead(cardViewDate, cardViewTab);
   const [flagging, setFlagging] = useState(false);
   const [flagSuccess, setFlagSuccess] = useState(false);
+
+  useEffect(() => {
+    setFlagging(false);
+    setFlagSuccess(false);
+  }, [card?.card_id]);
 
   if (!card) {
     return (
