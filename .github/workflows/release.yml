@@ -119,8 +119,8 @@ jobs:
 
       - name: Generate and upload updater manifest
         run: |
-          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          TAG="v${VERSION}"
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
           BASE_URL="https://github.com/aiyah-meloken/Curation/releases/download/${TAG}"
 
           # List all assets in the release
