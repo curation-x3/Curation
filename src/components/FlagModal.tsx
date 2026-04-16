@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
+import { X, Loader2 } from "lucide-react";
 import type { Card } from "../hooks/useCards";
 import { apiFetch } from "../lib/api";
 
@@ -14,7 +15,7 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = useCallback(async () => {
+  async function submit() {
     if (!feedback.trim()) return;
     setSubmitting(true);
     setError(null);
@@ -34,7 +35,7 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
     } finally {
       setSubmitting(false);
     }
-  }, [card.card_id, cardType, feedback, onSuccess]);
+  }
 
   return (
     <div
@@ -57,7 +58,7 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
             onClick={onClose}
             style={{ background: "none", border: "none", cursor: "pointer", color: "#8b949e", padding: 4, fontSize: "1rem" }}
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
         <p style={{ color: "#8b949e", fontSize: "0.82rem", marginBottom: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -100,7 +101,7 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
               cursor: feedback.trim() && !submitting ? "pointer" : "default",
             }}
           >
-            {submitting ? "提交中…" : "提交"}
+            {submitting ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 4 }} /> 提交中…</> : "提交"}
           </button>
         </div>
       </div>
