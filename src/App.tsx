@@ -423,6 +423,7 @@ function AppMain({ currentUser, onLogout }: {
               onSelectAccount={jumpToAccount}
               cardViewTab={cardViewTab}
               cardViewDate={cardViewDate}
+              isAdmin={currentUser.role === "admin"}
             />
           )}
         </>
