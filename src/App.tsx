@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useLayout } from "./hooks/useLayout";
 import { useInbox, useDiscarded } from "./hooks/useInbox";
 import { useAccounts } from "./hooks/useAccounts";
+import { useInitCache, useSyncManager } from "./hooks/useSync";
 import type { InboxItem } from "./types";
 import { FavoritesList } from './components/FavoritesList';
 import { FavoritesReader } from './components/FavoritesReader';
@@ -137,7 +138,7 @@ function App() {
 }
 
 function AppMain({ currentUser, onLogout }: {
-  currentUser: { id: number; email: string; username: string; role: string };
+  currentUser: { id: number; email: string; username: string; role: string; authing_sub?: string };
   onLogout: () => void;
 }) {
   // Appearance (font system)
@@ -161,14 +162,19 @@ function AppMain({ currentUser, onLogout }: {
   const [notification, setNotification] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string>("");
 
+  // Cache & sync — use authing_sub as userId for key derivation
+  useInitCache(true, currentUser?.authing_sub ?? currentUser?.id?.toString() ?? null);
+  useSyncManager(true);
+
   // Data
   const { data: accounts = [] } = useAccounts();
   // Always fetch full inbox (no account filter) for unread counts
-  const { data: allInboxItems } = useInbox(undefined, false);
+  const { data: allInboxItems } = useInbox(undefined, false, accounts);
   // Filtered inbox for list display
   const { data: inboxItems, isLoading: isLoadingInbox } = useInbox(
     selectedView === "inbox" ? selectedAccountId : undefined,
     false,
+    accounts,
   );
   const { data: discardedItems, isLoading: isLoadingDiscarded } = useDiscarded();
 
