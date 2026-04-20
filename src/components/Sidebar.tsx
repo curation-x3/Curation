@@ -97,7 +97,12 @@ export function Sidebar({
       <div className="sidebar-header">
         <h2 className="sidebar-title">
           <Inbox size={20} />
-          <span>收件箱</span>
+          <span className="sidebar-brand">
+            <span className="sidebar-brand-name">Curation</span>
+            {!isSidebarCollapsed && (
+              <span className="sidebar-brand-slogan">值得读完的文章，远比你以为的少</span>
+            )}
+          </span>
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
           {onBack && (
