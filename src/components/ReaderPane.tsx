@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { BookOpen, ExternalLink } from "lucide-react";
+import { BookOpen, ExternalLink, Loader2 } from "lucide-react";
 import { stripFrontmatter, mdComponents } from "../lib/markdown";
 import { useCardContent } from "../hooks/useCards";
 import { useArticleContent } from "../hooks/useArticles";
@@ -187,9 +187,9 @@ export function ReaderPane({
       markReadTimerRef.current = null;
     }
 
-    if (selectedItem && !selectedItem.read_at) {
+    if (selectedItem && !selectedItem.read_at && selectedItem.card_id) {
       markReadTimerRef.current = setTimeout(() => {
-        markRead.mutate(selectedItem.card_id);
+        markRead.mutate(selectedItem.card_id!);
       }, 2000);
     }
 
@@ -229,21 +229,62 @@ export function ReaderPane({
     );
   }
 
+  // Analyzing item — show original article with indicator
+  if (selectedItem && selectedItem.queue_status) {
+    return (
+      <main className="reader-pane">
+        <div className="reader-source-bar">
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
+            <span style={{ color: "#e6edf3", fontWeight: 500, fontSize: "0.88rem", flex: 1 }}>
+              {selectedItem.article_meta.title}
+            </span>
+            <span className="inbox-tag" style={{ background: "#1a2332", color: "#58a6ff", display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.72rem" }}>
+              <Loader2 size={10} className="animate-spin" />
+              正在分析...
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{ fontSize: "0.78rem", color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
+              <span>{selectedItem.article_meta.account}</span>
+              {selectedItem.article_meta.author && <><span>·</span><span>{selectedItem.article_meta.author}</span></>}
+              {selectedItem.article_meta.publish_time && <><span>·</span><span>{formatTime(selectedItem.article_meta.publish_time)}</span></>}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button
+                onClick={() => openInAppWindow(selectedItem.article_meta.url)}
+                style={{
+                  background: "none", border: "1px solid #30363d", borderRadius: 6,
+                  color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}
+              >
+                <ExternalLink size={12} /> 微信原文
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="reader-content animate-in">
+          <ArticleHtmlView articleId={selectedItem.article_id} />
+        </div>
+      </main>
+    );
+  }
+
   // Inbox item view
   if (selectedItem) {
     return (
       <main className="reader-pane">
         <SourceBar
           meta={selectedItem.article_meta}
-          routing={selectedItem.routing}
+          routing={selectedItem.routing ?? undefined}
           isDiscarded={false}
           onOpenOriginal={() => openInAppWindow(selectedItem.article_meta.url)}
           onOpenDrawer={selectedItem.routing === "ai_curation" ? onOpenDrawer : undefined}
-          cardId={selectedItem.card_id}
+          cardId={selectedItem.card_id ?? undefined}
         />
         <div className="reader-content animate-in">
           {/* Card content (markdown) — shown for both ai_curation and original_push */}
-          <CardContentView cardId={selectedItem.card_id} />
+          {selectedItem.card_id && <CardContentView cardId={selectedItem.card_id} />}
 
           {/* Original push: show original article (rich text HTML) below the guide card */}
           {selectedItem.routing === "original_push" && (
