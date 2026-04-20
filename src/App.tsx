@@ -1,22 +1,19 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavHistory } from './hooks/useNavHistory';
-import type { NavLocation } from './hooks/useNavHistory';
 import { useLayout } from "./hooks/useLayout";
-import type { Article } from "./types";
-import { useArticles, useArticleContent, useAnalysisStatus } from "./hooks/useArticles";
-import { useCardList, useCardContent, useCardDates } from "./hooks/useCards";
+import { useInbox, useDiscarded } from "./hooks/useInbox";
+import { useAccounts } from "./hooks/useAccounts";
+import type { InboxItem } from "./types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import 'highlight.js/styles/github-dark.css';
-import { BookOpen, X, Sparkles } from 'lucide-react';
+import { X, Sparkles } from 'lucide-react';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
 import { Sidebar } from './components/Sidebar';
 import { AdminPane } from './components/AdminPane';
-import { ArticleList } from './components/ArticleList';
-import { ArticleReader } from './components/ArticleReader';
-import { CardList } from './components/CardList';
-import { CardReader } from './components/CardReader';
+import { InboxList } from './components/InboxList';
+import { ReaderPane } from './components/ReaderPane';
+import { ArticleDrawer } from './components/ArticleDrawer';
 import { LoginScreen } from './components/LoginScreen';
 import { AuthCallback } from './components/AuthCallback';
 import { useAuth } from './lib/authStore';
@@ -24,7 +21,7 @@ import { API_BASE, WS_BASE } from './lib/api';
 import { authingClient } from './lib/authing';
 import "./App.css";
 
-// Boot info — printed once at startup
+// Boot info
 getVersion()
   .then(v => {
     console.log(
@@ -101,7 +98,6 @@ function App() {
     );
   }
 
-  // Authing uses fragment mode by default: code comes back in window.location.hash
   const isCallback = authingClient.isRedirectCallback();
   if (isCallback) {
     return <AuthCallback onDone={() => window.location.replace("/")} />;
@@ -119,7 +115,7 @@ function App() {
   const currentUser = authState.user;
 
   function handleLogout() {
-    logout();  // clear local session
+    logout();
     authingClient.logoutWithRedirect({
       redirectUri: import.meta.env.VITE_AUTHING_REDIRECT_URI?.replace("/auth/callback", "") || window.location.origin,
     });
@@ -137,110 +133,34 @@ function AppMain({ currentUser, onLogout }: {
   currentUser: { id: number; email: string; username: string; role: string };
   onLogout: () => void;
 }) {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(-1); // -1 for All Articles
-  const { data: articles = [], isLoading: isLoadingArticles } = useArticles(selectedAccountId);
-  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
-
-  // Article content via React Query
-  const { data: articleContent, isLoading: isContentLoading } = useArticleContent(selectedArticleId);
-  const baseArticle = articles.find(a => a.short_id === selectedArticleId) ?? null;
-  const activeArticle: (Article & { summaryWordCount?: number; rawWordCount?: number }) | null =
-    baseArticle && articleContent
-      ? { ...baseArticle, ...articleContent }
-      : baseArticle;
-
-  // Analysis polling
-  const contentAnalysisStatus = articleContent?.analysisStatus ?? "none";
-  const { data: polledStatus } = useAnalysisStatus(selectedArticleId, contentAnalysisStatus);
-  const analysisStatus = polledStatus ?? contentAnalysisStatus;
+  // View state
+  const [selectedView, setSelectedView] = useState<"inbox" | "temporary" | "discarded">("inbox");
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [selectedDiscardedId, setSelectedDiscardedId] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Layout
   const { isSidebarCollapsed, sidebarWidth, listWidth, isResizingList, startResizeList, toggleSidebar } = useLayout();
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [adminView, setAdminView] = useState<"management" | "analysis" | "queue" | "aggregation" | "invites" | "users">("management");
-  const [viewRaw, setViewRaw] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
-  const [appVersion, setAppVersion] = useState<string>('');
+  const [appVersion, setAppVersion] = useState<string>("");
 
-  // Card view state
-  type AppMode = "articles" | "cards";
-  const [appMode, setAppMode] = useState<AppMode>("articles");
-  const [cardViewDate, setCardViewDate] = useState<string | null>(null); // null = 全部
-  const [cardViewTab, setCardViewTab] = useState<"aggregated" | "source">("aggregated");
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [pendingJumpCardId, setPendingJumpCardId] = useState<string | null>(null);
-
-  // Navigation history
-  const { push: navPush, back: navBack, forward: navForward, canBack, canForward } = useNavHistory({
-    appMode: "articles", selectedArticleId: null, selectedAccountId: -1,
-    selectedCardId: null, cardViewDate: null, cardViewTab: "aggregated",
-  });
-
-  function applyLocation(loc: NavLocation) {
-    setAppMode(loc.appMode);
-    setSelectedArticleId(loc.selectedArticleId);
-    setSelectedAccountId(loc.selectedAccountId);
-    setSelectedCardId(loc.selectedCardId);
-    setCardViewDate(loc.cardViewDate);
-    setCardViewTab(loc.cardViewTab);
-  }
-
-  function currentLoc(): NavLocation {
-    return { appMode, selectedArticleId, selectedAccountId, selectedCardId, cardViewDate, cardViewTab };
-  }
-
-  function navigate(loc: NavLocation) {
-    applyLocation(loc);
-    navPush(loc);
-  }
-
-  function handleBack() {
-    const loc = navBack();
-    if (loc) applyLocation(loc);
-  }
-
-  function handleForward() {
-    const loc = navForward();
-    if (loc) applyLocation(loc);
-  }
-
-  // Card data via React Query
-  const { data: cardList = [] } = useCardList(cardViewDate, cardViewTab, appMode === "cards");
-  const { data: cardContentData } = useCardContent(selectedCardId, cardViewTab);
-  const baseCard = cardList.find(c => c.card_id === selectedCardId) ?? null;
-  const activeCard = baseCard && cardContentData
-    ? { ...baseCard, content: cardContentData.content, title: cardContentData.title ?? baseCard.title, article_meta: cardContentData.article_meta }
-    : null;
+  // Data
+  const { data: accounts = [] } = useAccounts();
+  const { data: inboxItems, isLoading: isLoadingInbox } = useInbox(
+    selectedView === "inbox" ? selectedAccountId : undefined,
+    false,
+  );
+  const { data: discardedItems, isLoading: isLoadingDiscarded } = useDiscarded();
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
-
-  // Auto-set viewRaw based on content source
-  useEffect(() => {
-    if (!articleContent) return;
-    if (articleContent.content_source === "enqueued" || articleContent.content_source === "error") {
-      setViewRaw(true);
-    } else if (articleContent.content_source === "analysis") {
-      setViewRaw(false);
-    }
-  }, [articleContent]);
-
-  // Admin tab: auto-switch to analysis when article selected in admin mode
-  useEffect(() => {
-    if (isAdminMode && selectedArticleId) setAdminView("analysis");
-  }, [selectedArticleId, isAdminMode]);
 
   // Reset admin view when leaving admin mode
   useEffect(() => {
     if (!isAdminMode) setAdminView("management");
   }, [isAdminMode]);
-
-  // Notification when analysis completes
-  useEffect(() => {
-    if (polledStatus === "done" && activeArticle) {
-      setNotification(`「${activeArticle.title?.slice(0, 20) ?? ""}」AI 总结已生成`);
-      setViewRaw(false);
-    }
-  }, [polledStatus]);
 
   // Auto-dismiss notification after 5s
   useEffect(() => {
@@ -249,185 +169,165 @@ function AppMain({ currentUser, onLogout }: {
     return () => clearTimeout(id);
   }, [notification]);
 
-  // Dates where the user actually has cards
-  const { data: cardDatesData } = useCardDates();
-  const cardDates = useMemo(() => {
-    if (!cardDatesData) return [];
-    const all = new Set([...cardDatesData.source, ...cardDatesData.aggregated]);
-    return Array.from(all).sort((a, b) => b.localeCompare(a));
-  }, [cardDatesData]);
+  // Compute unread counts from inbox data
+  const unreadCounts = useMemo(() => {
+    const counts: Record<number | string, number> = { total: 0 };
+    if (!inboxItems) return counts;
+    for (const item of inboxItems) {
+      if (!item.read_at) {
+        counts.total = (counts.total || 0) + 1;
+        const accId = item.article_meta.account_id;
+        if (accId != null) {
+          counts[accId] = (counts[accId] || 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }, [inboxItems]);
 
-  function jumpToSourceCard(id: string) {
-    navPush(currentLoc());
-    setPendingJumpCardId(id);
-    setCardViewTab("source");
+  // Find selected inbox item
+  const selectedItem: InboxItem | null = useMemo(() => {
+    if (!selectedCardId || !inboxItems) return null;
+    return inboxItems.find((i) => i.card_id === selectedCardId) ?? null;
+  }, [selectedCardId, inboxItems]);
+
+  // Find selected discarded item
+  const selectedDiscardedItem = useMemo(() => {
+    if (!selectedDiscardedId || !discardedItems) return null;
+    return discardedItems.find((i) => i.article_id === selectedDiscardedId) ?? null;
+  }, [selectedDiscardedId, discardedItems]);
+
+  // Sibling cards (same article) for drawer
+  const siblingCards = useMemo(() => {
+    if (!selectedItem || !inboxItems) return [];
+    return inboxItems.filter((i) => i.article_id === selectedItem.article_id);
+  }, [selectedItem, inboxItems]);
+
+  // Handlers
+  function handleSelectInbox() {
+    setSelectedView("inbox");
+    setSelectedAccountId(null);
+    setSelectedCardId(null);
+    setSelectedDiscardedId(null);
   }
 
-  function jumpToArticle(articleId: string) {
-    navigate({ ...currentLoc(), appMode: "articles", selectedArticleId: articleId, selectedCardId: null });
+  function handleSelectAccount(accountId: number) {
+    setSelectedView("inbox");
+    setSelectedAccountId(accountId);
+    setSelectedCardId(null);
   }
 
-  function jumpToAccount(accountId: number) {
-    navigate({ ...currentLoc(), appMode: "articles", selectedAccountId: accountId, selectedArticleId: null, selectedCardId: null });
+  function handleSelectTemporary() {
+    setSelectedView("temporary");
+    setSelectedAccountId(null);
+    setSelectedCardId(null);
+    setSelectedDiscardedId(null);
   }
 
-  function navSelectArticle(articleId: string) {
-    navPush({ ...currentLoc(), selectedArticleId: articleId });
-    setSelectedArticleId(articleId);
+  function handleSelectDiscarded() {
+    setSelectedView("discarded");
+    setSelectedCardId(null);
+    setSelectedDiscardedId(null);
   }
 
-  function navSelectCard(cardId: string) {
-    navPush({ ...currentLoc(), appMode: "cards", selectedCardId: cardId });
+  function handleListSelect(id: string, type: "card" | "discarded") {
+    if (type === "card") {
+      setSelectedCardId(id);
+      setSelectedDiscardedId(null);
+    } else {
+      setSelectedDiscardedId(id);
+      setSelectedCardId(null);
+    }
+  }
+
+  function handleDrawerSelectCard(cardId: string) {
     setSelectedCardId(cardId);
+    setIsDrawerOpen(false);
   }
 
-  function navSetAppMode(mode: AppMode) {
-    navigate({ ...currentLoc(), appMode: mode });
-  }
-
-  function navSetAccount(id: number | null) {
-    navigate({ ...currentLoc(), appMode: "articles", selectedAccountId: id });
-  }
-
-  function navSetCardViewDate(date: string | null) {
-    navigate({ ...currentLoc(), appMode: "cards", cardViewDate: date });
-  }
-
-  // Keyboard back/forward: Alt+← / Alt+→
+  // Keyboard shortcut: Alt+← / Alt+→ (placeholder for nav history if needed later)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); handleBack(); }
-      if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); handleForward(); }
+      if (e.key === "Escape" && isDrawerOpen) {
+        setIsDrawerOpen(false);
+      }
     }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [canBack, canForward, navBack, navForward]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isDrawerOpen]);
 
-  // Resolve pending jump once the card list has loaded
-  useEffect(() => {
-    if (!pendingJumpCardId || cardList.length === 0) return;
-    const found = cardList.find((c: any) => c.card_id === pendingJumpCardId);
-    if (found) {
-      navPush({ appMode: "cards", selectedCardId: found.card_id, selectedArticleId: null, selectedAccountId, cardViewDate, cardViewTab: "source" });
-      setSelectedCardId(found.card_id);
-      setPendingJumpCardId(null);
-    }
-  }, [cardList, pendingJumpCardId]);
+  const isDiscardedView = selectedView === "discarded";
+  const currentSelectedId = isDiscardedView ? selectedDiscardedId : selectedCardId;
 
   return (
     <div className="app-container">
       <Sidebar
-        appMode={appMode}
-        onAppModeChange={navSetAppMode}
+        accounts={accounts}
+        selectedView={selectedView}
         selectedAccountId={selectedAccountId}
-        onSelectAccount={navSetAccount}
-        cardViewDate={cardViewDate}
-        onCardViewDateChange={navSetCardViewDate}
-        cardDates={cardDates}
+        unreadCounts={unreadCounts}
         isSidebarCollapsed={isSidebarCollapsed}
-        sidebarWidth={sidebarWidth}
-        onToggleSidebar={toggleSidebar}
         isAdminMode={isAdminMode}
-        onToggleAdminMode={() => setIsAdminMode(v => !v)}
-        currentUser={currentUser}
+        onSelectInbox={handleSelectInbox}
+        onSelectAccount={handleSelectAccount}
+        onSelectTemporary={handleSelectTemporary}
+        onSelectDiscarded={handleSelectDiscarded}
+        onToggleCollapse={toggleSidebar}
+        onToggleAdmin={() => setIsAdminMode((v) => !v)}
         onLogout={onLogout}
+        userName={currentUser.email || currentUser.username}
+        currentUser={currentUser}
         appVersion={appVersion}
-        canBack={canBack}
-        canForward={canForward}
-        onBack={handleBack}
-        onForward={handleForward}
+        sidebarWidth={sidebarWidth}
       />
 
-      {/* Pane 2: Article List (articles mode) */}
-      {appMode === "articles" && (
-        <ArticleList
-          articles={articles}
-          selectedArticleId={selectedArticleId}
-          onSelectArticle={navSelectArticle}
-          onSelectAccount={navSetAccount}
-          accountId={selectedAccountId}
-          listWidth={listWidth}
-          isLoading={isLoadingArticles}
-        />
-      )}
+      {/* Pane 2: InboxList */}
+      <InboxList
+        items={isDiscardedView ? undefined : inboxItems}
+        discardedItems={isDiscardedView ? discardedItems : undefined}
+        isDiscardedView={isDiscardedView}
+        selectedId={currentSelectedId}
+        onSelect={handleListSelect}
+        isLoading={isDiscardedView ? isLoadingDiscarded : isLoadingInbox}
+        listWidth={listWidth}
+      />
 
-      {/* Resizer 2 (articles mode) */}
-      {appMode === "articles" && <div
-        className={`resizer ${isResizingList ? 'resizing' : ''}`}
+      {/* Resizer */}
+      <div
+        className={`resizer ${isResizingList ? "resizing" : ""}`}
         onMouseDown={startResizeList}
-      />}
+      />
 
-      {/* Pane 3: Reader View / Admin Panel (articles mode) */}
-      {appMode === "articles" && <main className="reader-pane" style={isAdminMode ? { overflow: 'hidden' } : undefined}>
-        {isAdminMode ? (
+      {/* Pane 3: Reader / Admin */}
+      {isAdminMode ? (
+        <main className="reader-pane" style={{ overflow: "hidden" }}>
           <AdminPane
             adminView={adminView}
             onAdminViewChange={setAdminView}
-            activeArticle={activeArticle}
-            articles={articles}
+            activeArticle={null}
+            articles={[]}
             currentUser={currentUser}
-            onSelectArticle={setSelectedArticleId}
+            onSelectArticle={() => {}}
             onExitAdmin={() => setIsAdminMode(false)}
-            isLoadingArticles={isLoadingArticles}
           />
-        ) : activeArticle ? (
-          <ArticleReader
-            article={activeArticle}
-            analysisStatus={analysisStatus}
-            viewRaw={viewRaw}
-            onViewRawChange={setViewRaw}
-            isContentLoading={isContentLoading}
-            onSelectAccount={jumpToAccount}
-          />
-        ) : (
-          <div className="reader-empty">
-            <div className="reader-empty-icon"><BookOpen size={64} /></div>
-            <h3>请选择文章或通过「+」添加内容</h3>
-          </div>
-        )}
-      </main>}
-
-      {/* Card view panes (cards mode) */}
-      {appMode === "cards" && (
-        <>
-          <CardList
-            cardViewDate={cardViewDate}
-            listWidth={listWidth}
-            selectedCardId={selectedCardId}
-            onSelectCard={navSelectCard}
-            cardViewTab={cardViewTab}
-            onTabChange={setCardViewTab}
-          />
-          <div
-            className={`resizer ${isResizingList ? 'resizing' : ''}`}
-            onMouseDown={startResizeList}
-          />
-          {isAdminMode ? (
-            <main className="reader-pane" style={{ overflow: 'hidden' }}>
-              <AdminPane
-                adminView={adminView}
-                onAdminViewChange={setAdminView}
-                activeArticle={activeArticle}
-                articles={articles}
-                currentUser={currentUser}
-                onSelectArticle={setSelectedArticleId}
-                onExitAdmin={() => setIsAdminMode(false)}
-                isLoadingArticles={isLoadingArticles}
-              />
-            </main>
-          ) : (
-            <CardReader
-              card={activeCard}
-              onJumpToSource={jumpToSourceCard}
-              onJumpToArticle={jumpToArticle}
-              onSelectAccount={jumpToAccount}
-              cardViewTab={cardViewTab}
-              cardViewDate={cardViewDate}
-              isAdmin={currentUser.role === "admin"}
-            />
-          )}
-        </>
+        </main>
+      ) : (
+        <ReaderPane
+          selectedItem={selectedItem}
+          selectedDiscardedItem={selectedDiscardedItem}
+          isDiscardedView={isDiscardedView}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
       )}
+
+      {/* Article Drawer overlay */}
+      <ArticleDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        item={selectedItem}
+        siblingCards={siblingCards}
+        onSelectCard={handleDrawerSelectCard}
+      />
 
       {/* Toast notification */}
       {notification && (
@@ -446,10 +346,8 @@ function AppMain({ currentUser, onLogout }: {
           </button>
         </div>
       )}
-
     </div>
   );
 }
 
 export default App;
-
