@@ -149,6 +149,9 @@ function AppMain({ currentUser, onLogout }: {
 
   // Data
   const { data: accounts = [] } = useAccounts();
+  // Always fetch full inbox (no account filter) for unread counts
+  const { data: allInboxItems } = useInbox(undefined, false);
+  // Filtered inbox for list display
   const { data: inboxItems, isLoading: isLoadingInbox } = useInbox(
     selectedView === "inbox" ? selectedAccountId : undefined,
     false,
@@ -169,11 +172,11 @@ function AppMain({ currentUser, onLogout }: {
     return () => clearTimeout(id);
   }, [notification]);
 
-  // Compute unread counts from inbox data
+  // Compute unread counts from FULL inbox (not filtered by account)
   const unreadCounts = useMemo(() => {
     const counts: Record<number | string, number> = { total: 0 };
-    if (!inboxItems) return counts;
-    for (const item of inboxItems) {
+    if (!allInboxItems) return counts;
+    for (const item of allInboxItems) {
       if (!item.read_at) {
         counts.total = (counts.total || 0) + 1;
         const accId = item.article_meta.account_id;
@@ -183,7 +186,7 @@ function AppMain({ currentUser, onLogout }: {
       }
     }
     return counts;
-  }, [inboxItems]);
+  }, [allInboxItems]);
 
   // Find selected inbox item
   const selectedItem: InboxItem | null = useMemo(() => {

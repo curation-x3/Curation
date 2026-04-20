@@ -133,7 +133,7 @@ export function Sidebar({
           </div>
           {!isSidebarCollapsed && (
             <div className="account-info">
-              <div className="account-name">全部收件</div>
+              <div className="account-name">全部卡片</div>
             </div>
           )}
           {totalUnread > 0 && (
