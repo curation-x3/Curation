@@ -69,7 +69,7 @@ export function ArticleDrawer({
             {siblingCards.length > 1 && (
               <div style={{ position: "relative" }}>
                 <select
-                  value={item.card_id}
+                  value={item.card_id ?? ""}
                   onChange={(e) => onSelectCard(e.target.value)}
                   style={{
                     background: "#21262d", color: "#8b949e", border: "1px solid #30363d",
@@ -78,7 +78,7 @@ export function ArticleDrawer({
                   }}
                 >
                   {siblingCards.map((c) => (
-                    <option key={c.card_id} value={c.card_id}>
+                    <option key={c.card_id ?? c.article_id} value={c.card_id ?? ""}>
                       {c.title.slice(0, 30)}{c.title.length > 30 ? "..." : ""}
                     </option>
                   ))}
