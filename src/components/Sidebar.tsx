@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, LogOut, Trash2, UserMinus, UserPlus, Star, Settings } from "lucide-react";
+import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, Trash2, UserMinus, UserPlus, Star, Settings } from "lucide-react";
 import { useAccounts, useUnsubscribe, useResubscribe } from "../hooks/useAccounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddMenu } from "./AddMenu";
@@ -24,7 +24,6 @@ interface SidebarProps {
   onForward?: () => void;
   canBack?: boolean;
   canForward?: boolean;
-  onLogout: () => void;
   userName: string;
   currentUser: { id: number; email: string; username: string; role: string };
   appVersion: string;
@@ -51,7 +50,6 @@ export function Sidebar({
   onForward,
   canBack,
   canForward,
-  onLogout,
   userName,
   currentUser,
   appVersion,
@@ -341,13 +339,10 @@ export function Sidebar({
             <button
               className="btn-icon"
               onClick={onOpenSettings}
-              title="外观设置"
+              title="设置"
               style={{ padding: 4 }}
             >
               <Settings size={14} />
-            </button>
-            <button className="btn-icon" title="退出登录" onClick={onLogout} style={{ padding: 4 }}>
-              <LogOut size={14} style={{ color: "var(--text-muted)" }} />
             </button>
           </div>
         )}

@@ -1,9 +1,10 @@
-import { X } from "lucide-react";
+import { X, ArrowUpRight } from "lucide-react";
 import type { AppearanceSettings, FontBody } from "../lib/appearance";
 import {
   READER_SIZE_DEFAULT,
   READER_SIZE_MAX,
   READER_SIZE_MIN,
+  READER_WIDTH_DEFAULT,
   READER_WIDTH_MAX,
   READER_WIDTH_MIN,
   READER_WIDTH_STEP,
@@ -15,11 +16,13 @@ interface Props {
   open: boolean;
   draft: AppearanceSettings;
   autoSize: number;
+  currentUserEmail: string;
   onClose: () => void;
   onChange: (patch: Partial<AppearanceSettings>) => void;
   onCommit: () => void;
   onCancel: () => void;
   onReset: () => void;
+  onLogout: () => void;
 }
 
 const FONT_OPTIONS: { key: FontBody; label: string; glyph: string; glyphFamily: string }[] = [
@@ -43,23 +46,104 @@ const FONT_OPTIONS: { key: FontBody; label: string; glyph: string; glyphFamily: 
   },
 ];
 
+interface SectionProps {
+  roman: string;
+  title: string;
+  children: React.ReactNode;
+  stagger: number;
+}
+
+function Section({ roman, title, children, stagger }: SectionProps) {
+  return (
+    <section className="ts-section" style={{ animationDelay: `${40 + stagger * 80}ms` }}>
+      <div className="ts-section-head">
+        <span className="ts-roman">{roman}</span>
+        <span className="ts-section-title">{title}</span>
+        <span className="ts-section-rule" />
+      </div>
+      <div className="ts-section-body">{children}</div>
+    </section>
+  );
+}
+
+interface PrecisionSliderProps {
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (v: number) => void;
+  valueLabel: string;
+  ariaLabel: string;
+  leftGlyph?: string;
+  rightGlyph?: string;
+  ticks?: number[];
+}
+
+function PrecisionSlider({
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  valueLabel,
+  ariaLabel,
+  leftGlyph,
+  rightGlyph,
+  ticks = [],
+}: PrecisionSliderProps) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="ts-slider">
+      {leftGlyph && <span className="ts-slider-glyph ts-slider-glyph-sm">{leftGlyph}</span>}
+      <div className="ts-slider-track-wrap">
+        <div className="ts-slider-track" />
+        {ticks.map((t) => {
+          const tp = ((t - min) / (max - min)) * 100;
+          return <span key={t} className="ts-slider-tick" style={{ left: `${tp}%` }} />;
+        })}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          aria-label={ariaLabel}
+          className="ts-slider-input"
+          style={{ ["--slider-fill" as any]: `${pct}%` }}
+        />
+      </div>
+      {rightGlyph && <span className="ts-slider-glyph ts-slider-glyph-lg">{rightGlyph}</span>}
+      <span className="ts-slider-value">{valueLabel}</span>
+    </div>
+  );
+}
+
+function WidthRuler({ value, min, max }: { value: number; min: number; max: number }) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="ts-ruler" aria-hidden>
+      <span className="ts-ruler-bar" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
 export function SettingsDrawer({
   open,
   draft,
   autoSize,
+  currentUserEmail,
   onClose,
   onChange,
   onCommit,
   onCancel,
   onReset,
+  onLogout,
 }: Props) {
   if (!open) return null;
 
   const systemSize = draft.rootSizeOverride ?? autoSize;
   const isAuto = draft.rootSizeOverride === null;
-  const systemPct = ((systemSize - ROOT_SIZE_MIN) / (ROOT_SIZE_MAX - ROOT_SIZE_MIN)) * 100;
-  const readerPct = ((draft.readerSize - READER_SIZE_MIN) / (READER_SIZE_MAX - READER_SIZE_MIN)) * 100;
-  const widthPct = ((draft.readerMaxWidth - READER_WIDTH_MIN) / (READER_WIDTH_MAX - READER_WIDTH_MIN)) * 100;
 
   const handleApply = () => {
     onCommit();
@@ -73,170 +157,154 @@ export function SettingsDrawer({
   return (
     <div className="settings-drawer-overlay" onClick={handleCancel}>
       <aside
-        className="settings-drawer-panel"
+        className="settings-drawer-panel ts-panel"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="外观设置"
       >
-        <header className="settings-drawer-header">
-          <div className="settings-drawer-title">
-            <span className="settings-drawer-title-serif">外观</span>
-            <span className="settings-drawer-title-sans">SETTINGS</span>
+        <header className="ts-header">
+          <div className="ts-masthead">
+            <span className="ts-masthead-serif">外观</span>
+            <span className="ts-masthead-rule" />
+            <span className="ts-masthead-sans">SETTINGS</span>
           </div>
-          <button className="btn-icon" onClick={handleCancel} aria-label="关闭">
-            <X size={16} />
+          <button className="ts-close" onClick={handleCancel} aria-label="关闭">
+            <X size={15} />
           </button>
         </header>
 
-        <div className="settings-drawer-body">
-          <section className="settings-section settings-section-stagger-1">
-            <h4>
-              <span>阅读字号</span>
-              <span className="settings-hint-inline">快捷键 ⌘ +/−/0</span>
-            </h4>
-            <div className="settings-slider-row">
-              <span className="settings-slider-edge">A</span>
-              <input
-                type="range"
+        <div className="ts-colophon">排版 · 阅读 · 账号 — Edit your reading frame.</div>
+
+        <div className="ts-body">
+          <Section roman="I" title="阅读" stagger={0}>
+            <div className="ts-field">
+              <div className="ts-field-label">
+                <span>字号</span>
+                <span className="ts-field-hint">⌘ + / ⌘ − / ⌘ 0</span>
+              </div>
+              <PrecisionSlider
                 min={READER_SIZE_MIN}
                 max={READER_SIZE_MAX}
                 step={1}
                 value={draft.readerSize}
-                onChange={(e) => onChange({ readerSize: Number(e.target.value) })}
-                aria-label="阅读字号"
-                style={{ ["--slider-fill" as any]: `${readerPct}%` }}
+                onChange={(v) => onChange({ readerSize: v })}
+                ariaLabel="阅读字号"
+                leftGlyph="A"
+                rightGlyph="A"
+                valueLabel={`${draft.readerSize} pt`}
+                ticks={[READER_SIZE_DEFAULT]}
               />
-              <span className="settings-slider-edge" style={{ fontSize: "1.25rem" }}>A</span>
-              <span className="settings-slider-value">{draft.readerSize}px</span>
-            </div>
-            <div className="settings-section-footer">
-              <span className="settings-hint">默认 {READER_SIZE_DEFAULT}px</span>
               {draft.readerSize !== READER_SIZE_DEFAULT && (
                 <button
-                  className="settings-link-btn"
+                  className="ts-linklet"
                   onClick={() => onChange({ readerSize: READER_SIZE_DEFAULT })}
                 >
-                  恢复默认
+                  ↺ 回到 {READER_SIZE_DEFAULT} pt
                 </button>
               )}
             </div>
-          </section>
 
-          <section className="settings-section settings-section-stagger-2">
-            <h4>
-              <span>阅读宽度</span>
-            </h4>
-            <div className="settings-slider-row">
-              <span className="settings-slider-edge" aria-hidden>▯</span>
-              <input
-                type="range"
+            <div className="ts-field">
+              <div className="ts-field-label">
+                <span>栏宽</span>
+              </div>
+              <PrecisionSlider
                 min={READER_WIDTH_MIN}
                 max={READER_WIDTH_MAX}
                 step={READER_WIDTH_STEP}
                 value={draft.readerMaxWidth}
-                onChange={(e) => onChange({ readerMaxWidth: Number(e.target.value) })}
-                aria-label="阅读宽度"
-                style={{ ["--slider-fill" as any]: `${widthPct}%` }}
+                onChange={(v) => onChange({ readerMaxWidth: v })}
+                ariaLabel="阅读栏宽"
+                leftGlyph="▏"
+                rightGlyph="▎"
+                valueLabel={`${draft.readerMaxWidth} px`}
+                ticks={[READER_WIDTH_DEFAULT]}
               />
-              <span className="settings-slider-edge" style={{ fontSize: "1.25rem" }} aria-hidden>▭</span>
-              <span className="settings-slider-value">{draft.readerMaxWidth}px</span>
+              <WidthRuler
+                value={draft.readerMaxWidth}
+                min={READER_WIDTH_MIN}
+                max={READER_WIDTH_MAX}
+              />
             </div>
-          </section>
+          </Section>
 
-          <section className="settings-section settings-section-stagger-3">
-            <h4>
-              <span>正文字体</span>
-            </h4>
-            <div className="settings-segmented">
+          <Section roman="II" title="字体" stagger={1}>
+            <div className="ts-typefaces">
               {FONT_OPTIONS.map((opt) => (
                 <button
                   key={opt.key}
-                  className={`settings-seg-btn ${
-                    draft.fontBody === opt.key ? "active" : ""
-                  }`}
+                  className={`ts-typeface ${draft.fontBody === opt.key ? "active" : ""}`}
                   onClick={() => onChange({ fontBody: opt.key })}
                 >
                   <span
-                    className="settings-seg-glyph"
+                    className="ts-typeface-glyph"
                     style={{ fontFamily: opt.glyphFamily }}
+                    aria-hidden
                   >
-                    {opt.glyph}
+                    Aa
                   </span>
-                  <span className="settings-seg-label">{opt.label}</span>
+                  <span className="ts-typeface-label">{opt.label}</span>
                 </button>
               ))}
             </div>
-          </section>
+          </Section>
 
-          <section className="settings-section settings-section-stagger-4">
-            <h4>
-              <span>系统字号</span>
-              {isAuto && <span className="settings-auto-tag">AUTO</span>}
-            </h4>
-            <div className="settings-slider-row">
-              <span className="settings-slider-edge">A</span>
-              <input
-                type="range"
+          <Section roman="III" title="系统" stagger={2}>
+            <div className="ts-field">
+              <div className="ts-field-label">
+                <span>界面字号</span>
+                {isAuto && <span className="ts-auto-tag">AUTO · {autoSize} pt</span>}
+              </div>
+              <PrecisionSlider
                 min={ROOT_SIZE_MIN}
                 max={ROOT_SIZE_MAX}
                 step={1}
                 value={systemSize}
-                onChange={(e) => onChange({ rootSizeOverride: Number(e.target.value) })}
-                aria-label="系统字号"
-                style={{ ["--slider-fill" as any]: `${systemPct}%` }}
+                onChange={(v) => onChange({ rootSizeOverride: v })}
+                ariaLabel="系统字号"
+                leftGlyph="a"
+                rightGlyph="A"
+                valueLabel={`${systemSize} pt`}
+                ticks={[autoSize]}
               />
-              <span className="settings-slider-edge" style={{ fontSize: "1.1rem" }}>A</span>
-              <span className="settings-slider-value">{systemSize}px</span>
-            </div>
-            <div className="settings-section-footer">
-              <span className="settings-hint">
-                自动档位 {autoSize}px · 随视口宽度
-              </span>
               {!isAuto && (
                 <button
-                  className="settings-link-btn"
+                  className="ts-linklet"
                   onClick={() => onChange({ rootSizeOverride: null })}
                 >
-                  恢复自动
+                  ↺ 跟随视口（{autoSize} pt）
                 </button>
               )}
             </div>
-          </section>
+          </Section>
 
-          <section className="settings-section settings-section-stagger-5">
-            <h4>
-              <span>预览</span>
-            </h4>
-            <article className="settings-preview" aria-hidden>
-              <div className="settings-preview-kicker">样例 · PREVIEW</div>
-              <h2 className="settings-preview-title">
-                在<em>喧嚣</em>的信息洪流中，仍要<em>认真</em>阅读
-              </h2>
-              <div className="settings-preview-meta">
-                <span>远方播客</span>
-                <span className="settings-preview-dot">·</span>
-                <span>2026 年 4 月 20 日</span>
-                <span className="settings-preview-dot">·</span>
-                <span>5 分钟</span>
+          <Section roman="IV" title="账号" stagger={3}>
+            <div className="ts-account">
+              <div className="ts-account-row">
+                <span className="ts-account-label">已登录</span>
+                <span className="ts-account-email">{currentUserEmail}</span>
               </div>
-              <p className="settings-preview-body" style={{ fontSize: `${draft.readerSize}px` }}>
-                这是一段用于展示当前<strong>字号、字体族和阅读宽度</strong>的正文样例。
-                调整上面任一设置，这段文字会立刻随之改变。
-                合适的排版不喧宾夺主，它只是让句子更容易被读完。
-              </p>
-            </article>
-          </section>
+              <button className="ts-signout" onClick={onLogout}>
+                <span>退出登录</span>
+                <ArrowUpRight size={13} />
+              </button>
+            </div>
+          </Section>
+
+          <div className="ts-imprint" aria-hidden>
+            Curation · 个人资讯系统 · 由你调整，为你编排
+          </div>
         </div>
 
-        <footer className="settings-drawer-footer">
-          <button className="settings-link-btn settings-reset-btn" onClick={onReset}>
+        <footer className="ts-footer">
+          <button className="ts-footer-link" onClick={onReset}>
             恢复默认
           </button>
           <div style={{ flex: 1 }} />
-          <button className="settings-btn" onClick={handleCancel}>
+          <button className="ts-footer-btn" onClick={handleCancel}>
             取消
           </button>
-          <button className="settings-btn primary" onClick={handleApply}>
+          <button className="ts-footer-btn primary" onClick={handleApply}>
             应用
           </button>
         </footer>

@@ -321,7 +321,6 @@ function AppMain({ currentUser, onLogout }: {
         onNavigateToCard={handleNavigateToCard}
         onToggleCollapse={toggleSidebar}
         onToggleAdmin={() => setIsAdminMode((v) => !v)}
-        onLogout={onLogout}
         userName={currentUser.email || currentUser.username}
         currentUser={currentUser}
         appVersion={appVersion}
@@ -380,11 +379,13 @@ function AppMain({ currentUser, onLogout }: {
         open={settingsOpen}
         draft={appearance.draft}
         autoSize={appearance.autoSize}
+        currentUserEmail={currentUser.email || currentUser.username}
         onClose={() => setSettingsOpen(false)}
         onChange={appearance.setDraft}
         onCommit={appearance.commit}
         onCancel={appearance.cancel}
         onReset={appearance.resetDefaults}
+        onLogout={onLogout}
       />
 
       {/* Article Drawer overlay */}
