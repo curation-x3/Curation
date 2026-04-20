@@ -1,3 +1,8 @@
+mod commands;
+mod crypto;
+mod db;
+mod sync;
+
 use serde::{Deserialize, Serialize};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
@@ -189,6 +194,21 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            // --- Cache state ---
+            let data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let db_path = data_dir.join("cache.db");
+            let api_base = std::env::var("CURATION_API_BASE")
+                .unwrap_or_else(|_| "http://127.0.0.1:8889".to_string());
+
+            let state = commands::AppState {
+                db: std::sync::Mutex::new(None),
+                sync_client: sync::SyncClient::new(&api_base),
+                auth_token: std::sync::Mutex::new(None),
+                db_path,
+            };
+            app.manage(state);
+
+            // --- Tray icon ---
             let show = MenuItemBuilder::with_id("show", "显示窗口").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
             let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
@@ -225,7 +245,17 @@ pub fn run() {
             resize_webview,
             toggle_webview,
             trigger_extract,
-            receive_article
+            receive_article,
+            commands::open_db_from_keychain,
+            commands::init_db_with_login,
+            commands::set_auth_token,
+            commands::get_inbox_cards,
+            commands::get_favorites,
+            commands::search_cards,
+            commands::mark_read,
+            commands::toggle_favorite,
+            commands::get_cached_article,
+            commands::run_sync
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
