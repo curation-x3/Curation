@@ -3,6 +3,10 @@ import { useLayout } from "./hooks/useLayout";
 import { useInbox, useDiscarded } from "./hooks/useInbox";
 import { useAccounts } from "./hooks/useAccounts";
 import type { InboxItem } from "./types";
+import { FavoritesList } from './components/FavoritesList';
+import { FavoritesReader } from './components/FavoritesReader';
+import { useFavorites } from './hooks/useFavorites';
+import type { FavoriteItem } from './types';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import 'highlight.js/styles/github-dark.css';
 import { X, Sparkles } from 'lucide-react';
@@ -134,11 +138,13 @@ function AppMain({ currentUser, onLogout }: {
   onLogout: () => void;
 }) {
   // View state
-  const [selectedView, setSelectedView] = useState<"inbox" | "temporary" | "discarded">("inbox");
+  const [selectedView, setSelectedView] = useState<"inbox" | "temporary" | "discarded" | "favorites">("inbox");
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedDiscardedId, setSelectedDiscardedId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedFavorite, setSelectedFavorite] = useState<FavoriteItem | null>(null);
+  const { data: favoritesData } = useFavorites();
 
   // Layout
   const { isSidebarCollapsed, sidebarWidth, listWidth, isResizingList, startResizeList, toggleSidebar } = useLayout();
@@ -233,6 +239,17 @@ function AppMain({ currentUser, onLogout }: {
     setSelectedDiscardedId(null);
   }
 
+  function handleSelectFavorites() {
+    setSelectedView("favorites");
+    setSelectedCardId(null);
+    setSelectedDiscardedId(null);
+    setSelectedFavorite(null);
+  }
+
+  function handleSelectFavoriteItem(item: FavoriteItem) {
+    setSelectedFavorite(item);
+  }
+
   function handleListSelect(id: string, type: "card" | "discarded") {
     if (type === "card") {
       setSelectedCardId(id);
@@ -275,6 +292,8 @@ function AppMain({ currentUser, onLogout }: {
         onSelectAccount={handleSelectAccount}
         onSelectTemporary={handleSelectTemporary}
         onSelectDiscarded={handleSelectDiscarded}
+        onSelectFavorites={handleSelectFavorites}
+        favoritesCount={favoritesData?.length ?? 0}
         onToggleCollapse={toggleSidebar}
         onToggleAdmin={() => setIsAdminMode((v) => !v)}
         onLogout={onLogout}
@@ -284,16 +303,24 @@ function AppMain({ currentUser, onLogout }: {
         sidebarWidth={sidebarWidth}
       />
 
-      {/* Pane 2: InboxList */}
-      <InboxList
-        items={isDiscardedView ? undefined : inboxItems}
-        discardedItems={isDiscardedView ? discardedItems : undefined}
-        isDiscardedView={isDiscardedView}
-        selectedId={currentSelectedId}
-        onSelect={handleListSelect}
-        isLoading={isDiscardedView ? isLoadingDiscarded : isLoadingInbox}
-        listWidth={listWidth}
-      />
+      {/* Pane 2: List */}
+      {selectedView === "favorites" ? (
+        <FavoritesList
+          selectedId={selectedFavorite ? `${selectedFavorite.item_type}:${selectedFavorite.item_id}` : null}
+          onSelect={handleSelectFavoriteItem}
+          listWidth={listWidth}
+        />
+      ) : (
+        <InboxList
+          items={isDiscardedView ? undefined : inboxItems}
+          discardedItems={isDiscardedView ? discardedItems : undefined}
+          isDiscardedView={isDiscardedView}
+          selectedId={currentSelectedId}
+          onSelect={handleListSelect}
+          isLoading={isDiscardedView ? isLoadingDiscarded : isLoadingInbox}
+          listWidth={listWidth}
+        />
+      )}
 
       {/* Resizer */}
       <div
@@ -311,6 +338,8 @@ function AppMain({ currentUser, onLogout }: {
             onExitAdmin={() => setIsAdminMode(false)}
           />
         </main>
+      ) : selectedView === "favorites" ? (
+        <FavoritesReader selectedFavorite={selectedFavorite} />
       ) : (
         <ReaderPane
           selectedItem={selectedItem}

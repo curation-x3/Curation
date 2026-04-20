@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, LogOut, Paperclip, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, LogOut, Paperclip, Trash2, UserMinus, UserPlus, Star } from "lucide-react";
 import { useAccounts, useUnsubscribe, useResubscribe } from "../hooks/useAccounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddMenu } from "./AddMenu";
@@ -9,7 +9,7 @@ import type { Account } from "../types";
 
 interface SidebarProps {
   accounts: Account[];
-  selectedView: "inbox" | "temporary" | "discarded";
+  selectedView: "inbox" | "temporary" | "discarded" | "favorites";
   selectedAccountId: number | null;
   unreadCounts: Record<number | string, number>;
   isSidebarCollapsed: boolean;
@@ -18,6 +18,7 @@ interface SidebarProps {
   onSelectAccount: (accountId: number) => void;
   onSelectTemporary: () => void;
   onSelectDiscarded: () => void;
+  onSelectFavorites: () => void;
   onToggleCollapse: () => void;
   onToggleAdmin: () => void;
   onBack?: () => void;
@@ -29,6 +30,7 @@ interface SidebarProps {
   currentUser: { id: number; email: string; username: string; role: string };
   appVersion: string;
   sidebarWidth: number;
+  favoritesCount: number;
 }
 
 export function Sidebar({
@@ -42,6 +44,7 @@ export function Sidebar({
   onSelectAccount,
   onSelectTemporary,
   onSelectDiscarded,
+  onSelectFavorites,
   onToggleCollapse,
   onToggleAdmin,
   onBack,
@@ -53,6 +56,7 @@ export function Sidebar({
   currentUser,
   appVersion,
   sidebarWidth,
+  favoritesCount,
 }: SidebarProps) {
   const { data: fetchedAccounts = [] } = useAccounts();
   const queryClient = useQueryClient();
@@ -138,6 +142,25 @@ export function Sidebar({
           )}
           {totalUnread > 0 && (
             <span className="unread-badge">{totalUnread}</span>
+          )}
+        </div>
+
+        {/* Favorites */}
+        <div
+          className={`account-item ${selectedView === "favorites" ? "active" : ""}`}
+          onClick={onSelectFavorites}
+          title="收藏"
+        >
+          <div className="account-avatar" style={{ background: "#21262d", display: "flex", alignItems: "center", justifyContent: "center", color: "#e3b341" }}>
+            <Star size={16} fill="#e3b341" />
+          </div>
+          {!isSidebarCollapsed && (
+            <div className="account-info">
+              <div className="account-name">收藏</div>
+            </div>
+          )}
+          {favoritesCount > 0 && (
+            <span className="unread-badge" style={{ background: "#e3b341", color: "#0d1117" }}>{favoritesCount}</span>
           )}
         </div>
 
