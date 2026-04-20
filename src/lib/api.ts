@@ -141,7 +141,7 @@ export async function patchStrategy(body: Record<string, unknown>) {
 export async function fetchBackends() {
   const res = await apiFetch("/agent/backends");
   const json = await res.json();
-  return json;
+  return json.data;
 }
 
 export async function triggerQueueRun(articleId: string) {
