@@ -241,12 +241,13 @@ export function InboxList({
               未读
             </button>
           </div>
-          {!isDiscardedView && totalUnread > 0 && (
+          {!isDiscardedView && (
             <button
               className="inbox-group-read-btn"
               onClick={handleMarkAllRead}
               title="全部已读"
-              style={{ whiteSpace: "nowrap" }}
+              style={{ whiteSpace: "nowrap", opacity: 1 }}
+              disabled={totalUnread === 0}
             >
               <Check size={12} /> 全部已读
             </button>

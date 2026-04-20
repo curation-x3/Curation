@@ -803,7 +803,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--list-bg);
+  background: #161b22;
   border-bottom: 1px solid var(--border-color);
   user-select: none;
 }
@@ -811,6 +811,7 @@ body {
 .inbox-group-header:hover {
   background: var(--sidebar-hover);
 }
+
 
 .inbox-group-badge {
   background: var(--primary-color);
@@ -833,13 +834,12 @@ body {
   font-size: 0.7rem;
   padding: 2px 8px;
   cursor: pointer;
-  opacity: 0;
   transition: opacity 0.15s;
 }
 
-.inbox-group-header:hover .inbox-group-read-btn,
-.inbox-group-read-btn:focus {
-  opacity: 1;
+.inbox-group-read-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .inbox-item {
