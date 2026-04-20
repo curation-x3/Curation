@@ -477,6 +477,10 @@ body {
 .markdown-body ul, .markdown-body ol {
   margin: 14px 0;
   padding-left: 22px;
+  list-style: disc;
+}
+.markdown-body ol {
+  list-style: decimal;
 }
 .markdown-body li {
   margin: 8px 0;
