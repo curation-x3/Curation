@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Inbox, ChevronLeft, ChevronRight, Menu, ShieldCheck, LogOut, Paperclip, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, LogOut, Paperclip, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { useAccounts, useUnsubscribe, useResubscribe } from "../hooks/useAccounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddMenu } from "./AddMenu";
@@ -62,6 +62,7 @@ export function Sidebar({
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isSubscribeOpen, setIsSubscribeOpen] = useState(false);
   const [isAddArticleOpen, setIsAddArticleOpen] = useState(false);
+  const [isAccountListOpen, setIsAccountListOpen] = useState(true);
 
   // Use passed accounts or fetched ones
   const allAccounts = accounts.length > 0 ? accounts : fetchedAccounts;
@@ -140,8 +141,17 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Subscribed accounts — indented under inbox */}
-        {subscribedAccounts.map((acc) => {
+        {/* Subscribed accounts — collapsible */}
+        {!isSidebarCollapsed && subscribedAccounts.length > 0 && (
+          <div
+            style={{ padding: "4px 14px", fontSize: "0.72rem", color: "#6e7681", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, userSelect: "none" }}
+            onClick={() => setIsAccountListOpen(!isAccountListOpen)}
+          >
+            {isAccountListOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <span>公众号 ({subscribedAccounts.length})</span>
+          </div>
+        )}
+        {isAccountListOpen && subscribedAccounts.map((acc) => {
           const count = unreadCounts[acc.id] ?? 0;
           return (
             <div

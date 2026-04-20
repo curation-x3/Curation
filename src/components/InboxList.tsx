@@ -214,43 +214,44 @@ export function InboxList({
 
   return (
     <section className="article-list-pane" style={{ width: listWidth }}>
-      {/* Search + toggles */}
-      <header className="list-header" style={{ padding: "12px 14px", gap: 8 }}>
-        <div className="search-input-wrapper">
+      {/* Search + toggles — all on one row */}
+      <header className="list-header" style={{ padding: "8px 10px", gap: 6, flexDirection: "row", alignItems: "center" }}>
+        <div className="search-input-wrapper" style={{ flex: 1 }}>
           <input
             className="search-input"
-            placeholder="搜索标题或公众号..."
+            placeholder="搜索..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            style={{ padding: "4px 8px", fontSize: "0.78rem" }}
           />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div className="view-toggle" style={{ flex: 1, padding: 0 }}>
-            <button
-              className={`view-toggle-btn ${!showUnreadOnly ? "active" : ""}`}
-              onClick={() => setShowUnreadOnly(false)}
-            >
-              全部
-            </button>
-            <button
-              className={`view-toggle-btn ${showUnreadOnly ? "active" : ""}`}
-              onClick={() => setShowUnreadOnly(true)}
-            >
-              未读
-            </button>
-          </div>
-          {!isDiscardedView && (
-            <button
-              className="inbox-group-read-btn"
-              onClick={handleMarkAllRead}
-              title="全部已读"
-              style={{ whiteSpace: "nowrap", opacity: 1 }}
-              disabled={totalUnread === 0}
-            >
-              <Check size={12} /> 全部已读
-            </button>
-          )}
+        <div className="view-toggle" style={{ padding: 0, fontSize: "0.7rem" }}>
+          <button
+            className={`view-toggle-btn ${!showUnreadOnly ? "active" : ""}`}
+            onClick={() => setShowUnreadOnly(false)}
+            style={{ padding: "2px 8px", fontSize: "0.7rem" }}
+          >
+            全部
+          </button>
+          <button
+            className={`view-toggle-btn ${showUnreadOnly ? "active" : ""}`}
+            onClick={() => setShowUnreadOnly(true)}
+            style={{ padding: "2px 8px", fontSize: "0.7rem" }}
+          >
+            未读
+          </button>
         </div>
+        {!isDiscardedView && (
+          <button
+            className="inbox-group-read-btn"
+            onClick={handleMarkAllRead}
+            title="全部已读"
+            style={{ whiteSpace: "nowrap", opacity: 1, padding: "2px 6px", fontSize: "0.68rem" }}
+            disabled={totalUnread === 0}
+          >
+            <Check size={10} />
+          </button>
+        )}
       </header>
 
       {/* List content */}
