@@ -112,3 +112,31 @@ export interface AggregationStrategy {
   max_concurrency: number;
   default_backend: string;
 }
+
+export interface ArticleMeta {
+  title: string;
+  account: string;
+  account_id: number | null;
+  author: string | null;
+  publish_time: string | null;
+  url: string;
+}
+
+export interface InboxItem {
+  card_id: string;
+  article_id: string;
+  title: string;
+  description: string | null;
+  routing: "ai_curation" | "original_push";
+  article_date: string | null;
+  read_at: string | null;
+  article_meta: ArticleMeta;
+}
+
+export interface DiscardedItem {
+  article_id: string;
+  title: string;
+  routing_reason: string;
+  article_date: string | null;
+  article_meta: ArticleMeta;
+}
