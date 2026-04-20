@@ -52,13 +52,14 @@ body {
 }
 
 .sidebar-title {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-xl);
   font-weight: 700;
+  letter-spacing: -0.02em;
   margin: 0;
   color: var(--text-primary);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-3);
   white-space: nowrap;
 }
 
@@ -75,25 +76,32 @@ body {
 .account-item {
   display: flex;
   align-items: center;
-  padding: 12px 18px;
+  padding: var(--sp-2) var(--sp-4);
   cursor: pointer;
-  transition: background var(--dur-base) var(--ease-out);
-  gap: 12px;
+  transition: background var(--dur-instant) var(--ease-out), color var(--dur-instant) var(--ease-out);
+  gap: var(--sp-3);
   width: 100%;
+  position: relative;
+  border-left: 2px solid transparent;
 }
 
 .account-item:hover {
-  background-color: var(--sidebar-hover);
+  background-color: var(--bg-hover);
 }
 
 .account-item.active {
-  background-color: var(--sidebar-active);
+  background-color: transparent;
   color: var(--text-primary);
+  border-left-color: var(--accent-gold);
+}
+
+.account-item.active .account-name {
+  color: var(--accent-gold);
 }
 
 .account-avatar {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background-color: var(--bg-elev);
   object-fit: cover;
@@ -119,12 +127,14 @@ body {
 }
 
 .unread-badge {
-  background-color: var(--border);
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: var(--r-lg);
+  background-color: var(--accent-gold);
+  color: transparent;
+  font-size: 0;
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .sidebar.collapsed .unread-badge {

@@ -170,7 +170,8 @@ export function Sidebar({
         {/* Subscribed accounts — collapsible */}
         {!isSidebarCollapsed && subscribedAccounts.length > 0 && (
           <div
-            style={{ padding: "4px 14px", fontSize: "var(--fs-base)", color: "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, userSelect: "none" }}
+            className="label-caps"
+            style={{ padding: "var(--sp-2) var(--sp-4)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, userSelect: "none" }}
             onClick={() => setIsAccountListOpen(!isAccountListOpen)}
           >
             {isAccountListOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -228,7 +229,8 @@ export function Sidebar({
         {/* Temporary accounts — collapsible */}
         {!isSidebarCollapsed && temporaryAccounts.length > 0 && (
           <div
-            style={{ padding: "4px 14px", fontSize: "var(--fs-base)", color: "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, userSelect: "none", marginTop: 8 }}
+            className="label-caps"
+            style={{ padding: "var(--sp-2) var(--sp-4)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, userSelect: "none", marginTop: 8 }}
             onClick={() => setIsTempListOpen(!isTempListOpen)}
           >
             {isTempListOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
