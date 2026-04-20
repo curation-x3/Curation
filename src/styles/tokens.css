@@ -1,0 +1,47 @@
+/* Font system tokens. See docs/superpowers/specs/2026-04-20-font-system-design.md */
+:root {
+  --root-size: 14px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Charter", "Bitstream Charter", "Georgia", "Noto Serif SC", serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* 6-tier size scale, rem-based */
+  --fs-xs:   0.72rem;
+  --fs-sm:   0.82rem;
+  --fs-base: 0.9rem;
+  --fs-md:   1rem;
+  --fs-lg:   1.15rem;
+  --fs-xl:   1.4rem;
+
+  /* Density defaults = normal */
+  --lh-body:    1.7;
+  --space-row:  10px;
+  --space-card: 12px;
+  --pad-panel:  10px;
+}
+
+html { font-size: var(--root-size); }
+body { font-family: var(--font-ui); }
+
+[data-density="compact"] {
+  --lh-body: 1.5;
+  --space-row: 6px;
+  --space-card: 8px;
+  --pad-panel: 6px;
+}
+
+[data-density="relaxed"] {
+  --lh-body: 1.9;
+  --space-row: 14px;
+  --space-card: 18px;
+  --pad-panel: 14px;
+}
+
+.reader-pane,
+.markdown-body,
+.rich-text-content {
+  font-family: var(--font-body);
+  line-height: var(--lh-body);
+}
