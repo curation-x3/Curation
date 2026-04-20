@@ -242,21 +242,21 @@ export function InboxList({
             placeholder="搜索..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ padding: "4px 8px", fontSize: "0.78rem" }}
+            style={{ padding: "4px 8px" }}
           />
         </div>
-        <div className="view-toggle" style={{ padding: 0, fontSize: "0.7rem" }}>
+        <div className="view-toggle" style={{ padding: 0 }}>
           <button
             className={`view-toggle-btn ${!showUnreadOnly ? "active" : ""}`}
             onClick={() => setShowUnreadOnly(false)}
-            style={{ padding: "2px 8px", fontSize: "0.7rem" }}
+            style={{ padding: "2px 8px" }}
           >
             全部
           </button>
           <button
             className={`view-toggle-btn ${showUnreadOnly ? "active" : ""}`}
             onClick={() => setShowUnreadOnly(true)}
-            style={{ padding: "2px 8px", fontSize: "0.7rem" }}
+            style={{ padding: "2px 8px" }}
           >
             未读
           </button>
@@ -266,7 +266,7 @@ export function InboxList({
             className="inbox-group-read-btn"
             onClick={handleMarkAllRead}
             title="全部已读"
-            style={{ whiteSpace: "nowrap", opacity: 1, padding: "2px 6px", fontSize: "0.68rem" }}
+            style={{ whiteSpace: "nowrap", opacity: 1, padding: "2px 6px", fontSize: "var(--fs-xs)" }}
             disabled={totalUnread === 0}
           >
             <Check size={10} />
@@ -277,13 +277,13 @@ export function InboxList({
       {/* List content */}
       <div className="list-content">
         {isLoading ? (
-          <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: "0.85rem" }}>
+          <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: "var(--fs-base)" }}>
             加载中...
           </div>
         ) : isDiscardedView ? (
           /* Discarded view: grouped by date */
           discardedGroups.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: "0.85rem" }}>
+            <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: "var(--fs-base)" }}>
               暂无丢弃文章
             </div>
           ) : (
@@ -311,7 +311,7 @@ export function InboxList({
         ) : (
           /* Inbox view: grouped by date */
           groups.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: "0.85rem" }}>
+            <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: "var(--fs-base)" }}>
               {showUnreadOnly ? "没有未读内容" : "暂无内容"}
             </div>
           ) : (
