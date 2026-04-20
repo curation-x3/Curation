@@ -8,9 +8,10 @@ interface Props {
   onClose: () => void;
   accounts: { id: number; name: string; avatar_url?: string }[];
   onRefresh: () => void;
+  onNavigateToCard?: (cardId: string) => void;
 }
 
-export function AddArticleModal({ open, onClose, onRefresh }: Props) {
+export function AddArticleModal({ open, onClose, onRefresh, onNavigateToCard }: Props) {
   const [url, setUrl] = useState("");
   const [subscribe, setSubscribe] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,9 +31,27 @@ export function AddArticleModal({ open, onClose, onRefresh }: Props) {
         body: JSON.stringify({ url: trimmed, subscribe }),
       }).then(r => r.json());
       if (resp.status === "ok") {
-        setMsg({ type: "ok", text: resp.new ? "✅ 文章已添加" : "✅ 文章已在库中" });
-        onRefresh();
-        setTimeout(() => { onClose(); setUrl(""); setMsg(null); }, 1200);
+        if (!resp.new && resp.card_id) {
+          // Existing article with card — jump to it
+          setMsg({ type: "ok", text: "✅ 文章已在库中，正在跳转..." });
+          onRefresh();
+          setTimeout(() => {
+            onClose();
+            setUrl("");
+            setMsg(null);
+            onNavigateToCard?.(resp.card_id);
+          }, 600);
+        } else if (!resp.new) {
+          // Existing article still analyzing
+          setMsg({ type: "ok", text: "✅ 文章正在分析中" });
+          onRefresh();
+          setTimeout(() => { onClose(); setUrl(""); setMsg(null); }, 1200);
+        } else {
+          // New article added and enqueued
+          setMsg({ type: "ok", text: "✅ 文章已添加，正在分析..." });
+          onRefresh();
+          setTimeout(() => { onClose(); setUrl(""); setMsg(null); }, 1200);
+        }
       } else {
         setMsg({ type: "err", text: `⚠️ ${resp.detail || "添加失败"}` });
       }

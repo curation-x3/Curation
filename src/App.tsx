@@ -265,6 +265,14 @@ function AppMain({ currentUser, onLogout }: {
     setIsDrawerOpen(false);
   }
 
+  function handleNavigateToCard(cardId: string) {
+    setSelectedView("inbox");
+    setSelectedAccountId(null);
+    setSelectedCardId(cardId);
+    setSelectedDiscardedId(null);
+    setIsAdminMode(false);
+  }
+
   // Keyboard shortcut: Alt+← / Alt+→ (placeholder for nav history if needed later)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -294,6 +302,7 @@ function AppMain({ currentUser, onLogout }: {
         onSelectDiscarded={handleSelectDiscarded}
         onSelectFavorites={handleSelectFavorites}
         favoritesCount={favoritesData?.length ?? 0}
+        onNavigateToCard={handleNavigateToCard}
         onToggleCollapse={toggleSidebar}
         onToggleAdmin={() => setIsAdminMode((v) => !v)}
         onLogout={onLogout}

@@ -31,6 +31,7 @@ interface SidebarProps {
   appVersion: string;
   sidebarWidth: number;
   favoritesCount: number;
+  onNavigateToCard?: (cardId: string) => void;
 }
 
 export function Sidebar({
@@ -57,6 +58,7 @@ export function Sidebar({
   appVersion,
   sidebarWidth,
   favoritesCount,
+  onNavigateToCard,
 }: SidebarProps) {
   const { data: fetchedAccounts = [] } = useAccounts();
   const queryClient = useQueryClient();
@@ -358,6 +360,7 @@ export function Sidebar({
         onClose={() => setIsAddArticleOpen(false)}
         accounts={allAccounts}
         onRefresh={() => { queryClient.invalidateQueries({ queryKey: ["accounts"] }); queryClient.invalidateQueries({ queryKey: ["inbox"] }); }}
+        onNavigateToCard={onNavigateToCard}
       />
     </aside>
   );
