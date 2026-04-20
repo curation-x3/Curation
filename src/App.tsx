@@ -138,7 +138,7 @@ function AppMain({ currentUser, onLogout }: {
   onLogout: () => void;
 }) {
   // View state
-  const [selectedView, setSelectedView] = useState<"inbox" | "temporary" | "discarded" | "favorites">("inbox");
+  const [selectedView, setSelectedView] = useState<"inbox" | "discarded" | "favorites">("inbox");
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedDiscardedId, setSelectedDiscardedId] = useState<string | null>(null);
@@ -226,13 +226,6 @@ function AppMain({ currentUser, onLogout }: {
     setSelectedCardId(null);
   }
 
-  function handleSelectTemporary() {
-    setSelectedView("temporary");
-    setSelectedAccountId(null);
-    setSelectedCardId(null);
-    setSelectedDiscardedId(null);
-  }
-
   function handleSelectDiscarded() {
     setSelectedView("discarded");
     setSelectedCardId(null);
@@ -298,7 +291,6 @@ function AppMain({ currentUser, onLogout }: {
         isAdminMode={isAdminMode}
         onSelectInbox={handleSelectInbox}
         onSelectAccount={handleSelectAccount}
-        onSelectTemporary={handleSelectTemporary}
         onSelectDiscarded={handleSelectDiscarded}
         onSelectFavorites={handleSelectFavorites}
         favoritesCount={favoritesData?.length ?? 0}

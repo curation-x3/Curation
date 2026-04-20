@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, LogOut, Paperclip, Trash2, UserMinus, UserPlus, Star } from "lucide-react";
+import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, LogOut, Trash2, UserMinus, UserPlus, Star } from "lucide-react";
 import { useAccounts, useUnsubscribe, useResubscribe } from "../hooks/useAccounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddMenu } from "./AddMenu";
@@ -9,14 +9,13 @@ import type { Account } from "../types";
 
 interface SidebarProps {
   accounts: Account[];
-  selectedView: "inbox" | "temporary" | "discarded" | "favorites";
+  selectedView: "inbox" | "discarded" | "favorites";
   selectedAccountId: number | null;
   unreadCounts: Record<number | string, number>;
   isSidebarCollapsed: boolean;
   isAdminMode: boolean;
   onSelectInbox: () => void;
   onSelectAccount: (accountId: number) => void;
-  onSelectTemporary: () => void;
   onSelectDiscarded: () => void;
   onSelectFavorites: () => void;
   onToggleCollapse: () => void;
@@ -43,7 +42,6 @@ export function Sidebar({
   isAdminMode,
   onSelectInbox,
   onSelectAccount,
-  onSelectTemporary,
   onSelectDiscarded,
   onSelectFavorites,
   onToggleCollapse,
@@ -69,6 +67,7 @@ export function Sidebar({
   const [isSubscribeOpen, setIsSubscribeOpen] = useState(false);
   const [isAddArticleOpen, setIsAddArticleOpen] = useState(false);
   const [isAccountListOpen, setIsAccountListOpen] = useState(true);
+  const [isTempListOpen, setIsTempListOpen] = useState(true);
 
   // Use passed accounts or fetched ones
   const allAccounts = accounts.length > 0 ? accounts : fetchedAccounts;
@@ -224,70 +223,63 @@ export function Sidebar({
           );
         })}
 
-        {/* Temporary articles */}
-        {temporaryAccounts.length > 0 && (
-          <>
+        {/* Temporary accounts — collapsible */}
+        {!isSidebarCollapsed && temporaryAccounts.length > 0 && (
+          <div
+            style={{ padding: "4px 14px", fontSize: "0.72rem", color: "#6e7681", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, userSelect: "none", marginTop: 8 }}
+            onClick={() => setIsTempListOpen(!isTempListOpen)}
+          >
+            {isTempListOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <span>临时文章 ({temporaryAccounts.length})</span>
+          </div>
+        )}
+        {isTempListOpen && temporaryAccounts.map((acc) => {
+          const count = unreadCounts[acc.id] ?? 0;
+          return (
             <div
-              className={`account-item ${selectedView === "temporary" ? "active" : ""}`}
-              onClick={onSelectTemporary}
-              title="临时文章"
-              style={{ marginTop: 8 }}
+              key={acc.id}
+              className={`account-item ${selectedView === "inbox" && selectedAccountId === acc.id ? "active" : ""}`}
+              onClick={() => onSelectAccount(acc.id)}
+              title={isSidebarCollapsed ? acc.name : ""}
+              style={{ paddingLeft: isSidebarCollapsed ? 18 : 32, position: "relative" }}
+              onMouseEnter={(e) => {
+                const btn = e.currentTarget.querySelector(".account-action-btn") as HTMLElement | null;
+                if (btn) btn.style.opacity = "1";
+              }}
+              onMouseLeave={(e) => {
+                const btn = e.currentTarget.querySelector(".account-action-btn") as HTMLElement | null;
+                if (btn) btn.style.opacity = "0";
+              }}
             >
-              <div className="account-avatar" style={{ background: "#21262d", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b949e" }}>
-                <Paperclip size={16} />
-              </div>
+              <img
+                src={acc.avatar_url || "https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07xvMibqLuWicX7Y16H1xP81v6B0Sraia9zK0dYniamHwJxiaGvH6v97K8K1icYibib9eA/0"}
+                alt={acc.name}
+                className="account-avatar"
+                referrerPolicy="no-referrer"
+                style={{ width: 28, height: 28 }}
+              />
               {!isSidebarCollapsed && (
                 <div className="account-info">
-                  <div className="account-name">临时文章</div>
+                  <div className="account-name" style={{ fontSize: "0.84rem" }}>{acc.name}</div>
                 </div>
               )}
-            </div>
-            {selectedView === "temporary" &&
-              temporaryAccounts.map((acc) => (
-                <div
-                  key={acc.id}
-                  className="account-item"
-                  style={{ paddingLeft: isSidebarCollapsed ? 18 : 32, opacity: 0.8, position: "relative" }}
-                  onMouseEnter={(e) => {
-                    const btn = e.currentTarget.querySelector(".account-action-btn") as HTMLElement | null;
-                    if (btn) btn.style.opacity = "1";
-                    (e.currentTarget as HTMLElement).style.opacity = "1";
-                  }}
-                  onMouseLeave={(e) => {
-                    const btn = e.currentTarget.querySelector(".account-action-btn") as HTMLElement | null;
-                    if (btn) btn.style.opacity = "0";
-                    (e.currentTarget as HTMLElement).style.opacity = "0.8";
+              {count > 0 && <span className="unread-badge">{count}</span>}
+              {!isSidebarCollapsed && (
+                <button
+                  className="btn-icon account-action-btn"
+                  title="订阅此公众号"
+                  onClick={(e) => handleResubscribe(e, acc.id)}
+                  style={{
+                    opacity: 0, transition: "opacity 0.15s",
+                    padding: 3, flexShrink: 0, background: "none",
                   }}
                 >
-                  <img
-                    src={acc.avatar_url || "https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07xvMibqLuWicX7Y16H1xP81v6B0Sraia9zK0dYniamHwJxiaGvH6v97K8K1icYibib9eA/0"}
-                    alt={acc.name}
-                    className="account-avatar"
-                    referrerPolicy="no-referrer"
-                    style={{ width: 28, height: 28 }}
-                  />
-                  {!isSidebarCollapsed && (
-                    <div className="account-info">
-                      <div className="account-name" style={{ fontSize: "0.84rem" }}>{acc.name}</div>
-                    </div>
-                  )}
-                  {!isSidebarCollapsed && (
-                    <button
-                      className="btn-icon account-action-btn"
-                      title="订阅此公众号"
-                      onClick={(e) => handleResubscribe(e, acc.id)}
-                      style={{
-                        opacity: 0, transition: "opacity 0.15s",
-                        padding: 3, flexShrink: 0, background: "none",
-                      }}
-                    >
-                      <UserPlus size={13} style={{ color: "#3fb950" }} />
-                    </button>
-                  )}
-                </div>
-              ))}
-          </>
-        )}
+                  <UserPlus size={13} style={{ color: "#3fb950" }} />
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         {/* Discarded */}
         <div
