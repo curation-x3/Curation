@@ -117,10 +117,8 @@ function DiscardedItemRow({
       className={`inbox-item ${isSelected ? "selected" : ""}`}
       onClick={onSelect}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <span className="inbox-item-title">{item.title}</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
+        <span className="inbox-item-title" style={{ flex: 1 }}>{item.title}</span>
         {discardTag()}
       </div>
       <div className="inbox-item-desc">{item.routing_reason}</div>

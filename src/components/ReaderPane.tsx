@@ -235,16 +235,13 @@ export function ReaderPane({
           onOpenDrawer={selectedItem.routing === "ai_curation" ? onOpenDrawer : undefined}
         />
         <div className="reader-content animate-in">
-          {/* Card markdown content */}
+          {/* Card content (markdown) — shown for both ai_curation and original_push */}
           <CardContentView cardId={selectedItem.card_id} />
 
-          {/* For original_push: show original article inline below */}
+          {/* Original push: show original article (rich text HTML) below the guide card */}
           {selectedItem.routing === "original_push" && (
             <>
               <hr style={{ margin: "32px 0", border: "none", height: 1, background: "linear-gradient(90deg, transparent, #475569, transparent)" }} />
-              <div style={{ fontSize: "0.82rem", color: "#8b949e", marginBottom: 16, fontWeight: 600 }}>
-                原文全文
-              </div>
               <ArticleHtmlView articleId={selectedItem.article_id} />
             </>
           )}
