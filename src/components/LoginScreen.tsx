@@ -26,8 +26,8 @@ export function LoginScreen() {
         color: "var(--text-primary)",
         textAlign: "center",
       }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: "0 0 6px" }}>Curation</h1>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 32px" }}>你的专属资讯助理</p>
+        <h1 style={{ fontSize: 20, fontWeight: 600, margin: "0 0 10px", letterSpacing: "-0.01em" }}>Curation</h1>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 32px", fontFamily: "var(--font-body)", fontStyle: "italic", lineHeight: 1.6 }}>值得读完的文章，远比你以为的少。</p>
         <button onClick={handleEnter} style={primaryBtn}>
           登录 / 注册
         </button>
