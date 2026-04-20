@@ -57,25 +57,23 @@ function InboxGroupHeader({
 
   return (
     <div className="inbox-group-header" onClick={onToggle}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
-        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <span style={{ fontWeight: 600 }}>{group.label}</span>
-        {unreadCount > 0 && (
-          <span className="inbox-group-badge">{unreadCount}</span>
-        )}
-      </div>
+      {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      <span>{group.label}</span>
       {unreadCount > 0 && (
-        <button
-          className="inbox-group-read-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMarkAllRead();
-          }}
-          title="全部已读"
-        >
-          <Check size={12} /> 全部已读
-        </button>
+        <span className="inbox-group-badge">{unreadCount}</span>
       )}
+      <div style={{ flex: 1 }} />
+      <button
+        className="inbox-group-read-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onMarkAllRead();
+        }}
+        title="全部已读"
+        disabled={unreadCount === 0}
+      >
+        <Check size={12} /> 全部已读
+      </button>
     </div>
   );
 }
@@ -290,11 +288,9 @@ export function InboxList({
             discardedGroups.map((group) => (
               <div key={group.key}>
                 <div className="inbox-group-header" onClick={() => toggleGroup(group.key)}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
-                    {isGroupOpen(group) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    <span style={{ fontWeight: 600 }}>{group.label}</span>
-                    <span className="inbox-group-badge">{group.items.length}</span>
-                  </div>
+                  {isGroupOpen(group) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <span>{group.label}</span>
+                  <span className="inbox-group-badge">{group.items.length}</span>
                 </div>
                 {isGroupOpen(group) &&
                   group.items.map((item) => (

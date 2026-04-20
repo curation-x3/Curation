@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppearanceSettings,
   DEFAULTS,
+  READER_SIZE_DEFAULT,
   apply,
   autoRootSize,
-  clampRootSize,
+  clampReaderSize,
   load,
   save,
 } from "../lib/appearance";
@@ -17,10 +18,10 @@ interface UseAppearance {
   commit: () => void;
   cancel: () => void;
   resetDefaults: () => void;
-  /** Directly change root size and persist immediately (used by shortcuts). */
-  bumpRootSize: (delta: number) => void;
-  /** Clear override, fall back to auto, persist. */
-  clearOverride: () => void;
+  /** Directly change reader font size and persist immediately (used by shortcuts). */
+  bumpReaderSize: (delta: number) => void;
+  /** Reset reader size to default and persist (used by Cmd+0). */
+  resetReaderSize: () => void;
 }
 
 export function useAppearance(): UseAppearance {
@@ -78,11 +79,10 @@ export function useAppearance(): UseAppearance {
     setDraftState(next);
   }, []);
 
-  const bumpRootSize = useCallback((delta: number) => {
-    const current = savedRef.current.rootSizeOverride ?? autoRootSize(window.innerWidth);
+  const bumpReaderSize = useCallback((delta: number) => {
     const next: AppearanceSettings = {
       ...savedRef.current,
-      rootSizeOverride: clampRootSize(current + delta),
+      readerSize: clampReaderSize(savedRef.current.readerSize + delta),
     };
     apply(next, window.innerWidth);
     save(next);
@@ -90,8 +90,11 @@ export function useAppearance(): UseAppearance {
     setDraftState(next);
   }, []);
 
-  const clearOverride = useCallback(() => {
-    const next: AppearanceSettings = { ...savedRef.current, rootSizeOverride: null };
+  const resetReaderSize = useCallback(() => {
+    const next: AppearanceSettings = {
+      ...savedRef.current,
+      readerSize: READER_SIZE_DEFAULT,
+    };
     apply(next, window.innerWidth);
     save(next);
     setSaved(next);
@@ -106,7 +109,7 @@ export function useAppearance(): UseAppearance {
     commit,
     cancel,
     resetDefaults,
-    bumpRootSize,
-    clearOverride,
+    bumpReaderSize,
+    resetReaderSize,
   };
 }

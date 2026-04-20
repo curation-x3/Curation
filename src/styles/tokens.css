@@ -20,6 +20,10 @@
   --space-card: 12px;
   --pad-panel:  10px;
 
+  /* Reader — overridable from settings (see appearance.ts) */
+  --reader-font-size: 16px;
+  --reader-max-width: 800px;
+
   /* ===== v2 color palette ===== */
   --bg-base:         #121416;
   --bg-raised:       #1a1d20;
@@ -88,7 +92,6 @@
   --list-bg:       var(--bg-raised);
   --reader-bg:     var(--bg-raised);
   --accent-red:    var(--accent-red);
-  --reader-max-width: 800px;
 }
 
 html {
@@ -107,25 +110,16 @@ body {
   color: var(--text-primary);
 }
 
-/* Density variants (unchanged from v1) */
-[data-density="compact"] {
-  --lh-body: 1.5;
-  --space-row: 6px;
-  --space-card: 8px;
-  --pad-panel: 6px;
-}
-[data-density="relaxed"] {
-  --lh-body: 1.9;
-  --space-row: 14px;
-  --space-card: 18px;
-  --pad-panel: 14px;
-}
-
 .reader-pane,
 .markdown-body,
 .rich-text-content {
   font-family: var(--font-body);
   line-height: var(--lh-body);
+}
+
+.markdown-body,
+.rich-text-content {
+  font-size: var(--reader-font-size);
 }
 
 /* Utility: tracked uppercase labels used across components */

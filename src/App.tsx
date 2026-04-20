@@ -142,7 +142,7 @@ function AppMain({ currentUser, onLogout }: {
 }) {
   // Appearance (font system)
   const appearance = useAppearance();
-  useFontShortcuts({ bump: appearance.bumpRootSize, clear: appearance.clearOverride });
+  useFontShortcuts({ bump: appearance.bumpReaderSize, clear: appearance.resetReaderSize });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // View state

@@ -1,6 +1,15 @@
 import { X } from "lucide-react";
-import type { AppearanceSettings, Density, FontBody } from "../lib/appearance";
-import { ROOT_SIZE_MAX, ROOT_SIZE_MIN } from "../lib/appearance";
+import type { AppearanceSettings, FontBody } from "../lib/appearance";
+import {
+  READER_SIZE_DEFAULT,
+  READER_SIZE_MAX,
+  READER_SIZE_MIN,
+  READER_WIDTH_MAX,
+  READER_WIDTH_MIN,
+  READER_WIDTH_STEP,
+  ROOT_SIZE_MAX,
+  ROOT_SIZE_MIN,
+} from "../lib/appearance";
 
 interface Props {
   open: boolean;
@@ -34,26 +43,6 @@ const FONT_OPTIONS: { key: FontBody; label: string; glyph: string; glyphFamily: 
   },
 ];
 
-const DENSITY_OPTIONS: { key: Density; label: string; bars: number[] }[] = [
-  { key: "compact", label: "紧凑", bars: [2, 2, 2] },
-  { key: "normal", label: "标准", bars: [3, 3, 3] },
-  { key: "relaxed", label: "宽松", bars: [4, 4, 4] },
-];
-
-function DensityGlyph({ bars }: { bars: number[] }) {
-  return (
-    <span className="settings-density-glyph" aria-hidden>
-      {bars.map((h, i) => (
-        <span
-          key={i}
-          className="settings-density-bar"
-          style={{ width: 14, height: 1, marginTop: h + 1, marginBottom: h + 1 }}
-        />
-      ))}
-    </span>
-  );
-}
-
 export function SettingsDrawer({
   open,
   draft,
@@ -66,10 +55,11 @@ export function SettingsDrawer({
 }: Props) {
   if (!open) return null;
 
-  const currentSize = draft.rootSizeOverride ?? autoSize;
+  const systemSize = draft.rootSizeOverride ?? autoSize;
   const isAuto = draft.rootSizeOverride === null;
-  const sliderPct =
-    ((currentSize - ROOT_SIZE_MIN) / (ROOT_SIZE_MAX - ROOT_SIZE_MIN)) * 100;
+  const systemPct = ((systemSize - ROOT_SIZE_MIN) / (ROOT_SIZE_MAX - ROOT_SIZE_MIN)) * 100;
+  const readerPct = ((draft.readerSize - READER_SIZE_MIN) / (READER_SIZE_MAX - READER_SIZE_MIN)) * 100;
+  const widthPct = ((draft.readerMaxWidth - READER_WIDTH_MIN) / (READER_WIDTH_MAX - READER_WIDTH_MIN)) * 100;
 
   const handleApply = () => {
     onCommit();
@@ -101,47 +91,59 @@ export function SettingsDrawer({
         <div className="settings-drawer-body">
           <section className="settings-section settings-section-stagger-1">
             <h4>
-              <span>字号</span>
-              {isAuto && <span className="settings-auto-tag">AUTO</span>}
+              <span>阅读字号</span>
+              <span className="settings-hint-inline">快捷键 ⌘ +/−/0</span>
             </h4>
             <div className="settings-slider-row">
               <span className="settings-slider-edge">A</span>
               <input
                 type="range"
-                min={ROOT_SIZE_MIN}
-                max={ROOT_SIZE_MAX}
+                min={READER_SIZE_MIN}
+                max={READER_SIZE_MAX}
                 step={1}
-                value={currentSize}
-                onChange={(e) =>
-                  onChange({ rootSizeOverride: Number(e.target.value) })
-                }
-                aria-label="根字号"
-                style={{ ["--slider-fill" as any]: `${sliderPct}%` }}
+                value={draft.readerSize}
+                onChange={(e) => onChange({ readerSize: Number(e.target.value) })}
+                aria-label="阅读字号"
+                style={{ ["--slider-fill" as any]: `${readerPct}%` }}
               />
-              <span
-                className="settings-slider-edge"
-                style={{ fontSize: "1.1rem" }}
-              >
-                A
-              </span>
-              <span className="settings-slider-value">{currentSize}px</span>
+              <span className="settings-slider-edge" style={{ fontSize: "1.25rem" }}>A</span>
+              <span className="settings-slider-value">{draft.readerSize}px</span>
             </div>
             <div className="settings-section-footer">
-              <span className="settings-hint">
-                自动档位 {autoSize}px · 随视口宽度
-              </span>
-              {!isAuto && (
+              <span className="settings-hint">默认 {READER_SIZE_DEFAULT}px</span>
+              {draft.readerSize !== READER_SIZE_DEFAULT && (
                 <button
                   className="settings-link-btn"
-                  onClick={() => onChange({ rootSizeOverride: null })}
+                  onClick={() => onChange({ readerSize: READER_SIZE_DEFAULT })}
                 >
-                  恢复自动
+                  恢复默认
                 </button>
               )}
             </div>
           </section>
 
           <section className="settings-section settings-section-stagger-2">
+            <h4>
+              <span>阅读宽度</span>
+            </h4>
+            <div className="settings-slider-row">
+              <span className="settings-slider-edge" aria-hidden>▯</span>
+              <input
+                type="range"
+                min={READER_WIDTH_MIN}
+                max={READER_WIDTH_MAX}
+                step={READER_WIDTH_STEP}
+                value={draft.readerMaxWidth}
+                onChange={(e) => onChange({ readerMaxWidth: Number(e.target.value) })}
+                aria-label="阅读宽度"
+                style={{ ["--slider-fill" as any]: `${widthPct}%` }}
+              />
+              <span className="settings-slider-edge" style={{ fontSize: "1.25rem" }} aria-hidden>▭</span>
+              <span className="settings-slider-value">{draft.readerMaxWidth}px</span>
+            </div>
+          </section>
+
+          <section className="settings-section settings-section-stagger-3">
             <h4>
               <span>正文字体</span>
             </h4>
@@ -166,27 +168,42 @@ export function SettingsDrawer({
             </div>
           </section>
 
-          <section className="settings-section settings-section-stagger-3">
+          <section className="settings-section settings-section-stagger-4">
             <h4>
-              <span>阅读密度</span>
+              <span>系统字号</span>
+              {isAuto && <span className="settings-auto-tag">AUTO</span>}
             </h4>
-            <div className="settings-segmented">
-              {DENSITY_OPTIONS.map((opt) => (
+            <div className="settings-slider-row">
+              <span className="settings-slider-edge">A</span>
+              <input
+                type="range"
+                min={ROOT_SIZE_MIN}
+                max={ROOT_SIZE_MAX}
+                step={1}
+                value={systemSize}
+                onChange={(e) => onChange({ rootSizeOverride: Number(e.target.value) })}
+                aria-label="系统字号"
+                style={{ ["--slider-fill" as any]: `${systemPct}%` }}
+              />
+              <span className="settings-slider-edge" style={{ fontSize: "1.1rem" }}>A</span>
+              <span className="settings-slider-value">{systemSize}px</span>
+            </div>
+            <div className="settings-section-footer">
+              <span className="settings-hint">
+                自动档位 {autoSize}px · 随视口宽度
+              </span>
+              {!isAuto && (
                 <button
-                  key={opt.key}
-                  className={`settings-seg-btn ${
-                    draft.density === opt.key ? "active" : ""
-                  }`}
-                  onClick={() => onChange({ density: opt.key })}
+                  className="settings-link-btn"
+                  onClick={() => onChange({ rootSizeOverride: null })}
                 >
-                  <DensityGlyph bars={opt.bars} />
-                  <span className="settings-seg-label">{opt.label}</span>
+                  恢复自动
                 </button>
-              ))}
+              )}
             </div>
           </section>
 
-          <section className="settings-section settings-section-stagger-4">
+          <section className="settings-section settings-section-stagger-5">
             <h4>
               <span>预览</span>
             </h4>
@@ -202,9 +219,9 @@ export function SettingsDrawer({
                 <span className="settings-preview-dot">·</span>
                 <span>5 分钟</span>
               </div>
-              <p className="settings-preview-body">
-                这是一段用于展示当前<strong>字号、字体族与阅读密度</strong>的正文样例。
-                调整左侧任一设置，这段文字会立刻随之改变——行距、字面、节奏。
+              <p className="settings-preview-body" style={{ fontSize: `${draft.readerSize}px` }}>
+                这是一段用于展示当前<strong>字号、字体族和阅读宽度</strong>的正文样例。
+                调整上面任一设置，这段文字会立刻随之改变。
                 合适的排版不喧宾夺主，它只是让句子更容易被读完。
               </p>
             </article>
