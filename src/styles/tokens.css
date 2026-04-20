@@ -71,6 +71,10 @@
   --shadow-focus:   0 0 0 2px var(--accent-gold-dim);
   --shadow-hover:   0 4px 12px rgba(0,0,0,0.3);
 
+  /* Translucent tints — theme-aware (sticky headers, overlays) */
+  --tint-sticky:  rgba(18, 20, 22, 0.85);
+  --tint-overlay: rgba(0, 0, 0, 0.55);
+
   /* ===== v2 motion ===== */
   --dur-instant: 80ms;
   --dur-base:    180ms;
@@ -92,6 +96,48 @@
   --list-bg:       var(--bg-raised);
   --reader-bg:     var(--bg-raised);
   --accent-red:    var(--accent-red);
+}
+
+/* ============================================================ */
+/* Light theme — "Daylight / Book Page"                         */
+/* Warm cream paper with deep warm-ink text. Rich-text content  */
+/* from WeChat articles is natively designed for light bg so    */
+/* inline colors (teal #009980, gray #888, blue #576B95 etc.)   */
+/* land correctly here.                                         */
+/* ============================================================ */
+[data-theme="light"] {
+  --bg-base:         #f6f1e7;
+  --bg-raised:       #efe7d3;
+  --bg-panel:        #ebe2cc;
+  --bg-elev:         #e0d4b8;
+  --bg-hover:        #d9ccae;
+
+  --border-hairline: #dcd0b5;
+  --border:          #c5b998;
+  --border-strong:   #a89a76;
+
+  --text-primary:    #2a2416;
+  --text-secondary:  #4c4530;
+  --text-muted:      #766f55;
+  --text-faint:      #a69e82;
+
+  --accent-gold:     #a3711a;
+  --accent-gold-dim: #a3711a1f;
+  --accent-gold-hi:  #c6902d;
+
+  --accent-blue:     #3d6aa0;
+  --accent-blue-dim: #3d6aa01f;
+
+  --accent-red:      #a8432e;
+  --accent-green:    #4f6e3a;
+
+  --shadow-subtle:  0 1px 0 rgba(92, 68, 30, 0.08);
+  --shadow-card:    0 2px 8px rgba(92, 68, 30, 0.12), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  --shadow-drawer:  0 24px 48px -12px rgba(92, 68, 30, 0.28), 0 0 0 1px rgba(92, 68, 30, 0.08);
+  --shadow-hover:   0 4px 12px rgba(92, 68, 30, 0.18);
+
+  --tint-sticky:  rgba(246, 241, 231, 0.88);
+  --tint-overlay: rgba(60, 45, 20, 0.28);
 }
 
 html {

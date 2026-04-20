@@ -1,5 +1,5 @@
 import { X, ArrowUpRight } from "lucide-react";
-import type { AppearanceSettings, FontBody } from "../lib/appearance";
+import type { AppearanceSettings, FontBody, ThemeMode } from "../lib/appearance";
 import {
   READER_SIZE_DEFAULT,
   READER_SIZE_MAX,
@@ -10,6 +10,7 @@ import {
   READER_WIDTH_STEP,
   ROOT_SIZE_MAX,
   ROOT_SIZE_MIN,
+  resolveTheme,
 } from "../lib/appearance";
 
 interface Props {
@@ -24,6 +25,12 @@ interface Props {
   onReset: () => void;
   onLogout: () => void;
 }
+
+const THEME_OPTIONS: { key: ThemeMode; label: string; glyph: string; hint: string }[] = [
+  { key: "light", label: "日", glyph: "☀", hint: "Daylight" },
+  { key: "dark", label: "夜", glyph: "☾", hint: "Nightfall" },
+  { key: "auto", label: "随", glyph: "◐", hint: "Follow system" },
+];
 
 const FONT_OPTIONS: { key: FontBody; label: string; glyph: string; glyphFamily: string }[] = [
   {
@@ -176,7 +183,31 @@ export function SettingsDrawer({
         <div className="ts-colophon">排版 · 阅读 · 账号 — Edit your reading frame.</div>
 
         <div className="ts-body">
-          <Section roman="I" title="阅读" stagger={0}>
+          <Section roman="I" title="主题" stagger={0}>
+            <div className="ts-themes">
+              {THEME_OPTIONS.map((opt) => {
+                const isActive = draft.theme === opt.key;
+                const resolved = opt.key === "auto" ? resolveTheme("auto") : opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    className={`ts-theme ${isActive ? "active" : ""}`}
+                    onClick={() => onChange({ theme: opt.key })}
+                    data-resolved={resolved}
+                  >
+                    <span className="ts-theme-glyph" aria-hidden>{opt.glyph}</span>
+                    <span className="ts-theme-label">{opt.label}</span>
+                    <span className="ts-theme-hint">{opt.hint}</span>
+                    {opt.key === "auto" && isActive && (
+                      <span className="ts-theme-resolved">→ {resolved === "light" ? "日" : "夜"}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          <Section roman="II" title="阅读" stagger={1}>
             <div className="ts-field">
               <div className="ts-field-label">
                 <span>字号</span>
@@ -228,7 +259,7 @@ export function SettingsDrawer({
             </div>
           </Section>
 
-          <Section roman="II" title="字体" stagger={1}>
+          <Section roman="III" title="字体" stagger={2}>
             <div className="ts-typefaces">
               {FONT_OPTIONS.map((opt) => (
                 <button
@@ -249,7 +280,7 @@ export function SettingsDrawer({
             </div>
           </Section>
 
-          <Section roman="III" title="系统" stagger={2}>
+          <Section roman="IV" title="系统" stagger={3}>
             <div className="ts-field">
               <div className="ts-field-label">
                 <span>界面字号</span>
@@ -278,7 +309,7 @@ export function SettingsDrawer({
             </div>
           </Section>
 
-          <Section roman="IV" title="账号" stagger={3}>
+          <Section roman="V" title="账号" stagger={4}>
             <div className="ts-account">
               <div className="ts-account-row">
                 <span className="ts-account-label">已登录</span>

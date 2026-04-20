@@ -1,4 +1,6 @@
 export type FontBody = "serif" | "sans" | "mono";
+export type ThemeMode = "dark" | "light" | "auto";
+export type ResolvedTheme = "dark" | "light";
 
 export interface AppearanceSettings {
   /** null = auto (viewport-driven). System chrome (sidebar/list/UI) root font-size. */
@@ -9,6 +11,8 @@ export interface AppearanceSettings {
   readerMaxWidth: number;
   /** Reader body font family. */
   fontBody: FontBody;
+  /** Theme mode — resolved against system preference when "auto". */
+  theme: ThemeMode;
 }
 
 export const ROOT_SIZE_MIN = 10;
@@ -30,6 +34,7 @@ export const DEFAULTS: AppearanceSettings = {
   readerSize: READER_SIZE_DEFAULT,
   readerMaxWidth: READER_WIDTH_DEFAULT,
   fontBody: "serif",
+  theme: "auto",
 };
 
 export function autoRootSize(viewportWidth: number): number {
@@ -58,6 +63,17 @@ const BODY_FAMILY: Record<FontBody, string> = {
   mono: `"SF Mono", "JetBrains Mono", Menlo, Consolas, monospace`,
 };
 
+export function resolveTheme(mode: ThemeMode): ResolvedTheme {
+  if (mode === "dark" || mode === "light") return mode;
+  // auto
+  if (typeof window !== "undefined" && window.matchMedia) {
+    return window.matchMedia("(prefers-color-scheme: light)").matches
+      ? "light"
+      : "dark";
+  }
+  return "dark";
+}
+
 export function apply(settings: AppearanceSettings, viewportWidth: number): void {
   const root = document.documentElement;
   const rootSize =
@@ -68,6 +84,7 @@ export function apply(settings: AppearanceSettings, viewportWidth: number): void
   root.style.setProperty("--font-body", BODY_FAMILY[settings.fontBody]);
   root.style.setProperty("--reader-font-size", `${clampReaderSize(settings.readerSize)}px`);
   root.style.setProperty("--reader-max-width", `${clampReaderWidth(settings.readerMaxWidth)}px`);
+  root.setAttribute("data-theme", resolveTheme(settings.theme));
   root.removeAttribute("data-density");
 }
 
@@ -93,6 +110,10 @@ export function load(): AppearanceSettings {
         parsed.fontBody === "sans" || parsed.fontBody === "mono"
           ? parsed.fontBody
           : "serif",
+      theme:
+        parsed.theme === "light" || parsed.theme === "dark"
+          ? parsed.theme
+          : "auto",
     };
   } catch {
     return { ...DEFAULTS };

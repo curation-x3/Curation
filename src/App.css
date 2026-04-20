@@ -496,13 +496,25 @@ body {
   color: var(--accent-gold);
 }
 
-/* Rich Text (HTML) Template for Original Articles */
-/* Inline color styles are stripped server-side, so we just set dark defaults here */
+/* Rich Text (HTML) Template for Original Articles
+ * WeChat articles arrive with inline styles authored for a white
+ * background: colors like rgb(34,34,34) body text, rgb(0,153,127)
+ * emphasis, #576B95 links. Light theme is their native habitat —
+ * we let those inline styles through. Dark theme inherits them too
+ * (some articles will look off — that's the tradeoff of not
+ * rewriting author markup). */
 .rich-text-content {
   color: var(--text-primary);
   background-color: transparent;
   line-height: 1.6;
   word-wrap: break-word;
+}
+
+/* Force our reading font onto all rich-text descendants, regardless
+ * of inline font-family: Arial / ExtraLight-0 / mp-quote / etc. */
+.rich-text-content,
+.rich-text-content * {
+  font-family: var(--font-body) !important;
 }
 
 .rich-text-content img {
@@ -533,6 +545,18 @@ body {
   max-width: 100% !important;
   box-sizing: border-box !important;
   word-wrap: break-word !important;
+}
+
+/* Light theme — strip WeChat's authored white/light backgrounds
+ * so our cream paper shows through. */
+[data-theme="light"] .rich-text-content [style*="background-color: rgb(255"],
+[data-theme="light"] .rich-text-content [style*="background: rgb(255"],
+[data-theme="light"] .rich-text-content [style*="background:#fff"],
+[data-theme="light"] .rich-text-content [style*="background-color:#fff"],
+[data-theme="light"] .rich-text-content [style*="background:#ffffff"],
+[data-theme="light"] .rich-text-content [style*="background-color:#ffffff"] {
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 
@@ -834,7 +858,7 @@ body {
   top: 0;
   z-index: 2;
   backdrop-filter: blur(8px);
-  background: rgba(18, 20, 22, 0.85);
+  background: var(--tint-sticky);
 }
 
 .inbox-group-header > span:first-of-type {
@@ -981,7 +1005,7 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--tint-overlay);
   backdrop-filter: blur(2px);
   z-index: 100;
   display: flex;
@@ -1032,7 +1056,7 @@ body {
 .settings-drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--tint-overlay);
   backdrop-filter: blur(3px);
   z-index: 200;
   display: flex;
@@ -1778,6 +1802,113 @@ body {
   background: var(--accent-gold);
   transform: translateY(-1px);
   box-shadow: 0 0 8px rgba(212, 164, 92, 0.4);
+}
+
+/* ------- theme selector ------- */
+
+.ts-themes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+}
+
+.ts-theme {
+  background: transparent;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-2);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    transform var(--dur-instant) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-body);
+}
+
+.ts-theme[data-resolved="light"] {
+  background: linear-gradient(155deg, rgba(246, 241, 231, 0.85) 0%, rgba(224, 212, 184, 0.55) 100%);
+}
+
+.ts-theme[data-resolved="dark"] {
+  background: linear-gradient(155deg, rgba(30, 34, 38, 0.8) 0%, rgba(18, 20, 22, 0.92) 100%);
+}
+
+.ts-theme:hover {
+  border-color: var(--border);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.ts-theme.active {
+  border-color: var(--accent-gold);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--accent-gold-dim), 0 4px 12px rgba(212, 164, 92, 0.18);
+}
+
+.ts-theme.active::after {
+  content: "";
+  position: absolute;
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: 4px;
+  height: 1px;
+  background: var(--accent-gold);
+}
+
+.ts-theme-glyph {
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--accent-gold);
+  filter: drop-shadow(0 1px 2px rgba(212, 164, 92, 0.35));
+}
+
+.ts-theme[data-resolved="light"] .ts-theme-glyph {
+  color: #a3711a;
+  filter: none;
+}
+
+.ts-theme[data-resolved="dark"] .ts-theme-glyph {
+  color: #d4a45c;
+}
+
+.ts-theme-label {
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.ts-theme[data-resolved="light"] .ts-theme-label {
+  color: #2a2416;
+}
+
+.ts-theme[data-resolved="dark"] .ts-theme-label {
+  color: #edeae4;
+}
+
+.ts-theme-hint {
+  font-size: 10px;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.ts-theme-resolved {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 10px;
+  font-style: italic;
+  color: var(--accent-gold);
+  opacity: 0.7;
 }
 
 /* ------- typeface specimens ------- */

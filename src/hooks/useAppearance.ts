@@ -50,6 +50,18 @@ export function useAppearance(): UseAppearance {
     }
   }, [viewport]);
 
+  // React to system color-scheme changes when in auto theme
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-color-scheme: light)");
+    const onChange = () => {
+      if (savedRef.current.theme === "auto") {
+        apply(savedRef.current, window.innerWidth);
+      }
+    };
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
   const setDraft = useCallback((patch: Partial<AppearanceSettings>) => {
     setDraftState((prev) => {
       const next = { ...prev, ...patch };
