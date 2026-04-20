@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { fetchRun, fetchRunStream, fetchRunFiles, fetchRunFile } from "../lib/api";
-import type { RunEntry, RunStreamLine, RunFile } from "../types";
+import type { RunEntry, RunStreamLine } from "../types";
 
 function statusBadge(s: string) {
   const colors: Record<string, string> = { done: "#3fb950", failed: "#f85149", running: "#d29922", pending: "#8b949e" };
@@ -107,7 +107,7 @@ function StreamLogTab({ runId }: { runId: number }) {
 }
 
 function FileListTab({ runId }: { runId: number }) {
-  const { data: files, isLoading } = useQuery<RunFile[]>({
+  const { data: files, isLoading } = useQuery<string[]>({
     queryKey: ["runFiles", runId],
     queryFn: () => fetchRunFiles(runId),
     enabled: !!runId,
@@ -125,11 +125,10 @@ function FileListTab({ runId }: { runId: number }) {
   return (
     <div style={{ padding: 16 }}>
       {files.map((f) => (
-        <div key={f.name}
-          onClick={() => setViewingFile(f.name === viewingFile ? null : f.name)}
-          style={{ background: "#161b22", borderRadius: 6, padding: "6px 12px", marginBottom: 4, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: "#58a6ff", fontSize: "0.78rem" }}>{f.name}</span>
-          <span style={{ color: "#484f58", fontSize: "0.68rem" }}>{f.size ? `${(f.size / 1024).toFixed(1)}KB` : ""}</span>
+        <div key={f}
+          onClick={() => setViewingFile(f === viewingFile ? null : f)}
+          style={{ background: "#161b22", borderRadius: 6, padding: "6px 12px", marginBottom: 4, cursor: "pointer" }}>
+          <span style={{ color: "#58a6ff", fontSize: "0.78rem" }}>{f}</span>
         </div>
       ))}
       {viewingFile && fileContent && (

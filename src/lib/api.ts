@@ -171,6 +171,15 @@ export async function deleteRun(runId: number) {
   return res.json();
 }
 
+export async function setServingRun(articleId: string, runId: number) {
+  const res = await apiFetch(`/articles/${articleId}/serving-run`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run_id: runId }),
+  });
+  return res.json();
+}
+
 export async function fetchRunStream(runId: number, offset = 0, limit = 500) {
   const res = await apiFetch(`/runs/${runId}/stream?offset=${offset}&limit=${limit}`);
   const json = await res.json();

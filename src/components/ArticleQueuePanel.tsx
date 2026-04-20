@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, ChevronDown, Play, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Play, RotateCcw, Trash2, Star } from "lucide-react";
 import {
   fetchQueue, fetchStrategy, patchStrategy, fetchBackends,
-  triggerQueueRun, retryQueueEntry, fetchArticleRuns, deleteRun,
+  triggerQueueRun, retryQueueEntry, fetchArticleRuns, deleteRun, setServingRun,
 } from "../lib/api";
 import { ArticlePreviewDrawer } from "./ArticlePreviewDrawer";
 import { RunDetailDrawer } from "./RunDetailDrawer";
@@ -53,6 +53,7 @@ export function ArticleQueuePanel() {
   const triggerMut = useMutation({ mutationFn: (aid: string) => triggerQueueRun(aid), onSuccess: () => qc.invalidateQueries({ queryKey: ["articleQueue"] }) });
   const retryMut   = useMutation({ mutationFn: (aid: string) => retryQueueEntry(aid), onSuccess: () => qc.invalidateQueries({ queryKey: ["articleQueue"] }) });
   const deleteMut  = useMutation({ mutationFn: (rid: number) => deleteRun(rid), onSuccess: () => { qc.invalidateQueries({ queryKey: ["articleQueue"] }); } });
+  const servingMut = useMutation({ mutationFn: ({ aid, rid }: { aid: string; rid: number }) => setServingRun(aid, rid), onSuccess: () => { qc.invalidateQueries({ queryKey: ["articleQueue"] }); } });
 
   const [statusFilter, setStatusFilter]     = useState<string>("all");
   const [routingFilter, setRoutingFilter]   = useState<string>("all");
@@ -188,11 +189,13 @@ export function ArticleQueuePanel() {
                     <div style={{ color: "#8b949e", fontSize: "0.75rem", padding: 8 }}>暂无运行记录</div>
                   ) : (
                     <>
-                      <div style={{ display: "grid", gridTemplateColumns: "60px 80px 70px 60px 100px 30px", color: "#8b949e", fontSize: "0.65rem", padding: "4px 0", borderBottom: "1px solid #21262d" }}>
-                        <span>Run ID</span><span>后端</span><span>状态</span><span>耗时</span><span>创建时间</span><span></span>
+                      <div style={{ display: "grid", gridTemplateColumns: "60px 80px 70px 60px 100px 50px 30px", color: "#8b949e", fontSize: "0.65rem", padding: "4px 0", borderBottom: "1px solid #21262d" }}>
+                        <span>Run ID</span><span>后端</span><span>状态</span><span>耗时</span><span>创建时间</span><span>推送</span><span></span>
                       </div>
-                      {articleRuns.map((run) => (
-                        <div key={run.id} style={{ display: "grid", gridTemplateColumns: "60px 80px 70px 60px 100px 30px", padding: "5px 0", borderBottom: "1px solid #21262d", alignItems: "center" }}>
+                      {articleRuns.map((run) => {
+                        const isServing = run.id === entry.serving_run_id;
+                        return (
+                        <div key={run.id} style={{ display: "grid", gridTemplateColumns: "60px 80px 70px 60px 100px 50px 30px", padding: "5px 0", borderBottom: "1px solid #21262d", alignItems: "center" }}>
                           <a onClick={() => setDetailRunId(run.id)}
                             style={{ color: "#58a6ff", fontSize: "0.75rem", cursor: "pointer", textDecoration: "none" }}>
                             #{run.id}
@@ -201,12 +204,23 @@ export function ArticleQueuePanel() {
                           <span style={{ color: runStatusColor(run.overall_status), fontSize: "0.75rem" }}>{run.overall_status}</span>
                           <span style={{ color: "#e6edf3", fontSize: "0.75rem" }}>{run.elapsed_s ? `${run.elapsed_s.toFixed(1)}s` : "—"}</span>
                           <span style={{ color: "#8b949e", fontSize: "0.7rem" }}>{fmtTime(run.created_at)}</span>
+                          <span>
+                            {isServing ? (
+                              <Star size={12} style={{ color: "#f0a500", fill: "#f0a500" }} />
+                            ) : run.overall_status === "done" ? (
+                              <button onClick={() => servingMut.mutate({ aid: entry.article_id, rid: run.id })} title="设为推送版本"
+                                style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 0 }}>
+                                <Star size={12} />
+                              </button>
+                            ) : null}
+                          </span>
                           <button onClick={() => { if (confirm("删除此run?")) deleteMut.mutate(run.id); }}
                             style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: 0 }}>
                             <Trash2 size={12} />
                           </button>
                         </div>
-                      ))}
+                        );
+                      })}
                     </>
                   )}
                 </div>
