@@ -18,6 +18,8 @@ import { Sidebar } from './components/Sidebar';
 import { AdminPane } from './components/AdminPane';
 import { InboxList } from './components/InboxList';
 import { ReaderPane } from './components/ReaderPane';
+import { SearchList } from './components/SearchList';
+import { useSearch } from './hooks/useSearch';
 import { ArticleDrawer } from './components/ArticleDrawer';
 import { LoginScreen } from './components/LoginScreen';
 import { AuthCallback } from './components/AuthCallback';
@@ -147,13 +149,14 @@ function AppMain({ currentUser, onLogout }: {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // View state
-  const [selectedView, setSelectedView] = useState<"inbox" | "discarded" | "favorites">("inbox");
+  const [selectedView, setSelectedView] = useState<"inbox" | "discarded" | "favorites" | "search">("inbox");
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedDiscardedId, setSelectedDiscardedId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedFavorite, setSelectedFavorite] = useState<FavoriteItem | null>(null);
   const { data: favoritesData } = useFavorites();
+  const search = useSearch();
 
   // Layout
   const { isSidebarCollapsed, sidebarWidth, listWidth, isResizingList, startResizeList, toggleSidebar } = useLayout();
@@ -269,6 +272,13 @@ function AppMain({ currentUser, onLogout }: {
     setSelectedFavorite(null);
   }
 
+  function handleSelectSearch() {
+    setSelectedView("search");
+    setSelectedCardId(null);
+    setSelectedDiscardedId(null);
+    setSelectedFavorite(null);
+  }
+
   function handleSelectFavoriteItem(item: FavoriteItem) {
     setSelectedFavorite(item);
   }
@@ -302,6 +312,14 @@ function AppMain({ currentUser, onLogout }: {
       if (e.key === "Escape" && isDrawerOpen) {
         setIsDrawerOpen(false);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        if (selectedView === "search") {
+          handleSelectInbox();
+        } else {
+          handleSelectSearch();
+        }
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -323,6 +341,7 @@ function AppMain({ currentUser, onLogout }: {
         onSelectAccount={handleSelectAccount}
         onSelectDiscarded={handleSelectDiscarded}
         onSelectFavorites={handleSelectFavorites}
+        onSelectSearch={handleSelectSearch}
         favoritesCount={favoritesData?.length ?? 0}
         onNavigateToCard={handleNavigateToCard}
         onToggleCollapse={toggleSidebar}
@@ -335,7 +354,17 @@ function AppMain({ currentUser, onLogout }: {
       />
 
       {/* Pane 2: List */}
-      {selectedView === "favorites" ? (
+      {selectedView === "search" ? (
+        <SearchList
+          query={search.query}
+          onQueryChange={search.setQuery}
+          results={search.results}
+          isLoading={search.isLoading}
+          selectedCardId={selectedCardId}
+          onSelect={(cardId) => { setSelectedCardId(cardId); setSelectedDiscardedId(null); }}
+          listWidth={listWidth}
+        />
+      ) : selectedView === "favorites" ? (
         <FavoritesList
           selectedId={selectedFavorite ? `${selectedFavorite.item_type}:${selectedFavorite.item_id}` : null}
           onSelect={handleSelectFavoriteItem}

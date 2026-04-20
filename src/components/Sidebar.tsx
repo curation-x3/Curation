@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, Trash2, UserMinus, UserPlus, Star, Settings } from "lucide-react";
+import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, Trash2, UserMinus, UserPlus, Star, Settings, Search } from "lucide-react";
 import { useAccounts, useUnsubscribe, useResubscribe } from "../hooks/useAccounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddMenu } from "./AddMenu";
@@ -9,7 +9,7 @@ import type { Account } from "../types";
 
 interface SidebarProps {
   accounts: Account[];
-  selectedView: "inbox" | "discarded" | "favorites";
+  selectedView: "inbox" | "discarded" | "favorites" | "search";
   selectedAccountId: number | null;
   unreadCounts: Record<number | string, number>;
   isSidebarCollapsed: boolean;
@@ -18,6 +18,7 @@ interface SidebarProps {
   onSelectAccount: (accountId: number) => void;
   onSelectDiscarded: () => void;
   onSelectFavorites: () => void;
+  onSelectSearch: () => void;
   onToggleCollapse: () => void;
   onToggleAdmin: () => void;
   onBack?: () => void;
@@ -44,6 +45,7 @@ export function Sidebar({
   onSelectAccount,
   onSelectDiscarded,
   onSelectFavorites,
+  onSelectSearch,
   onToggleCollapse,
   onToggleAdmin,
   onBack,
@@ -162,6 +164,22 @@ export function Sidebar({
           )}
           {favoritesCount > 0 && (
             <span className="unread-badge" style={{ background: "var(--accent-gold)", color: "var(--bg-base)" }}>{favoritesCount}</span>
+          )}
+        </div>
+
+        {/* Search */}
+        <div
+          className={`account-item ${selectedView === "search" ? "active" : ""}`}
+          onClick={onSelectSearch}
+          title="搜索 (⌘K)"
+        >
+          <div className="account-avatar" style={{ background: "var(--bg-panel)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+            <Search size={16} />
+          </div>
+          {!isSidebarCollapsed && (
+            <div className="account-info">
+              <div className="account-name">搜索</div>
+            </div>
           )}
         </div>
 
