@@ -27,7 +27,7 @@ export function FavoriteButton({ itemType, itemId, size = 12 }: FavoriteButtonPr
         color: isFavorited ? "#e3b341" : "#8b949e",
         padding: "3px 10px",
         cursor: toggle.isPending ? "wait" : "pointer",
-        fontSize: "0.76rem",
+        fontSize: "var(--fs-sm)",
         display: "flex",
         alignItems: "center",
         gap: 4,

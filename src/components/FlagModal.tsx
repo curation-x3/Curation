@@ -53,15 +53,15 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ color: "#e6edf3", fontWeight: 600, fontSize: "0.95rem" }}>标记问题</span>
+          <span style={{ color: "#e6edf3", fontWeight: 600, fontSize: "var(--fs-md)" }}>标记问题</span>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#8b949e", padding: 4, fontSize: "1rem" }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#8b949e", padding: 4, fontSize: "var(--fs-md)" }}
           >
             <X size={18} />
           </button>
         </div>
-        <p style={{ color: "#8b949e", fontSize: "0.82rem", marginBottom: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <p style={{ color: "#8b949e", fontSize: "var(--fs-sm)", marginBottom: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {card.title}
         </p>
         <textarea
@@ -74,11 +74,11 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
           style={{
             width: "100%", background: "#0d1117", border: "1px solid #30363d",
             borderRadius: 6, padding: "8px 10px", color: "#e6edf3",
-            fontSize: "0.88rem", resize: "vertical", boxSizing: "border-box",
+            fontSize: "var(--fs-base)", resize: "vertical", boxSizing: "border-box",
           }}
         />
         {error && (
-          <p style={{ color: "#f85149", fontSize: "0.8rem", marginTop: 6 }}>{error}</p>
+          <p style={{ color: "#f85149", fontSize: "var(--fs-sm)", marginTop: 6 }}>{error}</p>
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
           <button
@@ -86,7 +86,7 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
             disabled={submitting}
             style={{
               background: "none", border: "1px solid #30363d", borderRadius: 6,
-              padding: "5px 14px", color: "#8b949e", cursor: "pointer", fontSize: "0.85rem",
+              padding: "5px 14px", color: "#8b949e", cursor: "pointer", fontSize: "var(--fs-base)",
             }}
           >
             取消
@@ -97,7 +97,7 @@ export function FlagModal({ card, cardType, onClose, onSuccess }: FlagModalProps
             style={{
               background: feedback.trim() && !submitting ? "#1f6feb" : "#21262d",
               border: "none", borderRadius: 6, padding: "5px 14px",
-              color: "#e6edf3", fontSize: "0.85rem",
+              color: "#e6edf3", fontSize: "var(--fs-base)",
               cursor: feedback.trim() && !submitting ? "pointer" : "default",
             }}
           >

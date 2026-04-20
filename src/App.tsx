@@ -84,7 +84,7 @@ function UpdateBanner() {
       position: 'fixed', top: 12, right: 16, zIndex: 200,
       background: '#1f6feb', color: '#fff', border: 'none',
       borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
-      fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6,
+      fontSize: 'var(--fs-sm)', display: 'flex', alignItems: 'center', gap: 6,
       boxShadow: '0 2px 8px rgba(31,111,235,0.4)',
     }}>
       ↑ 重启以更新软件
@@ -407,7 +407,7 @@ function AppMain({ currentUser, onLogout }: {
           animation: 'fadeIn 0.2s ease',
         }}>
           <Sparkles size={16} style={{ color: '#3fb950', flexShrink: 0 }} />
-          <span style={{ color: '#e6edf3', fontSize: '0.85rem' }}>{notification}</span>
+          <span style={{ color: '#e6edf3', fontSize: 'var(--fs-base)' }}>{notification}</span>
           <button onClick={() => setNotification(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b949e', padding: 2, marginLeft: 4 }}>
             <X size={14} />
           </button>

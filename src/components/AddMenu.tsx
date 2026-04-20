@@ -44,7 +44,7 @@ export function AddMenu({ open, onClose, onSubscribe, onAddArticle }: Props) {
           display: "flex", alignItems: "center", gap: 10,
           width: "100%", padding: "10px 14px",
           background: "none", border: "none", cursor: "pointer",
-          color: "#e6edf3", fontSize: "0.85rem", textAlign: "left",
+          color: "#e6edf3", fontSize: "var(--fs-base)", textAlign: "left",
         }}
         onMouseEnter={e => (e.currentTarget.style.background = "#21262d")}
         onMouseLeave={e => (e.currentTarget.style.background = "none")}
@@ -59,7 +59,7 @@ export function AddMenu({ open, onClose, onSubscribe, onAddArticle }: Props) {
           display: "flex", alignItems: "center", gap: 10,
           width: "100%", padding: "10px 14px",
           background: "none", border: "none", cursor: "pointer",
-          color: "#e6edf3", fontSize: "0.85rem", textAlign: "left",
+          color: "#e6edf3", fontSize: "var(--fs-base)", textAlign: "left",
         }}
         onMouseEnter={e => (e.currentTarget.style.background = "#21262d")}
         onMouseLeave={e => (e.currentTarget.style.background = "none")}

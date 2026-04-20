@@ -14,7 +14,7 @@ export const mdComponents: any = {
   ),
   table: ({ children, ...props }: any) => (
     <div style={{ overflowX: 'auto', margin: '16px 0', borderRadius: 8, overflow: 'hidden', border: '1px solid #30363d' }}>
-      <table {...props} style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>{children}</table>
+      <table {...props} style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-base)' }}>{children}</table>
     </div>
   ),
   th: ({ children, ...props }: any) => (
@@ -41,7 +41,7 @@ export const mdComponents: any = {
   pre: ({ children, ...props }: any) => (
     <pre {...props} style={{
       background: '#0d1117', border: '1px solid #30363d', borderRadius: 8,
-      padding: '16px', overflow: 'auto', fontSize: '0.83rem', lineHeight: 1.6,
+      padding: '16px', overflow: 'auto', fontSize: 'var(--fs-sm)', lineHeight: 1.6,
       margin: '16px 0',
     }}>{children}</pre>
   ),
@@ -51,7 +51,7 @@ export const mdComponents: any = {
     return (
       <code style={{
         background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: 4,
-        fontSize: '0.85em', color: '#93c5fd',
+        fontSize: '0.9em', color: '#93c5fd',
       }} {...props}>{children}</code>
     );
   },
@@ -76,7 +76,7 @@ export function CardHeader({ meta, onJumpToArticle, onSelectAccount }: {
       padding: '14px 20px',
       background: '#161b22',
       borderBottom: '1px solid #30363d',
-      fontSize: '0.82rem',
+      fontSize: 'var(--fs-sm)',
       lineHeight: 1.9,
       color: '#8b949e',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -86,7 +86,7 @@ export function CardHeader({ meta, onJumpToArticle, onSelectAccount }: {
           href="#"
           onClick={(e) => { e.preventDefault(); if (canJump) onJumpToArticle!(meta.article_id!); }}
           style={{
-            color: '#e6edf3', textDecoration: 'none', fontWeight: 500, fontSize: '0.88rem',
+            color: '#e6edf3', textDecoration: 'none', fontWeight: 500, fontSize: 'var(--fs-base)',
             borderBottom: canJump ? '1px dashed #58a6ff60' : 'none',
             cursor: canJump ? 'pointer' : 'default',
           }}

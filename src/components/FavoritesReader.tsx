@@ -26,10 +26,10 @@ async function openInAppWindow(url: string) {
 
 function routingTag(routing: string | null) {
   if (routing === "ai_curation") {
-    return <span className="inbox-tag tag-ai" style={{ fontSize: "0.72rem" }}>AI总结</span>;
+    return <span className="inbox-tag tag-ai" style={{ fontSize: "var(--fs-xs)" }}>AI总结</span>;
   }
   if (routing === "original_push") {
-    return <span className="inbox-tag tag-original" style={{ fontSize: "0.72rem" }}>原文</span>;
+    return <span className="inbox-tag tag-original" style={{ fontSize: "var(--fs-xs)" }}>原文</span>;
   }
   return null;
 }
@@ -78,7 +78,7 @@ function CardsDrawer({
             <button className="btn-icon" onClick={onClose} style={{ padding: 4 }}>
               <X size={18} />
             </button>
-            <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "#e6edf3" }}>
+            <span style={{ fontWeight: 600, fontSize: "var(--fs-base)", color: "#e6edf3" }}>
               AI 卡片
             </span>
           </div>
@@ -93,7 +93,7 @@ function CardsDrawer({
               <div key={card.card_id}>
                 {cards.length > 1 && (
                   <div style={{
-                    padding: "8px 0", fontSize: "0.76rem", color: "#8b949e", fontWeight: 600,
+                    padding: "8px 0", fontSize: "var(--fs-sm)", color: "#8b949e", fontWeight: 600,
                     borderBottom: "1px solid #30363d", marginBottom: 12,
                   }}>
                     卡片 {idx + 1}/{cards.length}
@@ -151,7 +151,7 @@ function OriginalDrawer({
             <button className="btn-icon" onClick={onClose} style={{ padding: 4 }}>
               <X size={18} />
             </button>
-            <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "#e6edf3" }}>
+            <span style={{ fontWeight: 600, fontSize: "var(--fs-base)", color: "#e6edf3" }}>
               原文
             </span>
           </div>
@@ -209,13 +209,13 @@ export function FavoritesReader({ selectedFavorite }: FavoritesReaderProps) {
         {meta && (
           <div className="reader-source-bar">
             <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-              <span style={{ color: "#e6edf3", fontWeight: 500, fontSize: "0.88rem", flex: 1 }}>
+              <span style={{ color: "#e6edf3", fontWeight: 500, fontSize: "var(--fs-base)", flex: 1 }}>
                 {meta.title}
               </span>
               {routingTag(selectedFavorite.routing)}
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <div style={{ fontSize: "0.78rem", color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ fontSize: "var(--fs-sm)", color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
                 <span>{meta.account}</span>
                 {meta.author && <><span>·</span><span>{meta.author}</span></>}
                 {meta.publish_time && <><span>·</span><span>{formatTime(meta.publish_time)}</span></>}
@@ -227,7 +227,7 @@ export function FavoritesReader({ selectedFavorite }: FavoritesReaderProps) {
                     onClick={() => setDrawerOpen(true)}
                     style={{
                       background: "none", border: "1px solid #30363d", borderRadius: 6,
-                      color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
+                      color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-sm)",
                     }}
                   >
                     查看原文
@@ -238,7 +238,7 @@ export function FavoritesReader({ selectedFavorite }: FavoritesReaderProps) {
                     onClick={() => openInAppWindow(meta.url)}
                     style={{
                       background: "none", border: "1px solid #30363d", borderRadius: 6,
-                      color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
+                      color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-sm)",
                       display: "flex", alignItems: "center", gap: 4,
                     }}
                   >
@@ -270,13 +270,13 @@ export function FavoritesReader({ selectedFavorite }: FavoritesReaderProps) {
       {meta && (
         <div className="reader-source-bar">
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-            <span style={{ color: "#e6edf3", fontWeight: 500, fontSize: "0.88rem", flex: 1 }}>
+            <span style={{ color: "#e6edf3", fontWeight: 500, fontSize: "var(--fs-base)", flex: 1 }}>
               {selectedFavorite.title}
             </span>
-            <span className="inbox-tag" style={{ background: "#21262d", color: "#8b949e", fontSize: "0.72rem" }}>原文</span>
+            <span className="inbox-tag" style={{ background: "#21262d", color: "#8b949e", fontSize: "var(--fs-xs)" }}>原文</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-            <div style={{ fontSize: "0.78rem", color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ fontSize: "var(--fs-sm)", color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
               <span>{meta.account}</span>
               {meta.author && <><span>·</span><span>{meta.author}</span></>}
               {meta.publish_time && <><span>·</span><span>{formatTime(meta.publish_time)}</span></>}
@@ -287,7 +287,7 @@ export function FavoritesReader({ selectedFavorite }: FavoritesReaderProps) {
                 onClick={() => setDrawerOpen(true)}
                 style={{
                   background: "none", border: "1px solid #30363d", borderRadius: 6,
-                  color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
+                  color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-sm)",
                 }}
               >
                 查看卡片
@@ -297,7 +297,7 @@ export function FavoritesReader({ selectedFavorite }: FavoritesReaderProps) {
                   onClick={() => openInAppWindow(meta.url)}
                   style={{
                     background: "none", border: "1px solid #30363d", borderRadius: 6,
-                    color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
+                    color: "#8b949e", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-sm)",
                     display: "flex", alignItems: "center", gap: 4,
                   }}
                 >

@@ -6,7 +6,7 @@ import type { RunEntry, RunStreamLine } from "../types";
 
 function statusBadge(s: string) {
   const colors: Record<string, string> = { done: "#3fb950", failed: "#f85149", running: "#d29922", pending: "#8b949e" };
-  return <span style={{ color: colors[s] ?? "#8b949e", fontSize: "0.78rem" }}>{s}</span>;
+  return <span style={{ color: colors[s] ?? "#8b949e", fontSize: "var(--fs-sm)" }}>{s}</span>;
 }
 
 function logLevelColor(type: string) {
@@ -31,7 +31,7 @@ function OverviewTab({ run }: { run: RunEntry }) {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ background: "#161b22", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: "0.78rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: "var(--fs-sm)" }}>
           <div><span style={{ color: "#8b949e" }}>后端：</span><span style={{ color: "#e6edf3" }}>{run.backend}</span></div>
           <div><span style={{ color: "#8b949e" }}>状态：</span>{statusBadge(run.overall_status)}</div>
           <div><span style={{ color: "#8b949e" }}>耗时：</span><span style={{ color: "#e6edf3" }}>{run.elapsed_s ? `${run.elapsed_s.toFixed(1)}s` : "—"}</span></div>
@@ -44,8 +44,8 @@ function OverviewTab({ run }: { run: RunEntry }) {
 
       {manifestContent && (
         <>
-          <h4 style={{ color: "#8b949e", fontSize: "0.75rem", margin: "0 0 8px" }}>Manifest</h4>
-          <pre style={{ background: "#161b22", borderRadius: 8, padding: 12, marginBottom: 16, fontFamily: "monospace", fontSize: "0.72rem", color: "#c9d1d9", overflow: "auto", whiteSpace: "pre-wrap" }}>
+          <h4 style={{ color: "#8b949e", fontSize: "var(--fs-sm)", margin: "0 0 8px" }}>Manifest</h4>
+          <pre style={{ background: "#161b22", borderRadius: 8, padding: 12, marginBottom: 16, fontFamily: "monospace", fontSize: "var(--fs-xs)", color: "#c9d1d9", overflow: "auto", whiteSpace: "pre-wrap" }}>
             {JSON.stringify(manifest, null, 2)}
           </pre>
         </>
@@ -53,11 +53,11 @@ function OverviewTab({ run }: { run: RunEntry }) {
 
       {manifest?.cards && manifest.cards.length > 0 && (
         <>
-          <h4 style={{ color: "#8b949e", fontSize: "0.75rem", margin: "0 0 8px" }}>产出卡片</h4>
+          <h4 style={{ color: "#8b949e", fontSize: "var(--fs-sm)", margin: "0 0 8px" }}>产出卡片</h4>
           {manifest.cards.map((c, i) => (
             <div key={i} style={{ background: "#161b22", borderRadius: 8, padding: "8px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ color: "#58a6ff", fontSize: "0.75rem" }}>{c.file}</span>
-              <span style={{ color: "#8b949e", fontSize: "0.72rem" }}>{c.title}</span>
+              <span style={{ color: "#58a6ff", fontSize: "var(--fs-sm)" }}>{c.file}</span>
+              <span style={{ color: "#8b949e", fontSize: "var(--fs-xs)" }}>{c.title}</span>
             </div>
           ))}
         </>
@@ -65,8 +65,8 @@ function OverviewTab({ run }: { run: RunEntry }) {
 
       {run.workspace_path && (
         <>
-          <h4 style={{ color: "#8b949e", fontSize: "0.75rem", margin: "16px 0 8px" }}>Workspace</h4>
-          <div style={{ background: "#161b22", borderRadius: 8, padding: "8px 12px", fontFamily: "monospace", fontSize: "0.72rem", color: "#8b949e", wordBreak: "break-all" }}>
+          <h4 style={{ color: "#8b949e", fontSize: "var(--fs-sm)", margin: "16px 0 8px" }}>Workspace</h4>
+          <div style={{ background: "#161b22", borderRadius: 8, padding: "8px 12px", fontFamily: "monospace", fontSize: "var(--fs-xs)", color: "#8b949e", wordBreak: "break-all" }}>
             {run.workspace_path}
           </div>
         </>
@@ -88,7 +88,7 @@ function StreamLogTab({ runId }: { runId: number }) {
   if (lines.length === 0) return <div style={{ padding: 20, color: "#8b949e" }}>暂无日志</div>;
 
   return (
-    <div style={{ padding: 16, fontFamily: "monospace", fontSize: "0.72rem", lineHeight: 1.8 }}>
+    <div style={{ padding: 16, fontFamily: "monospace", fontSize: "var(--fs-xs)", lineHeight: 1.8 }}>
       {lines.map((line, i) => {
         const ts = line.elapsed_s != null ? `[${line.elapsed_s.toFixed(1)}s]` : "";
         const typeStr = line.type ?? "";
@@ -128,11 +128,11 @@ function FileListTab({ runId }: { runId: number }) {
         <div key={f}
           onClick={() => setViewingFile(f === viewingFile ? null : f)}
           style={{ background: "#161b22", borderRadius: 6, padding: "6px 12px", marginBottom: 4, cursor: "pointer" }}>
-          <span style={{ color: "#58a6ff", fontSize: "0.78rem" }}>{f}</span>
+          <span style={{ color: "#58a6ff", fontSize: "var(--fs-sm)" }}>{f}</span>
         </div>
       ))}
       {viewingFile && fileContent && (
-        <pre style={{ background: "#161b22", borderRadius: 8, padding: 12, marginTop: 12, fontFamily: "monospace", fontSize: "0.72rem", color: "#c9d1d9", overflow: "auto", whiteSpace: "pre-wrap", maxHeight: 400 }}>
+        <pre style={{ background: "#161b22", borderRadius: 8, padding: 12, marginTop: 12, fontFamily: "monospace", fontSize: "var(--fs-xs)", color: "#c9d1d9", overflow: "auto", whiteSpace: "pre-wrap", maxHeight: 400 }}>
           {fileContent}
         </pre>
       )}
@@ -167,10 +167,10 @@ export function RunDetailDrawer({ runId, onClose }: RunDetailDrawerProps) {
       }}>
         <div style={{ padding: "12px 16px", borderBottom: "1px solid #21262d", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#e6edf3", fontWeight: 500, fontSize: "0.88rem" }}>Run #{runId}</span>
+            <span style={{ color: "#e6edf3", fontWeight: 500, fontSize: "var(--fs-base)" }}>Run #{runId}</span>
             {run && statusBadge(run.overall_status)}
-            {run && <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{run.backend}</span>}
-            {run?.elapsed_s && <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{run.elapsed_s.toFixed(1)}s</span>}
+            {run && <span style={{ color: "#8b949e", fontSize: "var(--fs-sm)" }}>{run.backend}</span>}
+            {run?.elapsed_s && <span style={{ color: "#8b949e", fontSize: "var(--fs-sm)" }}>{run.elapsed_s.toFixed(1)}s</span>}
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer" }}>
             <X size={18} />
@@ -182,7 +182,7 @@ export function RunDetailDrawer({ runId, onClose }: RunDetailDrawerProps) {
             const labels = { overview: "概览", stream: "Stream日志", files: "文件列表" };
             return (
               <button key={t} onClick={() => setTab(t)}
-                style={{ background: "none", border: "none", color: tab === t ? "#e6edf3" : "#8b949e", padding: "8px 12px", cursor: "pointer", fontSize: "0.82rem", borderBottom: tab === t ? "2px solid #58a6ff" : "2px solid transparent" }}>
+                style={{ background: "none", border: "none", color: tab === t ? "#e6edf3" : "#8b949e", padding: "8px 12px", cursor: "pointer", fontSize: "var(--fs-sm)", borderBottom: tab === t ? "2px solid #58a6ff" : "2px solid transparent" }}>
                 {labels[t]}
               </button>
             );
