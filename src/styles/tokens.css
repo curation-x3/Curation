@@ -1,5 +1,6 @@
-/* Font system tokens. See docs/superpowers/specs/2026-04-20-font-system-design.md */
+/* Design System v2 tokens. See docs/superpowers/specs/2026-04-20-design-system-v2.md */
 :root {
+  /* ===== Font system (v1, unchanged) ===== */
   --root-size: 14px;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -7,7 +8,6 @@
   --font-body: "Charter", "Bitstream Charter", "Georgia", "Noto Serif SC", serif;
   --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
-  /* 6-tier size scale, rem-based */
   --fs-xs:   0.72rem;
   --fs-sm:   0.82rem;
   --fs-base: 0.9rem;
@@ -15,23 +15,105 @@
   --fs-lg:   1.15rem;
   --fs-xl:   1.4rem;
 
-  /* Density defaults = normal */
   --lh-body:    1.7;
   --space-row:  10px;
   --space-card: 12px;
   --pad-panel:  10px;
+
+  /* ===== v2 color palette ===== */
+  --bg-base:         #121416;
+  --bg-raised:       #1a1d20;
+  --bg-panel:        #1e2226;
+  --bg-elev:         #262a2f;
+  --bg-hover:        #2f343a;
+
+  --border-hairline: #242a31;
+  --border:          #2e353d;
+  --border-strong:   #3a424c;
+
+  --text-primary:    #edeae4;
+  --text-secondary:  #a8a59f;
+  --text-muted:      #6f6d67;
+  --text-faint:      #4a4944;
+
+  --accent-gold:     #d4a45c;
+  --accent-gold-dim: #d4a45c22;
+  --accent-gold-hi:  #e8b976;
+
+  --accent-blue:     #6b9bd8;
+  --accent-blue-dim: #6b9bd822;
+
+  --accent-red:      #c97870;
+  --accent-green:   #8eb578;
+
+  /* ===== v2 spacing ===== */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* ===== v2 radius ===== */
+  --r-sm: 3px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  /* ===== v2 shadows ===== */
+  --shadow-subtle:  0 1px 0 rgba(0,0,0,0.4);
+  --shadow-card:    0 2px 8px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.03) inset;
+  --shadow-drawer:  0 24px 48px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+  --shadow-focus:   0 0 0 2px var(--accent-gold-dim);
+  --shadow-hover:   0 4px 12px rgba(0,0,0,0.3);
+
+  /* ===== v2 motion ===== */
+  --dur-instant: 80ms;
+  --dur-base:    180ms;
+  --dur-slow:    320ms;
+
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ===== v2 legacy-compat aliases (bridge until old vars are removed) ===== */
+  --primary-color: var(--accent-gold);
+  --primary-hover: var(--accent-gold-hi);
+  --bg-color:      var(--bg-base);
+  --sidebar-bg:    var(--bg-panel);
+  --sidebar-hover: var(--bg-hover);
+  --sidebar-active: var(--bg-elev);
+  --card-bg:       var(--bg-elev);
+  --border-color:  var(--border);
+  --list-bg:       var(--bg-raised);
+  --reader-bg:     var(--bg-raised);
+  --accent-red:    var(--accent-red);
+  --reader-max-width: 800px;
 }
 
-html { font-size: var(--root-size); }
-body { font-family: var(--font-ui); }
+html {
+  font-size: var(--root-size);
+  font-feature-settings: "ss01", "cv11", "tnum";
+}
 
+body {
+  font-family: var(--font-ui);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+
+::selection {
+  background: var(--accent-gold-dim);
+  color: var(--text-primary);
+}
+
+/* Density variants (unchanged from v1) */
 [data-density="compact"] {
   --lh-body: 1.5;
   --space-row: 6px;
   --space-card: 8px;
   --pad-panel: 6px;
 }
-
 [data-density="relaxed"] {
   --lh-body: 1.9;
   --space-row: 14px;
@@ -44,4 +126,13 @@ body { font-family: var(--font-ui); }
 .rich-text-content {
   font-family: var(--font-body);
   line-height: var(--lh-body);
+}
+
+/* Utility: tracked uppercase labels used across components */
+.label-caps {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
