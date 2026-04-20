@@ -143,7 +143,7 @@ function AppMain({ currentUser, onLogout }: {
   // Layout
   const { isSidebarCollapsed, sidebarWidth, listWidth, isResizingList, startResizeList, toggleSidebar } = useLayout();
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [adminView, setAdminView] = useState<"management" | "analysis" | "queue" | "aggregation" | "invites" | "users">("management");
+  const [adminView, setAdminView] = useState<"management" | "queue" | "aggregation" | "invites" | "users">("management");
   const [notification, setNotification] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string>("");
 
@@ -307,10 +307,7 @@ function AppMain({ currentUser, onLogout }: {
           <AdminPane
             adminView={adminView}
             onAdminViewChange={setAdminView}
-            activeArticle={null}
-            articles={[]}
             currentUser={currentUser}
-            onSelectArticle={() => {}}
             onExitAdmin={() => setIsAdminMode(false)}
           />
         </main>
