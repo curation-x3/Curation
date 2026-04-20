@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { InboxItem, DiscardedItem } from "../types";
 import { groupByDateBucket } from "../hooks/useInbox";
 import type { DateGroup } from "../hooks/useInbox";
@@ -15,11 +15,22 @@ interface InboxListProps {
   listWidth: number;
 }
 
-function routingTag(routing: "ai_curation" | "original_push") {
+function routingTag(routing: "ai_curation" | "original_push" | null, queueStatus?: "pending" | "running" | null) {
+  if (queueStatus) {
+    return (
+      <span className="inbox-tag" style={{ background: "#1a2332", color: "#58a6ff", display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <Loader2 size={10} className="animate-spin" />
+        分析中
+      </span>
+    );
+  }
   if (routing === "ai_curation") {
     return <span className="inbox-tag tag-ai">AI总结</span>;
   }
-  return <span className="inbox-tag tag-original">原文</span>;
+  if (routing === "original_push") {
+    return <span className="inbox-tag tag-original">原文</span>;
+  }
+  return null;
 }
 
 function discardTag() {
@@ -78,17 +89,18 @@ function InboxItemRow({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const isAnalyzing = !!item.queue_status;
   return (
     <div
-      className={`inbox-item ${isSelected ? "selected" : ""} ${item.read_at ? "read" : ""}`}
+      className={`inbox-item ${isSelected ? "selected" : ""} ${!isAnalyzing && item.read_at ? "read" : ""}`}
       onClick={onSelect}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
         <span className="inbox-item-title" style={{ flex: 1 }}>{item.title}</span>
-        {item.read_at && (
+        {!isAnalyzing && item.read_at && (
           <Check size={12} style={{ color: "#3fb950", flexShrink: 0, marginTop: 3 }} />
         )}
-        {routingTag(item.routing)}
+        {routingTag(item.routing, item.queue_status)}
       </div>
       {item.description && (
         <div className="inbox-item-desc">{item.description}</div>
@@ -164,27 +176,33 @@ export function InboxList({
     return groupByDateBucket(filtered);
   }, [items, showUnreadOnly, search]);
 
-  // Filtered discarded items
-  const filteredDiscarded = useMemo(() => {
+  // Filtered + grouped discarded items
+  const discardedGroups = useMemo(() => {
     if (!discardedItems) return [];
-    if (!search.trim()) return discardedItems;
-    const q = search.trim().toLowerCase();
-    return discardedItems.filter(
-      (i) =>
-        i.title.toLowerCase().includes(q) ||
-        i.article_meta.account.toLowerCase().includes(q)
-    );
+    let filtered = discardedItems;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      filtered = filtered.filter(
+        (i) =>
+          i.title.toLowerCase().includes(q) ||
+          i.article_meta.account.toLowerCase().includes(q)
+      );
+    }
+    return groupByDateBucket(filtered);
   }, [discardedItems, search]);
 
   // Collapse state: default open for today/yesterday, conditionally for others
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  function isGroupOpen(group: DateGroup) {
+  function isGroupOpen(group: DateGroup<InboxItem> | DateGroup<DiscardedItem>) {
     if (group.key in collapsed) return !collapsed[group.key];
     // Defaults
     if (group.key === "today" || group.key === "yesterday") return true;
     if (group.key === "thisWeek" || group.key === "lastWeek") {
-      return group.items.some((i) => !i.read_at);
+      if ("items" in group && group.items.length > 0 && "read_at" in group.items[0]) {
+        return (group.items as InboxItem[]).some((i) => !i.read_at);
+      }
+      return true;
     }
     return false; // older default collapsed
   }
@@ -194,7 +212,9 @@ export function InboxList({
   }
 
   function handleMarkGroupRead(group: DateGroup) {
-    const unreadIds = group.items.filter((i) => !i.read_at).map((i) => i.card_id);
+    const unreadIds = group.items
+      .filter((i) => !i.read_at && i.card_id)
+      .map((i) => i.card_id as string);
     if (unreadIds.length > 0) {
       markAllRead.mutate(unreadIds);
     }
@@ -202,7 +222,9 @@ export function InboxList({
 
   function handleMarkAllRead() {
     if (!items) return;
-    const unreadIds = items.filter((i) => !i.read_at).map((i) => i.card_id);
+    const unreadIds = items
+      .filter((i) => !i.read_at && i.card_id)
+      .map((i) => i.card_id as string);
     if (unreadIds.length > 0) {
       markAllRead.mutate(unreadIds);
     }
@@ -259,19 +281,31 @@ export function InboxList({
             加载中...
           </div>
         ) : isDiscardedView ? (
-          /* Discarded view: flat list */
-          filteredDiscarded.length === 0 ? (
+          /* Discarded view: grouped by date */
+          discardedGroups.length === 0 ? (
             <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: "0.85rem" }}>
               暂无丢弃文章
             </div>
           ) : (
-            filteredDiscarded.map((item) => (
-              <DiscardedItemRow
-                key={item.article_id}
-                item={item}
-                isSelected={selectedId === item.article_id}
-                onSelect={() => onSelect(item.article_id, "discarded")}
-              />
+            discardedGroups.map((group) => (
+              <div key={group.key}>
+                <div className="inbox-group-header" onClick={() => toggleGroup(group.key)}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                    {isGroupOpen(group) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <span style={{ fontWeight: 600 }}>{group.label}</span>
+                    <span className="inbox-group-badge">{group.items.length}</span>
+                  </div>
+                </div>
+                {isGroupOpen(group) &&
+                  group.items.map((item) => (
+                    <DiscardedItemRow
+                      key={item.article_id}
+                      item={item}
+                      isSelected={selectedId === item.article_id}
+                      onSelect={() => onSelect(item.article_id, "discarded")}
+                    />
+                  ))}
+              </div>
             ))
           )
         ) : (
@@ -292,10 +326,16 @@ export function InboxList({
                 {isGroupOpen(group) &&
                   group.items.map((item) => (
                     <InboxItemRow
-                      key={item.card_id}
+                      key={item.card_id ?? `analyzing:${item.article_id}`}
                       item={item}
-                      isSelected={selectedId === item.card_id}
-                      onSelect={() => onSelect(item.card_id, "card")}
+                      isSelected={
+                        item.card_id
+                          ? selectedId === item.card_id
+                          : selectedId === item.article_id
+                      }
+                      onSelect={() =>
+                        onSelect(item.card_id ?? item.article_id, "card")
+                      }
                     />
                   ))}
               </div>
