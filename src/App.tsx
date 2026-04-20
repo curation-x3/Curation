@@ -197,8 +197,24 @@ function AppMain({ currentUser, onLogout }: {
   // Find selected inbox item
   const selectedItem: InboxItem | null = useMemo(() => {
     if (!selectedCardId || !inboxItems) return null;
-    return inboxItems.find((i) => i.card_id === selectedCardId) ?? null;
+    // Try card_id match first (normal items)
+    const byCard = inboxItems.find((i) => i.card_id === selectedCardId);
+    if (byCard) return byCard;
+    // Try article_id match (analyzing items have no card_id)
+    return inboxItems.find((i) => !i.card_id && i.article_id === selectedCardId) ?? null;
   }, [selectedCardId, inboxItems]);
+
+  // Auto-transition: when selected analyzing item gets a card, switch to it
+  useEffect(() => {
+    if (!selectedCardId || !inboxItems) return;
+    // If current selection is a card_id that exists, nothing to do
+    if (inboxItems.find((i) => i.card_id === selectedCardId)) return;
+    // Check if a card appeared for this article_id (was analyzing, now has cards)
+    const withCard = inboxItems.find((i) => i.card_id && i.article_id === selectedCardId);
+    if (withCard && withCard.card_id) {
+      setSelectedCardId(withCard.card_id);
+    }
+  }, [inboxItems, selectedCardId]);
 
   // Find selected discarded item
   const selectedDiscardedItem = useMemo(() => {
