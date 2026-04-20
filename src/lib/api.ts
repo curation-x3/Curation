@@ -197,3 +197,21 @@ export async function fetchRunFile(runId: number, filepath: string) {
   const json = await res.json();
   return json.content;
 }
+
+export async function fetchFavorites() {
+  const resp = await apiFetch("/favorites");
+  return resp.json();
+}
+
+export async function addFavorite(itemType: "card" | "article", itemId: string) {
+  const resp = await apiFetch("/favorites", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_type: itemType, item_id: itemId }),
+  });
+  return resp.json();
+}
+
+export async function removeFavorite(itemType: "card" | "article", itemId: string) {
+  await apiFetch(`/favorites/${itemType}/${itemId}`, { method: "DELETE" });
+}
