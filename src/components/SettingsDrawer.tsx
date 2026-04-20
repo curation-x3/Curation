@@ -13,17 +13,46 @@ interface Props {
   onReset: () => void;
 }
 
-const FONT_LABELS: Record<FontBody, string> = {
-  serif: "衬线",
-  sans: "无衬线",
-  mono: "等宽",
-};
+const FONT_OPTIONS: { key: FontBody; label: string; glyph: string; glyphFamily: string }[] = [
+  {
+    key: "serif",
+    label: "衬线",
+    glyph: "Aa",
+    glyphFamily: `"Charter", "Bitstream Charter", "Georgia", "Noto Serif SC", serif`,
+  },
+  {
+    key: "sans",
+    label: "无衬线",
+    glyph: "Aa",
+    glyphFamily: `-apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif`,
+  },
+  {
+    key: "mono",
+    label: "等宽",
+    glyph: "Aa",
+    glyphFamily: `"SF Mono", "JetBrains Mono", Menlo, Consolas, monospace`,
+  },
+];
 
-const DENSITY_LABELS: Record<Density, string> = {
-  compact: "紧凑",
-  normal: "标准",
-  relaxed: "宽松",
-};
+const DENSITY_OPTIONS: { key: Density; label: string; bars: number[] }[] = [
+  { key: "compact", label: "紧凑", bars: [2, 2, 2] },
+  { key: "normal", label: "标准", bars: [3, 3, 3] },
+  { key: "relaxed", label: "宽松", bars: [4, 4, 4] },
+];
+
+function DensityGlyph({ bars }: { bars: number[] }) {
+  return (
+    <span className="settings-density-glyph" aria-hidden>
+      {bars.map((h, i) => (
+        <span
+          key={i}
+          className="settings-density-bar"
+          style={{ width: 14, height: 1, marginTop: h + 1, marginBottom: h + 1 }}
+        />
+      ))}
+    </span>
+  );
+}
 
 export function SettingsDrawer({
   open,
@@ -39,6 +68,8 @@ export function SettingsDrawer({
 
   const currentSize = draft.rootSizeOverride ?? autoSize;
   const isAuto = draft.rootSizeOverride === null;
+  const sliderPct =
+    ((currentSize - ROOT_SIZE_MIN) / (ROOT_SIZE_MAX - ROOT_SIZE_MIN)) * 100;
 
   const handleApply = () => {
     onCommit();
@@ -51,18 +82,30 @@ export function SettingsDrawer({
 
   return (
     <div className="settings-drawer-overlay" onClick={handleCancel}>
-      <aside className="settings-drawer-panel" onClick={(e) => e.stopPropagation()}>
+      <aside
+        className="settings-drawer-panel"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="外观设置"
+      >
         <header className="settings-drawer-header">
-          <h3>外观设置</h3>
+          <div className="settings-drawer-title">
+            <span className="settings-drawer-title-serif">外观</span>
+            <span className="settings-drawer-title-sans">SETTINGS</span>
+          </div>
           <button className="btn-icon" onClick={handleCancel} aria-label="关闭">
             <X size={16} />
           </button>
         </header>
 
         <div className="settings-drawer-body">
-          <section className="settings-section">
-            <h4>字号 {isAuto && <span className="settings-auto-tag">自动</span>}</h4>
+          <section className="settings-section settings-section-stagger-1">
+            <h4>
+              <span>字号</span>
+              {isAuto && <span className="settings-auto-tag">AUTO</span>}
+            </h4>
             <div className="settings-slider-row">
+              <span className="settings-slider-edge">A</span>
               <input
                 type="range"
                 min={ROOT_SIZE_MIN}
@@ -72,11 +115,21 @@ export function SettingsDrawer({
                 onChange={(e) =>
                   onChange({ rootSizeOverride: Number(e.target.value) })
                 }
+                aria-label="根字号"
+                style={{ ["--slider-fill" as any]: `${sliderPct}%` }}
               />
+              <span
+                className="settings-slider-edge"
+                style={{ fontSize: "1.1rem" }}
+              >
+                A
+              </span>
               <span className="settings-slider-value">{currentSize}px</span>
             </div>
             <div className="settings-section-footer">
-              <span className="settings-hint">自动档位: {autoSize}px（按视口宽度）</span>
+              <span className="settings-hint">
+                自动档位 {autoSize}px · 随视口宽度
+              </span>
               {!isAuto && (
                 <button
                   className="settings-link-btn"
@@ -88,51 +141,78 @@ export function SettingsDrawer({
             </div>
           </section>
 
-          <section className="settings-section">
-            <h4>正文字体</h4>
+          <section className="settings-section settings-section-stagger-2">
+            <h4>
+              <span>正文字体</span>
+            </h4>
             <div className="settings-segmented">
-              {(Object.keys(FONT_LABELS) as FontBody[]).map((f) => (
+              {FONT_OPTIONS.map((opt) => (
                 <button
-                  key={f}
-                  className={`settings-seg-btn ${draft.fontBody === f ? "active" : ""}`}
-                  onClick={() => onChange({ fontBody: f })}
+                  key={opt.key}
+                  className={`settings-seg-btn ${
+                    draft.fontBody === opt.key ? "active" : ""
+                  }`}
+                  onClick={() => onChange({ fontBody: opt.key })}
                 >
-                  {FONT_LABELS[f]}
+                  <span
+                    className="settings-seg-glyph"
+                    style={{ fontFamily: opt.glyphFamily }}
+                  >
+                    {opt.glyph}
+                  </span>
+                  <span className="settings-seg-label">{opt.label}</span>
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="settings-section">
-            <h4>阅读密度</h4>
+          <section className="settings-section settings-section-stagger-3">
+            <h4>
+              <span>阅读密度</span>
+            </h4>
             <div className="settings-segmented">
-              {(Object.keys(DENSITY_LABELS) as Density[]).map((d) => (
+              {DENSITY_OPTIONS.map((opt) => (
                 <button
-                  key={d}
-                  className={`settings-seg-btn ${draft.density === d ? "active" : ""}`}
-                  onClick={() => onChange({ density: d })}
+                  key={opt.key}
+                  className={`settings-seg-btn ${
+                    draft.density === opt.key ? "active" : ""
+                  }`}
+                  onClick={() => onChange({ density: opt.key })}
                 >
-                  {DENSITY_LABELS[d]}
+                  <DensityGlyph bars={opt.bars} />
+                  <span className="settings-seg-label">{opt.label}</span>
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="settings-section">
-            <h4>预览</h4>
-            <div className="settings-preview">
-              <div className="settings-preview-title">文章标题示例</div>
-              <div className="settings-preview-meta">公众号名称 · 2026-04-20</div>
+          <section className="settings-section settings-section-stagger-4">
+            <h4>
+              <span>预览</span>
+            </h4>
+            <article className="settings-preview" aria-hidden>
+              <div className="settings-preview-kicker">样例 · PREVIEW</div>
+              <h2 className="settings-preview-title">
+                在<em>喧嚣</em>的信息洪流中，仍要<em>认真</em>阅读
+              </h2>
+              <div className="settings-preview-meta">
+                <span>远方播客</span>
+                <span className="settings-preview-dot">·</span>
+                <span>2026 年 4 月 20 日</span>
+                <span className="settings-preview-dot">·</span>
+                <span>5 分钟</span>
+              </div>
               <p className="settings-preview-body">
-                这是一段正文预览文本，用于展示当前字号、字体族和阅读密度下的实际阅读效果。
-                调整设置可以立即看到变化。
+                这是一段用于展示当前<strong>字号、字体族与阅读密度</strong>的正文样例。
+                调整左侧任一设置，这段文字会立刻随之改变——行距、字面、节奏。
+                合适的排版不喧宾夺主，它只是让句子更容易被读完。
               </p>
-            </div>
+            </article>
           </section>
         </div>
 
         <footer className="settings-drawer-footer">
-          <button className="settings-link-btn" onClick={onReset}>
+          <button className="settings-link-btn settings-reset-btn" onClick={onReset}>
             恢复默认
           </button>
           <div style={{ flex: 1 }} />
