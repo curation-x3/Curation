@@ -795,45 +795,63 @@ body {
 .inbox-group-header {
   display: flex;
   align-items: center;
-  padding: 8px 14px;
-  font-size: var(--fs-sm);
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-muted);
   cursor: pointer;
+  background: transparent;
+  border-bottom: none;
+  user-select: none;
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border-color);
-  user-select: none;
+  backdrop-filter: blur(8px);
+  background: rgba(18, 20, 22, 0.85); /* --bg-base with alpha, keeps sticky legible */
 }
 
-.inbox-group-header:hover {
-  background: var(--sidebar-hover);
+.inbox-group-header::before,
+.inbox-group-header::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-hairline);
+  margin: 0 var(--sp-3);
 }
 
 
 .inbox-group-badge {
-  background: var(--primary-color);
-  color: #1a1208;
+  background: transparent;
+  color: var(--accent-gold);
   font-size: var(--fs-xs);
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: var(--r-md);
-  margin-left: 4px;
+  font-weight: 500;
+  padding: 0;
+  margin-left: var(--sp-2);
+  border: none;
+  border-radius: 0;
 }
 
 .inbox-group-read-btn {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   background: none;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text-muted);
   font-size: var(--fs-xs);
-  padding: 2px 8px;
+  padding: 2px var(--sp-2);
   cursor: pointer;
-  transition: opacity var(--dur-instant) var(--ease-out);
+  transition: color var(--dur-instant) var(--ease-out), border-color var(--dur-instant) var(--ease-out);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.inbox-group-read-btn:hover {
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
 }
 
 .inbox-group-read-btn:disabled {
@@ -842,28 +860,35 @@ body {
 }
 
 .inbox-item {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border-color);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-hairline);
   cursor: pointer;
   transition: background var(--dur-instant) var(--ease-out);
-  background: var(--list-bg);
+  background: var(--bg-raised);
+  border-left: 2px solid transparent;
 }
 
 .inbox-item:hover {
-  background: var(--sidebar-hover);
+  background: var(--bg-hover);
 }
 
 .inbox-item.selected {
-  background: rgba(212, 164, 92, 0.08);
-  border-left: 3px solid var(--primary-color);
+  background: var(--bg-elev);
+  border-left-color: var(--accent-gold);
+}
+
+.inbox-item.read .inbox-item-title {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.inbox-item.read .inbox-item-desc,
+.inbox-item.read .inbox-item-meta {
+  color: var(--text-faint);
 }
 
 .inbox-item.read {
-  opacity: 0.55;
-}
-
-.inbox-item.read.selected {
-  opacity: 1;
+  opacity: 1;  /* was 0.55 — remove opacity hack */
 }
 
 .inbox-item-title {
@@ -875,11 +900,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.inbox-item.read .inbox-item-title {
-  font-weight: 400;
-  color: var(--text-muted);
 }
 
 .inbox-item-desc {
@@ -900,30 +920,30 @@ body {
   margin-top: 2px;
 }
 
-/* Routing tags */
+/* Routing tags — dot + text, no background pill */
 .inbox-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-xs);
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: var(--r-sm);
+  font-weight: 500;
+  padding: 0;
+  background: transparent;
   line-height: 1.4;
 }
 
-.tag-ai {
-  background: rgba(212, 164, 92, 0.15);
-  color: var(--accent-blue);
+.inbox-tag::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.tag-original {
-  background: rgba(142, 181, 120, 0.15);
-  color: var(--accent-green);
-}
-
-.tag-discard {
-  background: rgba(201, 120, 112, 0.15);
-  color: var(--accent-red);
-}
+.tag-ai      { color: var(--accent-blue); }
+.tag-original{ color: var(--accent-green); }
+.tag-discard { color: var(--accent-red); }
 
 /* ===== Reader Source Bar ===== */
 .reader-source-bar {
