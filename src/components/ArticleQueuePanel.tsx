@@ -15,7 +15,7 @@ function fmtTime(t: string | null) {
   return t.replace("T", " ").slice(5, 16);
 }
 
-function statusLabel(s: string, failReason?: string | null) {
+function statusLabel(s: string, failReason?: string | null, retryCount?: number, lastErrorType?: string | null) {
   const m: Record<string, { text: string; color: string }> = {
     pending:  { text: "待处理", color: "var(--text-muted)" },
     running:  { text: "运行中", color: "var(--accent-gold)" },
@@ -24,7 +24,11 @@ function statusLabel(s: string, failReason?: string | null) {
     locked:   { text: "已锁定", color: "var(--accent-green)" },
   };
   const v = m[s] ?? { text: s, color: "var(--text-muted)" };
-  return <span title={failReason || undefined} style={{ color: v.color, fontSize: "var(--fs-sm)", cursor: failReason ? "help" : undefined }}>{v.text}</span>;
+  const retrying = s === "pending" && retryCount && retryCount > 0;
+  const displayText = retrying ? `重试${retryCount}` : v.text;
+  const displayColor = retrying ? "var(--accent-gold)" : v.color;
+  const tooltip = retrying ? `${lastErrorType || "unknown"}: ${failReason || ""}` : (failReason || undefined);
+  return <span title={tooltip} style={{ color: displayColor, fontSize: "var(--fs-sm)", cursor: tooltip ? "help" : undefined }}>{displayText}</span>;
 }
 
 function routingPill(routing: string | null) {
@@ -45,7 +49,7 @@ function runStatusColor(s: string) {
   return m[s] ?? "var(--text-muted)";
 }
 
-type SortKey = "article_title" | "article_account" | "article_publish_time" | "status" | "routing" | "updated_at";
+type SortKey = "article_title" | "article_account" | "article_publish_time" | "status" | "routing" | "started_at" | "updated_at";
 
 function cmp(a: unknown, b: unknown): number {
   if (a == null && b == null) return 0;
@@ -120,6 +124,42 @@ export function ArticleQueuePanel() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
 
+      {/* System status bar */}
+      {strategy && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-base)", fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+          {(() => {
+            const counts: Record<string, number> = {};
+            for (const e of queue) counts[e.status] = (counts[e.status] || 0) + 1;
+            const retrying = queue.filter(e => e.retry_count > 0 && e.status === "pending").length;
+            return (
+              <>
+                <span>共 {queue.length}</span>
+                <span style={{ color: "var(--border)" }}>|</span>
+                {counts.pending ? <span>待处理 <b style={{ color: "var(--text-primary)" }}>{counts.pending}</b></span> : null}
+                {counts.running ? <span style={{ color: "var(--accent-gold)" }}>运行中 <b>{counts.running}</b></span> : null}
+                {counts.done ? <span style={{ color: "var(--accent-green)" }}>完成 <b>{counts.done}</b></span> : null}
+                {counts.failed ? <span style={{ color: "var(--accent-red)" }}>失败 <b>{counts.failed}</b></span> : null}
+                {counts.locked ? <span>锁定 <b>{counts.locked}</b></span> : null}
+                {retrying > 0 && <span style={{ color: "var(--accent-gold)" }}>重试中 <b>{retrying}</b></span>}
+                <div style={{ flex: 1 }} />
+                {strategy.system_paused && (
+                  <span style={{ color: "var(--accent-red)", fontWeight: 600 }}>
+                    系统暂停中 — 剩余 {Math.ceil(strategy.system_pause_remaining_s / 60)} 分钟
+                  </span>
+                )}
+                {!strategy.system_paused && strategy.auto_launch && (
+                  <span style={{ color: "var(--accent-green)" }}>调度运行中</span>
+                )}
+                {!strategy.auto_launch && (
+                  <span style={{ color: "var(--text-faint)" }}>调度已关闭</span>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Controls bar */}
       {strategy && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", flexWrap: "wrap", fontSize: "var(--fs-sm)" }}>
           <span style={{ color: "var(--text-muted)" }}>自动启动</span>
@@ -179,13 +219,14 @@ export function ArticleQueuePanel() {
       )}
 
       <div style={{ flex: 1, overflow: "auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(200px,1fr) 110px 90px 80px 80px 110px 80px", padding: "6px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500, position: "sticky", top: 0, zIndex: 1 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(200px,1fr) 110px 90px 80px 80px 90px 90px 80px", padding: "6px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500, position: "sticky", top: 0, zIndex: 1 }}>
           {([
             ["article_title", "文章标题"],
             ["article_account", "公众号"],
             ["article_publish_time", "发布时间"],
             ["status", "任务状态"],
             ["routing", "推送状态"],
+            ["started_at", "开始执行"],
             ["updated_at", "最后入队"],
           ] as [SortKey, string][]).map(([k, label]) => (
             <span key={k} onClick={() => toggleSort(k)}
@@ -201,7 +242,7 @@ export function ArticleQueuePanel() {
           const isExpanded = expandedId === entry.article_id;
           return (
             <div key={entry.article_id} style={{ borderBottom: "1px solid var(--bg-panel)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(200px,1fr) 110px 90px 80px 80px 110px 80px", padding: "8px 16px", alignItems: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(200px,1fr) 110px 90px 80px 80px 90px 90px 80px", padding: "8px 16px", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
                   <span
                     onClick={() => setExpandedId(isExpanded ? null : entry.article_id)}
@@ -222,8 +263,9 @@ export function ArticleQueuePanel() {
                 </div>
                 <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.article_account ?? "—"}</span>
                 <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{fmtTime(entry.article_publish_time)}</span>
-                {statusLabel(entry.status, entry.fail_reason)}
+                {statusLabel(entry.status, entry.fail_reason, entry.retry_count, entry.last_error_type)}
                 {routingPill(entry.routing)}
+                <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{fmtTime(entry.started_at)}</span>
                 <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{fmtTime(entry.updated_at)}</span>
                 <div style={{ display: "flex", justifyContent: "center", gap: 2 }}>
                   {entry.status === "pending" && !entry.is_locked && (
@@ -247,9 +289,18 @@ export function ArticleQueuePanel() {
 
               {isExpanded && (
                 <div style={{ background: "var(--bg-panel)", borderTop: "1px solid var(--bg-panel)", padding: "6px 16px 6px 36px" }}>
-                  {entry.status === "failed" && entry.fail_reason && (
-                    <div style={{ color: "var(--accent-red)", fontSize: "var(--fs-sm)", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
-                      {entry.fail_reason}
+                  {/* Retry / error info */}
+                  {(entry.fail_reason || entry.retry_count > 0) && (
+                    <div style={{ fontSize: "var(--fs-sm)", padding: "6px 0", borderBottom: "1px solid var(--border)", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      {entry.retry_count > 0 && (
+                        <span style={{ color: "var(--accent-gold)" }}>重试 {entry.retry_count} 次</span>
+                      )}
+                      {entry.last_error_type && (
+                        <span style={{ color: "var(--text-muted)" }}>错误类型: {entry.last_error_type}</span>
+                      )}
+                      {entry.fail_reason && (
+                        <span style={{ color: entry.status === "failed" ? "var(--accent-red)" : "var(--text-muted)" }}>{entry.fail_reason}</span>
+                      )}
                     </div>
                   )}
                   {loadingRuns ? (

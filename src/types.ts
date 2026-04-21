@@ -157,7 +157,10 @@ export interface QueueEntry {
   routing_reason: string | null;
   fail_reason: string | null;
   is_locked: boolean;
+  retry_count: number;
+  last_error_type: string | null;
   run_count: number;
+  started_at: string | null;
   created_at: string;
   updated_at: string;
 }
