@@ -112,6 +112,8 @@ body {
   transition: background var(--dur-instant) var(--ease-out), color var(--dur-instant) var(--ease-out);
   gap: var(--sp-3);
   width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
   position: relative;
   border-left: 2px solid transparent;
 }
@@ -944,6 +946,8 @@ body {
   cursor: pointer;
   transition: background var(--dur-instant) var(--ease-out);
   background: var(--bg-raised);
+  user-select: none;
+  -webkit-user-select: none;
   border-left: 2px solid transparent;
 }
 
