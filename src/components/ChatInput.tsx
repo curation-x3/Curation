@@ -18,9 +18,11 @@ interface ChatInputProps {
 const STATUS_CONFIG = {
   connected: { color: "var(--accent-green)", label: "已连接" },
   connecting: { color: "var(--accent-gold)", label: "连接中..." },
-  disconnected: { color: "var(--accent-green)", label: "已安装" },
+  disconnected: { color: "var(--text-muted)", label: "待连接" },
   error: { color: "var(--accent-red)", label: "断开" },
 } as const;
+
+const NOT_INSTALLED = { color: "var(--accent-red)", label: "未安装" } as const;
 
 export function ChatInput({
   agents,
@@ -55,7 +57,10 @@ export function ChatInput({
     [handleSubmit],
   );
 
-  const status = STATUS_CONFIG[connectionStatus];
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId);
+  const status = selectedAgent && !selectedAgent.detected
+    ? NOT_INSTALLED
+    : STATUS_CONFIG[connectionStatus];
 
   return (
     <div className="chat-input-container">
