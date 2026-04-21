@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { Check, ChevronDown, ChevronRight, Loader2, Star } from "lucide-react";
-import type { InboxItem, DiscardedItem } from "../types";
+import type { InboxItem } from "../types";
 import { groupByDateBucket } from "../hooks/useInbox";
 import type { DateGroup } from "../hooks/useInbox";
 import { useMarkAllRead, useMarkCardUnread } from "../hooks/useInbox";
@@ -8,7 +8,6 @@ import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 
 interface InboxListProps {
   items: InboxItem[] | undefined;
-  discardedItems?: DiscardedItem[];
   isDiscardedView: boolean;
   selectedId: string | null;
   onSelect: (id: string, type: "card" | "discarded") => void;
@@ -122,24 +121,9 @@ function InboxItemRow({
   );
 }
 
-/** Convert DiscardedItem to InboxItem for unified rendering */
-function discardedToInbox(d: DiscardedItem): InboxItem {
-  return {
-    card_id: null,
-    article_id: d.article_id,
-    title: d.title,
-    description: d.routing_reason,
-    routing: null,
-    article_date: d.article_date,
-    read_at: null,
-    queue_status: null,
-    article_meta: d.article_meta,
-  };
-}
 
 export function InboxList({
   items,
-  discardedItems,
   isDiscardedView,
   selectedId,
   onSelect,
@@ -183,25 +167,10 @@ export function InboxList({
     return groupByDateBucket(filtered);
   }, [items, showUnreadOnly, search]);
 
-  // Filtered + grouped discarded items
-  const discardedGroups = useMemo(() => {
-    if (!discardedItems) return [];
-    let filtered = discardedItems;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      filtered = filtered.filter(
-        (i) =>
-          i.title.toLowerCase().includes(q) ||
-          i.article_meta.account.toLowerCase().includes(q)
-      );
-    }
-    return groupByDateBucket(filtered);
-  }, [discardedItems, search]);
-
   // Collapse state: default open for today/yesterday, conditionally for others
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  function isGroupOpen(group: DateGroup<InboxItem> | DateGroup<DiscardedItem>) {
+  function isGroupOpen(group: DateGroup<InboxItem>) {
     if (group.key in collapsed) return !collapsed[group.key];
     // Defaults
     if (group.key === "today" || group.key === "yesterday") return true;
@@ -274,38 +243,7 @@ export function InboxList({
           <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-base)" }}>
             加载中...
           </div>
-        ) : isDiscardedView ? (
-          /* Discarded view: grouped by date */
-          discardedGroups.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-base)" }}>
-              暂无丢弃文章
-            </div>
-          ) : (
-            discardedGroups.map((group) => (
-              <div key={group.key}>
-                <div className="inbox-group-header" onClick={() => toggleGroup(group.key)}>
-                  {isGroupOpen(group) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  <span>{group.label}</span>
-                  <span className="inbox-group-badge">{group.items.length}</span>
-                </div>
-                {isGroupOpen(group) &&
-                  group.items.map((item) => (
-                    <InboxItemRow
-                      key={item.article_id}
-                      item={discardedToInbox(item)}
-                      isSelected={selectedId === item.article_id}
-                      isFavorite={false}
-                      isDiscarded
-                      onSelect={() => onSelect(item.article_id, "discarded")}
-                      onContextMenu={() => {}}
-                    />
-                  ))}
-              </div>
-            ))
-          )
-        ) : (
-          /* Inbox view: grouped by date */
-          groups.length === 0 ? (
+        ) : groups.length === 0 ? (
             <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-base)" }}>
               {showUnreadOnly ? "没有未读内容" : "暂无内容"}
             </div>
@@ -330,15 +268,15 @@ export function InboxList({
                           : selectedId === item.article_id
                       }
                       isFavorite={!!item.card_id && favoriteCardIds.has(item.card_id)}
+                      isDiscarded={isDiscardedView}
                       onSelect={() =>
-                        onSelect(item.card_id ?? item.article_id, "card")
+                        onSelect(item.card_id ?? item.article_id, isDiscardedView ? "discarded" : "card")
                       }
                       onContextMenu={(e) => showItemContextMenu(e, item)}
                     />
                   ))}
               </div>
             ))
-          )
         )}
       </div>
       {contextMenu && (

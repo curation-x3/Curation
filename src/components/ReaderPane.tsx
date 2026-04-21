@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { BookOpen, Loader2 } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { stripFrontmatter, mdComponents } from "../lib/markdown";
 import { useCardContent } from "../hooks/useCards";
 import { useArticleContent } from "../hooks/useArticles";
@@ -264,9 +264,21 @@ ${notesPath ? `\n用户的笔记路径：${notesPath}` : ""}
     };
   }, [selectedItem?.card_id]);
 
-  // Home view
+  // Resolve the active item — inbox, favorites, or discarded all go through here
+  const item = selectedItem ?? (selectedDiscardedItem ? {
+    card_id: null,
+    article_id: selectedDiscardedItem.article_id,
+    title: selectedDiscardedItem.title,
+    description: selectedDiscardedItem.routing_reason,
+    routing: null as "ai_curation" | "original_push" | null,
+    article_date: selectedDiscardedItem.article_date,
+    read_at: null,
+    queue_status: null as "pending" | "running" | null,
+    article_meta: selectedDiscardedItem.article_meta,
+  } : null);
+
   // Empty state
-  if (!selectedItem && !selectedDiscardedItem) {
+  if (!item) {
     return (
       <main className="reader-pane">
         <div className="reader-empty">
@@ -277,102 +289,54 @@ ${notesPath ? `\n用户的笔记路径：${notesPath}` : ""}
     );
   }
 
-  // Discarded view
-  if (isDiscardedView && selectedDiscardedItem) {
-    return (
-      <main className="reader-pane">
-        <SourceBar
-          meta={selectedDiscardedItem.article_meta}
-          isDiscarded={true}
-          routingReason={selectedDiscardedItem.routing_reason}
-        />
-        <div className="reader-content animate-in">
-          <ArticleHtmlView articleId={selectedDiscardedItem.article_id} />
+  // Unified view — one design for all items
+  return (
+    <main className="reader-pane" style={{ position: "relative", overflow: "hidden" }}>
+      <SourceBar
+        meta={item.article_meta}
+        routing={item.routing ?? undefined}
+        isDiscarded={isDiscardedView}
+        routingReason={isDiscardedView && selectedDiscardedItem ? selectedDiscardedItem.routing_reason : undefined}
+        onOpenDrawer={item.routing === "ai_curation" ? onOpenDrawer : undefined}
+        cardId={item.card_id ?? undefined}
+      />
+      <div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
+        <div className="reader-content animate-in" style={{ paddingBottom: 140 }}>
+          {/* Card content (markdown) */}
+          {item.card_id && (
+            <CardFrame chatActive={chatActive} label={undefined}>
+              <CardContentView cardId={item.card_id} />
+            </CardFrame>
+          )}
+
+          {/* Original article HTML — for original_push or discarded or analyzing (no card) */}
+          {(item.routing === "original_push" || !item.card_id) && (
+            <CardFrame chatActive={chatActive} label={undefined}>
+              <ArticleHtmlView articleId={item.article_id} />
+            </CardFrame>
+          )}
+
+          <ChatMessages
+            messages={chat.messages}
+            streamingContent={chat.streamingContent}
+            isStreaming={chat.isStreaming}
+            agentName={selectedAgentName}
+            userName="你"
+          />
         </div>
-      </main>
-    );
-  }
-
-  // Analyzing item — show original article with indicator
-  if (selectedItem && selectedItem.queue_status) {
-    return (
-      <main className="reader-pane">
-        <div className="reader-source-bar">
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-            <span style={{ color: "var(--text-primary)", fontWeight: 500, fontSize: "0.88rem", flex: 1 }}>
-              {selectedItem.article_meta.title}
-            </span>
-            <span className="inbox-tag" style={{ background: "var(--accent-blue-dim)", color: "var(--accent-blue)", display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.72rem" }}>
-              <Loader2 size={10} className="animate-spin" />
-              正在分析...
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
-              <span>{selectedItem.article_meta.account}</span>
-              {selectedItem.article_meta.author && <><span>·</span><span>{selectedItem.article_meta.author}</span></>}
-              {selectedItem.article_meta.publish_time && <><span>·</span><span>{formatTime(selectedItem.article_meta.publish_time)}</span></>}
-            </div>
-          </div>
-        </div>
-        <div className="reader-content animate-in">
-          <ArticleHtmlView articleId={selectedItem.article_id} />
-        </div>
-      </main>
-    );
-  }
-
-  // Inbox item view
-  if (selectedItem) {
-    return (
-      <main className="reader-pane" style={{ position: "relative", overflow: "hidden" }}>
-        <SourceBar
-          meta={selectedItem.article_meta}
-          routing={selectedItem.routing ?? undefined}
-          isDiscarded={false}
-          onOpenDrawer={selectedItem.routing === "ai_curation" ? onOpenDrawer : undefined}
-          cardId={selectedItem.card_id ?? undefined}
-        />
-        <div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
-          <div className="reader-content animate-in" style={{ paddingBottom: 140 }}>
-            {/* Card content (markdown) — shown for both ai_curation and original_push */}
-            {selectedItem.card_id && (
-              <CardFrame chatActive={chatActive} label={undefined}>
-                <CardContentView cardId={selectedItem.card_id} />
-              </CardFrame>
-            )}
-
-            {/* Original push: show original article (rich text HTML) below the guide card */}
-            {selectedItem.routing === "original_push" && (
-              <CardFrame chatActive={chatActive} label={undefined}>
-                <ArticleHtmlView articleId={selectedItem.article_id} />
-              </CardFrame>
-            )}
-
-            <ChatMessages
-              messages={chat.messages}
-              streamingContent={chat.streamingContent}
-              isStreaming={chat.isStreaming}
-              agentName={selectedAgentName}
-              userName="你"
-            />
-          </div>
-        </div>
-        <ChatInput
-          agents={agents}
-          selectedAgentId={selectedAgentId}
-          onSelectAgent={setSelectedAgentId}
-          connectionStatus={chat.connectionStatus}
-          isStreaming={chat.isStreaming}
-          onSend={handleSend}
-          onCancel={chat.cancel}
-          onClear={handleClear}
-          onSaveToNotes={handleSaveToNotes}
-          hasMessages={chat.messages.length > 0}
-        />
-      </main>
-    );
-  }
-
-  return null;
+      </div>
+      <ChatInput
+        agents={agents}
+        selectedAgentId={selectedAgentId}
+        onSelectAgent={setSelectedAgentId}
+        connectionStatus={chat.connectionStatus}
+        isStreaming={chat.isStreaming}
+        onSend={handleSend}
+        onCancel={chat.cancel}
+        onClear={handleClear}
+        onSaveToNotes={handleSaveToNotes}
+        hasMessages={chat.messages.length > 0}
+      />
+    </main>
+  );
 }

@@ -448,8 +448,23 @@ function AppMain({ currentUser, onLogout }: {
         />
       ) : (
         <InboxList
-          items={isDiscardedView ? undefined : selectedView === "favorites" ? favoritesAsInboxItems : inboxItems}
-          discardedItems={isDiscardedView ? discardedItems : undefined}
+          items={
+            isDiscardedView
+              ? (discardedItems ?? []).map((d): InboxItem => ({
+                  card_id: null,
+                  article_id: d.article_id,
+                  title: d.title,
+                  description: d.routing_reason,
+                  routing: null,
+                  article_date: d.article_date,
+                  read_at: null,
+                  queue_status: null,
+                  article_meta: d.article_meta,
+                }))
+              : selectedView === "favorites"
+                ? favoritesAsInboxItems
+                : inboxItems
+          }
           isDiscardedView={isDiscardedView}
           selectedId={selectedView === "favorites"
             ? (selectedFavorite?.item_id ?? null)
