@@ -4,6 +4,7 @@ export interface CachedCard {
   card_id: string;
   article_id: string;
   title: string | null;
+  article_title: string | null;
   content_md: string | null;
   description: string | null;
   routing: string | null;
@@ -13,6 +14,7 @@ export interface CachedCard {
   url: string | null;
   read_at: string | null;
   updated_at: string;
+  publish_time: string | null;
 }
 
 export interface CachedFavorite {

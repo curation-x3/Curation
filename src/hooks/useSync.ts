@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { listen } from "@tauri-apps/api/event";
 import { runSync, openDbFromKeychain, initDbWithLogin, setCacheAuthToken, setApiBase } from "../lib/cache";
 import { getWsBase, getAuthToken, getApiBase } from "../lib/api";
 
@@ -45,8 +46,13 @@ export function useSyncManager(isLoggedIn: boolean) {
     if (syncInProgress.current) return;
     syncInProgress.current = true;
     setSyncing(true);
+    const t0 = performance.now();
     try {
       const changedKeys = await runSync();
+      const dt = Math.round(performance.now() - t0);
+      if (changedKeys.length > 0) {
+        console.log(`[sync] ${dt}ms`, changedKeys);
+      }
       for (const key of changedKeys) {
         queryClient.invalidateQueries({ queryKey: [key] });
       }
@@ -123,6 +129,20 @@ export function useSyncManager(isLoggedIn: boolean) {
     const timer = setTimeout(triggerSync, 2000);
     return () => clearTimeout(timer);
   }, [isLoggedIn, triggerSync]);
+
+  // Progressive invalidation: each committed page triggers query invalidation
+  // immediately rather than waiting for the full sync to complete.
+  useEffect(() => {
+    const unlistenP = listen<{ changedKeys?: string[] }>("sync-page-committed", (evt) => {
+      const keys = evt.payload?.changedKeys ?? ["inbox"];
+      for (const k of keys) {
+        queryClient.invalidateQueries({ queryKey: [k] });
+      }
+    });
+    return () => {
+      unlistenP.then((fn) => fn());
+    };
+  }, [queryClient]);
 
   return { triggerSync, syncing };
 }

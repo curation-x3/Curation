@@ -16,11 +16,11 @@ function cachedToInbox(c: CachedCard): InboxItem {
     read_at: c.read_at,
     queue_status: null,
     article_meta: {
-      title: c.title ?? "",
+      title: c.article_title ?? c.title ?? "",
       account: c.account ?? "",
       account_id: null,
       author: c.author,
-      publish_time: null,
+      publish_time: c.publish_time ?? c.article_date,
       url: c.url ?? "",
     },
   };

@@ -12,6 +12,7 @@ pub struct CardRow {
     pub card_id: String,
     pub article_id: String,
     pub title: Option<String>,
+    pub article_title: Option<String>,
     pub content_md: Option<String>,
     pub description: Option<String>,
     pub routing: Option<String>,
@@ -21,6 +22,7 @@ pub struct CardRow {
     pub url: Option<String>,
     pub read_at: Option<String>,
     pub updated_at: String,
+    pub publish_time: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,6 +116,7 @@ impl CacheDb {
                 card_id TEXT PRIMARY KEY,
                 article_id TEXT NOT NULL,
                 title TEXT,
+                article_title TEXT,
                 content_md TEXT,
                 description TEXT,
                 routing TEXT,
@@ -122,7 +125,8 @@ impl CacheDb {
                 author TEXT,
                 url TEXT,
                 read_at TEXT,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                publish_time TEXT
             );
             CREATE TABLE IF NOT EXISTS articles (
                 article_id TEXT PRIMARY KEY,
@@ -154,6 +158,30 @@ impl CacheDb {
             ",
         )
         .map_err(|e| e.to_string())?;
+
+        // Add publish_time if missing (migration for existing DBs)
+        let has_col = conn
+            .prepare("SELECT publish_time FROM cards LIMIT 0")
+            .is_ok();
+        if !has_col {
+            conn.execute(
+                "ALTER TABLE cards ADD COLUMN publish_time TEXT",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        // Add article_title if missing (migration for existing DBs)
+        let has_article_title = conn
+            .prepare("SELECT article_title FROM cards LIMIT 0")
+            .is_ok();
+        if !has_article_title {
+            conn.execute(
+                "ALTER TABLE cards ADD COLUMN article_title TEXT",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        }
 
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -189,8 +217,8 @@ impl CacheDb {
     ) -> Result<Vec<CardRow>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut sql = String::from(
-            "SELECT card_id, article_id, title, content_md, description, routing,
-                    article_date, account, author, url, read_at, updated_at
+            "SELECT card_id, article_id, title, article_title, content_md, description, routing,
+                    article_date, account, author, url, read_at, updated_at, publish_time
              FROM cards WHERE routing IS NOT NULL",
         );
         if let Some(_) = account {
@@ -199,7 +227,7 @@ impl CacheDb {
         if unread_only {
             sql.push_str(" AND read_at IS NULL");
         }
-        sql.push_str(" ORDER BY article_date DESC");
+        sql.push_str(" ORDER BY article_date DESC, publish_time DESC");
 
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
@@ -209,15 +237,17 @@ impl CacheDb {
                     card_id: row.get(0)?,
                     article_id: row.get(1)?,
                     title: row.get(2)?,
-                    content_md: row.get(3)?,
-                    description: row.get(4)?,
-                    routing: row.get(5)?,
-                    article_date: row.get(6)?,
-                    account: row.get(7)?,
-                    author: row.get(8)?,
-                    url: row.get(9)?,
-                    read_at: row.get(10)?,
-                    updated_at: row.get(11)?,
+                    article_title: row.get(3)?,
+                    content_md: row.get(4)?,
+                    description: row.get(5)?,
+                    routing: row.get(6)?,
+                    article_date: row.get(7)?,
+                    account: row.get(8)?,
+                    author: row.get(9)?,
+                    url: row.get(10)?,
+                    read_at: row.get(11)?,
+                    updated_at: row.get(12)?,
+                    publish_time: row.get(13)?,
                 })
             })
             .map_err(|e| e.to_string())?
@@ -229,15 +259,17 @@ impl CacheDb {
                     card_id: row.get(0)?,
                     article_id: row.get(1)?,
                     title: row.get(2)?,
-                    content_md: row.get(3)?,
-                    description: row.get(4)?,
-                    routing: row.get(5)?,
-                    article_date: row.get(6)?,
-                    account: row.get(7)?,
-                    author: row.get(8)?,
-                    url: row.get(9)?,
-                    read_at: row.get(10)?,
-                    updated_at: row.get(11)?,
+                    article_title: row.get(3)?,
+                    content_md: row.get(4)?,
+                    description: row.get(5)?,
+                    routing: row.get(6)?,
+                    article_date: row.get(7)?,
+                    account: row.get(8)?,
+                    author: row.get(9)?,
+                    url: row.get(10)?,
+                    read_at: row.get(11)?,
+                    updated_at: row.get(12)?,
+                    publish_time: row.get(13)?,
                 })
             })
             .map_err(|e| e.to_string())?
@@ -434,13 +466,14 @@ impl CacheDb {
             }
             conn.execute(
                 "INSERT OR REPLACE INTO cards
-                 (card_id, article_id, title, content_md, description, routing,
-                  article_date, account, author, url, read_at, updated_at)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                 (card_id, article_id, title, article_title, content_md, description, routing,
+                  article_date, account, author, url, read_at, updated_at, publish_time)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
                 rusqlite::params![
                     card_id,
                     card["article_id"].as_str().unwrap_or_default(),
                     card["title"].as_str(),
+                    card["article_title"].as_str(),
                     card["content_md"].as_str(),
                     card["description"].as_str(),
                     card["routing"].as_str(),
@@ -450,6 +483,7 @@ impl CacheDb {
                     card["url"].as_str(),
                     card["read_at"].as_str(),
                     card["updated_at"].as_str().unwrap_or_default(),
+                    card["publish_time"].as_str(),
                 ],
             )
             .map_err(|e| e.to_string())?;

@@ -1,5 +1,6 @@
 use crate::db::{CacheDb, SyncQueueItem};
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 pub struct SyncClient {
     client: reqwest::Client,
@@ -99,56 +100,83 @@ impl SyncClient {
         Ok(())
     }
 
-    /// Pull remote changes since the given timestamp.
-    /// Returns the response pages as (cards, articles, favorites, new_sync_ts).
-    pub async fn pull_data(
+    /// Fetch a single page from /sync.
+    async fn fetch_page(
         &self,
         base_url: &str,
         token: &str,
         since: Option<&str>,
-    ) -> Result<PullResult, String> {
-        let mut all_cards: Vec<serde_json::Value> = Vec::new();
-        let mut all_articles: Vec<serde_json::Value> = Vec::new();
-        let mut all_favorites: Vec<serde_json::Value> = Vec::new();
-        let mut latest_ts: Option<String> = None;
+        cursor: Option<&str>,
+    ) -> Result<serde_json::Value, String> {
+        let url = format!("{}/sync", base_url);
+        let mut params: Vec<(&str, String)> = vec![("limit", "500".to_string())];
+        if let Some(s) = since {
+            params.push(("since", s.to_string()));
+        }
+        if let Some(c) = cursor {
+            params.push(("cursor", c.to_string()));
+        }
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        if !resp.status().is_success() {
+            return Err(format!("sync pull failed: {}", resp.status()));
+        }
+        resp.json().await.map_err(|e| e.to_string())
+    }
+
+    /// Pull remote changes since the given timestamp, committing each page to
+    /// `db_arc` immediately and emitting a `sync-page-committed` Tauri event so
+    /// the UI can invalidate queries without waiting for all pages.
+    ///
+    /// `db_arc` is `Arc<Mutex<Option<CacheDb>>>` so no guard is held across the
+    /// async fetch — the lock is acquired and released around each page apply.
+    ///
+    /// Returns the union of changed keys across all pages.
+    pub async fn pull_and_commit<F>(
+        &self,
+        base_url: &str,
+        token: &str,
+        since: Option<&str>,
+        db_arc: &Arc<Mutex<Option<CacheDb>>>,
+        mut on_page_committed: F,
+    ) -> Result<Vec<String>, String>
+    where
+        F: FnMut(&[String]) + Send,
+    {
+        let mut all_changed: HashSet<String> = HashSet::new();
         let mut cursor: Option<String> = None;
 
         loop {
-            let url = format!("{}/sync", base_url);
-            let mut params: Vec<(&str, String)> = vec![("limit", "500".to_string())];
-            if let Some(s) = since {
-                params.push(("since", s.to_string()));
-            }
-            if let Some(ref c) = cursor {
-                params.push(("cursor", c.clone()));
-            }
+            // Async fetch — no lock held here.
+            let body = self
+                .fetch_page(base_url, token, since, cursor.as_deref())
+                .await?;
 
-            let resp = self
-                .client
-                .get(&url)
-                .query(&params)
-                .bearer_auth(token)
-                .send()
-                .await
-                .map_err(|e| e.to_string())?;
+            let page = PullResult {
+                cards: body["cards"].as_array().cloned().unwrap_or_default(),
+                articles: body["articles"].as_array().cloned().unwrap_or_default(),
+                favorites: body["favorites"].as_array().cloned().unwrap_or_default(),
+                sync_ts: body["sync_ts"].as_str().map(|s| s.to_string()),
+            };
 
-            if !resp.status().is_success() {
-                return Err(format!("sync pull failed: {}", resp.status()));
-            }
+            // Brief synchronous lock to apply the page.
+            let changed = {
+                let guard = db_arc.lock().map_err(|e| e.to_string())?;
+                let db = guard.as_ref().ok_or("database not initialized")?;
+                apply_pull_result(db, &page)?
+            };
 
-            let body: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-
-            if let Some(cards) = body["cards"].as_array() {
-                all_cards.extend(cards.iter().cloned());
+            for k in &changed {
+                all_changed.insert(k.clone());
             }
-            if let Some(articles) = body["articles"].as_array() {
-                all_articles.extend(articles.iter().cloned());
-            }
-            if let Some(favs) = body["favorites"].as_array() {
-                all_favorites.extend(favs.iter().cloned());
-            }
-            if let Some(ts) = body["sync_ts"].as_str() {
-                latest_ts = Some(ts.to_string());
+            if !changed.is_empty() {
+                on_page_committed(&changed);
             }
 
             if body["has_more"].as_bool().unwrap_or(false) {
@@ -164,25 +192,19 @@ impl SyncClient {
             }
         }
 
-        Ok(PullResult {
-            cards: all_cards,
-            articles: all_articles,
-            favorites: all_favorites,
-            sync_ts: latest_ts,
-        })
+        Ok(all_changed.into_iter().collect())
     }
 }
 
-pub struct PullResult {
-    pub cards: Vec<serde_json::Value>,
-    pub articles: Vec<serde_json::Value>,
-    pub favorites: Vec<serde_json::Value>,
-    pub sync_ts: Option<String>,
+struct PullResult {
+    cards: Vec<serde_json::Value>,
+    articles: Vec<serde_json::Value>,
+    favorites: Vec<serde_json::Value>,
+    sync_ts: Option<String>,
 }
 
-/// High-level sync orchestration. Separated from SyncClient so the command
-/// layer can call it while managing db mutex lifetimes properly.
-pub fn apply_pull_result(
+/// Apply a single page of pull results to the local DB. Returns changed keys.
+fn apply_pull_result(
     db: &CacheDb,
     pull: &PullResult,
 ) -> Result<Vec<String>, String> {

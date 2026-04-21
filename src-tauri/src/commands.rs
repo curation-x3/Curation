@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::crypto;
 use crate::db::{CacheDb, CardRow, FavoriteRow, SearchResult};
-use crate::sync::{self, SyncClient};
+use crate::sync::SyncClient;
 
 pub struct AppState {
     pub db: Arc<Mutex<Option<CacheDb>>>,
@@ -188,7 +188,10 @@ pub fn get_cached_article(
 }
 
 #[tauri::command]
-pub async fn run_sync(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+pub async fn run_sync(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
     // Extract token and base URL (brief locks)
     let token = {
         state
@@ -230,14 +233,25 @@ pub async fn run_sync(state: State<'_, AppState>) -> Result<Vec<String>, String>
         }
     }
 
-    // Pull remote changes (async, no db lock held)
-    let pull_result = state
+    // Pull remote changes page by page, committing each page immediately and
+    // emitting a Tauri event so the UI can invalidate queries progressively.
+    // No MutexGuard is held across the async fetches — pull_and_commit
+    // acquires and releases the lock around each synchronous page apply.
+    let changed = state
         .sync_client
-        .pull_data(&base_url, &token, sync_ts.as_deref())
+        .pull_and_commit(
+            &base_url,
+            &token,
+            sync_ts.as_deref(),
+            &state.db,
+            |page_keys| {
+                let _ = app.emit(
+                    "sync-page-committed",
+                    serde_json::json!({ "changedKeys": page_keys }),
+                );
+            },
+        )
         .await?;
-
-    // Apply pull results to db (brief lock)
-    let changed = with_db(&state, |db| sync::apply_pull_result(db, &pull_result))?;
 
     Ok(changed)
 }
