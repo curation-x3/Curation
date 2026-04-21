@@ -1,9 +1,10 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useDeferredValue } from "react";
 import { Check, ChevronDown, ChevronRight, Loader2, Star } from "lucide-react";
 import type { InboxItem } from "../types";
-import { groupByDateBucket } from "../hooks/useInbox";
+import { groupByDateBucket, useInboxSearch } from "../hooks/useInbox";
 import type { DateGroup } from "../hooks/useInbox";
 import { useMarkAllRead, useMarkCardUnread } from "../hooks/useInbox";
+import type { SearchResult } from "../lib/cache";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 
 interface InboxListProps {
@@ -123,6 +124,27 @@ function InboxItemRow({
 }
 
 
+function searchResultToInbox(h: SearchResult): InboxItem {
+  return {
+    card_id: h.card_id,
+    article_id: h.article_id,
+    title: h.title ?? "",
+    description: h.highlight,
+    routing: null,
+    article_date: h.article_date,
+    read_at: null,
+    queue_status: null,
+    article_meta: {
+      title: h.title ?? "",
+      account: h.account ?? "",
+      account_id: null,
+      author: null,
+      publish_time: null,
+      url: "",
+    },
+  };
+}
+
 export function InboxList({
   items,
   isDiscardedView,
@@ -137,6 +159,9 @@ export function InboxList({
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const markAllRead = useMarkAllRead();
   const markUnread = useMarkCardUnread();
+  const deferredSearch = useDeferredValue(search);
+  const isSearching = deferredSearch.trim().length >= 2;
+  const { data: searchHits } = useInboxSearch(isSearching ? deferredSearch : "");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const showItemContextMenu = useCallback((e: React.MouseEvent, item: InboxItem) => {
@@ -150,24 +175,15 @@ export function InboxList({
     }
   }, [markUnread]);
 
-  // Date groups for inbox items
+  // Date groups for inbox items (search mode uses FTS, not this memo)
   const groups = useMemo(() => {
     if (!items) return [];
     let filtered = items;
     if (showUnreadOnly) {
       filtered = filtered.filter((i) => !i.read_at);
     }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      filtered = filtered.filter(
-        (i) =>
-          i.title.toLowerCase().includes(q) ||
-          i.article_meta.account.toLowerCase().includes(q) ||
-          (i.description && i.description.toLowerCase().includes(q))
-      );
-    }
     return groupByDateBucket(filtered);
-  }, [items, showUnreadOnly, search]);
+  }, [items, showUnreadOnly]);
 
   // Collapse state: default open for today/yesterday, conditionally for others
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -244,7 +260,32 @@ export function InboxList({
         {isFirstSync && (
           <div className="sync-banner">首次同步中…内容会陆续出现。</div>
         )}
-        {isLoading ? (
+        {isSearching ? (
+          searchHits === undefined ? (
+            <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-base)" }}>
+              搜索中…
+            </div>
+          ) : searchHits.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-base)" }}>
+              无匹配结果
+            </div>
+          ) : (
+            searchHits.map((h) => {
+              const item = searchResultToInbox(h);
+              return (
+                <InboxItemRow
+                  key={h.card_id}
+                  item={item}
+                  isSelected={selectedId === h.card_id}
+                  isFavorite={h.is_favorite || favoriteCardIds.has(h.card_id)}
+                  isDiscarded={false}
+                  onSelect={() => onSelect(h.card_id, "card")}
+                  onContextMenu={(e) => e.preventDefault()}
+                />
+              );
+            })
+          )
+        ) : isLoading ? (
           <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-base)" }}>
             加载中...
           </div>

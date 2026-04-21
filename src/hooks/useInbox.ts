@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchDiscarded } from "../lib/api";
 import type { InboxItem, DiscardedItem } from "../types";
-import { getInboxCards, markCardRead, markCardUnread as markUnreadLocal, markAllCardsRead as markAllLocal } from "../lib/cache";
-import type { CachedCard } from "../lib/cache";
+import { getInboxCards, markCardRead, markCardUnread as markUnreadLocal, markAllCardsRead as markAllLocal, searchCards } from "../lib/cache";
+import type { CachedCard, SearchResult } from "../lib/cache";
 
 function cachedToInbox(c: CachedCard): InboxItem {
   return {
@@ -175,6 +175,16 @@ export function groupByDateBucket<T extends { article_date: string | null }>(ite
       label: labels[key],
       items: buckets[key],
     }));
+}
+
+export function useInboxSearch(query: string) {
+  const trimmed = query.trim();
+  return useQuery<SearchResult[]>({
+    queryKey: ["inbox-search", trimmed],
+    enabled: trimmed.length >= 2,
+    queryFn: () => searchCards(trimmed),
+    staleTime: 30_000,
+  });
 }
 
 export function useGroupedInbox(accountId?: number | null, unreadOnly?: boolean) {
