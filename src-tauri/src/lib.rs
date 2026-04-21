@@ -2,6 +2,7 @@ mod acp;
 mod commands;
 mod crypto;
 mod db;
+mod mcp_server;
 mod sync;
 
 use serde::{Deserialize, Serialize};
