@@ -138,12 +138,10 @@ impl AcpManager {
     /// Start a new ACP session with the given agent. If one is already running,
     /// it will be stopped first.
     ///
-    /// `system_prompt` is sent as the first prompt to establish context.
     pub async fn start_session(
         &self,
         agent: &AgentConfig,
         session_id: &str,
-        system_prompt: &str,
         app: &tauri::AppHandle,
         db: Arc<std::sync::Mutex<Option<CacheDb>>>,
         current_context: Arc<std::sync::Mutex<Option<CardContext>>>,
@@ -154,7 +152,6 @@ impl AcpManager {
         let (cmd_tx, cmd_rx) = mpsc::channel::<SessionCommand>(32);
         let session_id_owned = session_id.to_string();
         let agent_id = agent.id.clone();
-        let system_prompt_owned = system_prompt.to_string();
         let app_handle = app.clone();
 
         // Build the AcpAgent from the agent config
@@ -170,7 +167,6 @@ impl AcpManager {
             let result = run_acp_session(
                 acp_agent,
                 sid_for_task.clone(),
-                system_prompt_owned,
                 app_handle.clone(),
                 cmd_rx,
                 db,
@@ -263,7 +259,6 @@ impl AcpManager {
 async fn run_acp_session(
     acp_agent: AcpAgent,
     session_id: String,
-    system_prompt: String,
     app: tauri::AppHandle,
     mut cmd_rx: mpsc::Receiver<SessionCommand>,
     db: Arc<std::sync::Mutex<Option<CacheDb>>>,
@@ -275,15 +270,15 @@ async fn run_acp_session(
         Arc::new(Mutex::new(None));
     let chunk_tx_for_handler = chunk_tx.clone();
 
-    // Flag to suppress frontend emission during system prompt phase
-    let emit_enabled = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    // Flag to control frontend emission (always enabled now — system prompt is
+    // prepended to the first user message, not sent as a separate round).
+    let emit_enabled = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let emit_enabled_for_handler = emit_enabled.clone();
 
     let session_id_for_handler = session_id.clone();
     let app_for_handler = app.clone();
 
     let session_id_for_connect = session_id.clone();
-    let system_prompt_for_connect = system_prompt;
     let app_for_connect = app.clone();
 
     // Run the ACP client connection. This blocks until the connection ends.
@@ -370,7 +365,6 @@ async fn run_acp_session(
             on_receive_request!(),
         )
         .connect_with(acp_agent, async move |cx: ConnectionTo<Agent>| {
-            let emit_enabled = emit_enabled; // move into closure
             // Step 1: Initialize the ACP connection
             cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
                 .block_task()
@@ -461,38 +455,6 @@ async fn run_acp_session(
                 .block_task()
                 .start_session()
                 .await?;
-
-            // Step 3: Send the system prompt to establish context
-            if !system_prompt_for_connect.is_empty() {
-                let (stream_tx, mut stream_rx) = mpsc::unbounded_channel::<StreamChunk>();
-                {
-                    let mut guard = chunk_tx.lock().await;
-                    *guard = Some(stream_tx);
-                }
-
-                session.send_prompt(&system_prompt_for_connect)?;
-
-                // Read until done (system prompt response — we don't emit to frontend)
-                loop {
-                    let update = session.read_update().await?;
-                    match update {
-                        SessionMessage::StopReason(_) => break,
-                        _ => {
-                            // Drain any chunks from the notification handler
-                            while stream_rx.try_recv().is_ok() {}
-                        }
-                    }
-                }
-
-                // Clear the chunk sender so notifications aren't buffered
-                {
-                    let mut guard = chunk_tx.lock().await;
-                    *guard = None;
-                }
-            }
-
-            // Enable frontend emission now that system prompt is done
-            emit_enabled.store(true, std::sync::atomic::Ordering::Relaxed);
 
             // Step 4: Enter the command loop — wait for prompts from the Tauri side
             loop {

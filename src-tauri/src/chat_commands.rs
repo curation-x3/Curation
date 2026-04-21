@@ -110,7 +110,8 @@ pub async fn send_chat_message(
 
     // --- 2. Ensure ACP session is active ---
     let active_sid = state.acp_manager.active_session_id().await;
-    if active_sid.as_deref() != Some(&session_id) {
+    let is_new_session = active_sid.as_deref() != Some(&session_id);
+    if is_new_session {
         // Find the matching AgentConfig by ID
         let agents = crate::acp::detect_agents();
         let agent_cfg = agents
@@ -123,7 +124,6 @@ pub async fn send_chat_message(
             .start_session(
                 &agent_cfg,
                 &session_id,
-                &system_prompt,
                 &app,
                 state.db.clone(),
                 state.current_card_context.clone(),
@@ -132,7 +132,14 @@ pub async fn send_chat_message(
     }
 
     // --- 3. Send prompt (async, no DB lock held) ---
-    let response = state.acp_manager.send_prompt(&message, &app).await?;
+    // For the first message in a new session, prepend the system prompt so
+    // the agent gets context + user question in a single round.
+    let prompt = if is_new_session && !system_prompt.is_empty() {
+        format!("{}\n\n---\n\n用户提问：{}", system_prompt, message)
+    } else {
+        message.clone()
+    };
+    let response = state.acp_manager.send_prompt(&prompt, &app).await?;
 
     // --- 4. Save assistant message (sync, lock dropped before return) ---
     {
