@@ -44,6 +44,9 @@ export function useInbox(accountId?: number | null, unreadOnly?: boolean) {
   });
 }
 
+// Server-only for now: discarded items are excluded from /sync (see spec Q2).
+// Localizing requires adding a discarded_items table + sync plumbing — low priority
+// since this view is rarely opened and not part of the hot path.
 export function useDiscarded() {
   return useQuery<DiscardedItem[]>({
     queryKey: ["discarded"],
