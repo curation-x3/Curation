@@ -201,10 +201,14 @@ pub async fn run_sync(
             &token,
             sync_ts.as_deref(),
             &state.db,
-            |page_keys| {
+            |page_keys, cards, favorites| {
                 let _ = app.emit(
                     "sync-page-committed",
-                    serde_json::json!({ "changedKeys": page_keys }),
+                    serde_json::json!({
+                        "changedKeys": page_keys,
+                        "cards": cards,
+                        "favorites": favorites,
+                    }),
                 );
             },
         )

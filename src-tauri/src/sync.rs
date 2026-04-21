@@ -147,7 +147,7 @@ impl SyncClient {
         mut on_page_committed: F,
     ) -> Result<Vec<String>, String>
     where
-        F: FnMut(&[String]) + Send,
+        F: FnMut(&[String], usize, usize) + Send,
     {
         let mut all_changed: HashSet<String> = HashSet::new();
         let mut cursor: Option<String> = None;
@@ -176,7 +176,7 @@ impl SyncClient {
                 all_changed.insert(k.clone());
             }
             if !changed.is_empty() {
-                on_page_committed(&changed);
+                on_page_committed(&changed, page.cards.len(), page.favorites.len());
             }
 
             if body["has_more"].as_bool().unwrap_or(false) {
@@ -204,7 +204,7 @@ impl SyncClient {
                 break;
             }
 
-            let mut batch_changed = false;
+            let mut batch_success: usize = 0;
             for card_id in &pending {
                 let url = format!("{}/cards/{}/content", base_url, card_id);
                 let result = self
@@ -237,13 +237,13 @@ impl SyncClient {
                             let db = guard.as_ref().ok_or("database not initialized")?;
                             db.update_card_content(card_id, &content, &now)?;
                         }
-                        batch_changed = true;
+                        batch_success += 1;
                     }
                 }
             }
 
-            if batch_changed {
-                on_page_committed(&["cards".to_string()]);
+            if batch_success > 0 {
+                on_page_committed(&["cards".to_string()], batch_success, 0);
                 all_changed.insert("cards".to_string());
             }
         }

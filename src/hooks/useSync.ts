@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { runSync, openDbFromKeychain, initDbWithLogin, setCacheAuthToken, setApiBase } from "../lib/cache";
+import { runSync, initDbWithLogin, setCacheAuthToken, setApiBase } from "../lib/cache";
 import { getWsBase, getAuthToken, getApiBase } from "../lib/api";
 
 export function useInitCache(isLoggedIn: boolean, userId: string | null) {
@@ -18,12 +18,8 @@ export function useInitCache(isLoggedIn: boolean, userId: string | null) {
       // Set API base URL for Rust sync client (matches frontend's API_BASE)
       await setApiBase(getApiBase());
 
-      const opened = await openDbFromKeychain().catch(() => false);
-      if (opened) {
-        await setCacheAuthToken(token);
-      } else {
-        await initDbWithLogin(token, userId!);
-      }
+      await initDbWithLogin(token, userId!);
+      await setCacheAuthToken(token);
       initialized.current = true;
       setCacheReady(true);
     }
@@ -42,6 +38,21 @@ export function useSyncManager(isLoggedIn: boolean) {
   const syncInProgress = useRef(false);
   const [syncing, setSyncing] = useState(false);
 
+  // Map Rust-side sync bucket names → TanStack Query key roots used by hooks.
+  const invalidateFromSyncKeys = useCallback((rustKeys: string[]) => {
+    for (const k of rustKeys) {
+      if (k === "cards" || k === "articles") {
+        queryClient.invalidateQueries({ queryKey: ["inbox", "local"] });
+        queryClient.invalidateQueries({ queryKey: ["card-content"] });
+        queryClient.invalidateQueries({ queryKey: ["favorites", "local"] });
+      } else if (k === "favorites") {
+        queryClient.invalidateQueries({ queryKey: ["favorites", "local"] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: [k] });
+      }
+    }
+  }, [queryClient]);
+
   const triggerSync = useCallback(async () => {
     if (syncInProgress.current) return;
     syncInProgress.current = true;
@@ -53,16 +64,14 @@ export function useSyncManager(isLoggedIn: boolean) {
       if (changedKeys.length > 0) {
         console.log(`[sync] ${dt}ms`, changedKeys);
       }
-      for (const key of changedKeys) {
-        queryClient.invalidateQueries({ queryKey: [key] });
-      }
+      invalidateFromSyncKeys(changedKeys);
     } catch (e) {
       console.error("[sync] failed:", e);
     } finally {
       syncInProgress.current = false;
       setSyncing(false);
     }
-  }, [queryClient]);
+  }, [invalidateFromSyncKeys]);
 
   // WebSocket connection with auto-reconnect
   const connectWs = useCallback(() => {
@@ -133,16 +142,22 @@ export function useSyncManager(isLoggedIn: boolean) {
   // Progressive invalidation: each committed page triggers query invalidation
   // immediately rather than waiting for the full sync to complete.
   useEffect(() => {
-    const unlistenP = listen<{ changedKeys?: string[] }>("sync-page-committed", (evt) => {
-      const keys = evt.payload?.changedKeys ?? ["inbox"];
-      for (const k of keys) {
-        queryClient.invalidateQueries({ queryKey: [k] });
+    const unlistenP = listen<{ changedKeys?: string[]; cards?: number; favorites?: number }>(
+      "sync-page-committed",
+      (evt) => {
+        const keys = evt.payload?.changedKeys ?? ["cards"];
+        const c = evt.payload?.cards ?? 0;
+        const f = evt.payload?.favorites ?? 0;
+        if (c > 0 || f > 0) {
+          console.log(`[sync] page +${c} cards, +${f} favorites`);
+        }
+        invalidateFromSyncKeys(keys);
       }
-    });
+    );
     return () => {
       unlistenP.then((fn) => fn());
     };
-  }, [queryClient]);
+  }, [invalidateFromSyncKeys]);
 
   return { triggerSync, syncing };
 }
