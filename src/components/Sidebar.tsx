@@ -89,7 +89,10 @@ export function Sidebar({
           <span className="sidebar-brand">
             <span className="sidebar-brand-name">Curation</span>
             {!isSidebarCollapsed && (
-              <span className="sidebar-brand-slogan">值得读完的文章，远比你以为的少</span>
+              <span className="sidebar-brand-slogan">
+                <span>值得读完的文章</span>
+                <span>远比你以为的少</span>
+              </span>
             )}
           </span>
         </h2>
@@ -187,14 +190,21 @@ export function Sidebar({
         })}
 
         {/* Temporary accounts — collapsible */}
-        {!isSidebarCollapsed && temporaryAccounts.length > 0 && (
+        {temporaryAccounts.length > 0 && (
           <div
-            className="label-caps"
-            style={{ padding: "var(--sp-2) var(--sp-4)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, userSelect: "none", marginTop: 8 }}
+            className="account-item"
             onClick={() => setIsTempListOpen(!isTempListOpen)}
+            title="临时文章"
+            style={{ cursor: "pointer" }}
           >
-            {isTempListOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            <span>临时文章 ({temporaryAccounts.length})</span>
+            <div className="account-avatar" style={{ background: "var(--bg-panel)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+              {isTempListOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </div>
+            {!isSidebarCollapsed && (
+              <div className="account-info">
+                <div className="account-name">临时文章 ({temporaryAccounts.length})</div>
+              </div>
+            )}
           </div>
         )}
         {isTempListOpen && temporaryAccounts.map((acc) => {

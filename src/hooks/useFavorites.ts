@@ -31,11 +31,11 @@ export function useFavorites() {
             description: card?.description ?? null,
             routing: (card?.routing as FavoriteItem["routing"]) ?? null,
             article_id: card?.article_id ?? null,
-            article_title: card?.title ?? null,
+            article_title: card?.article_title ?? card?.title ?? null,
             article_account: card?.account ?? null,
             article_meta: card
               ? {
-                  title: card.title ?? "",
+                  title: card.article_title ?? card.title ?? "",
                   account: card.account ?? "",
                   account_id: null,
                   author: card.author ?? null,

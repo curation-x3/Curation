@@ -85,13 +85,19 @@ body {
 .sidebar-brand-slogan {
   font-family: var(--font-body);
   font-style: italic;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: 400;
   color: var(--text-muted);
-  line-height: 1.35;
+  line-height: 1.4;
   letter-spacing: 0.01em;
   white-space: normal;
   max-width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.sidebar-brand-slogan > span {
+  display: block;
 }
 
 .sidebar.collapsed .sidebar-brand {
