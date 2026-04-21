@@ -1,7 +1,30 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchInbox, fetchDiscarded, markAllCardsRead, apiFetch } from "../lib/api";
+import { fetchDiscarded, markAllCardsRead, apiFetch } from "../lib/api";
 import type { InboxItem, DiscardedItem } from "../types";
+import { getInboxCards } from "../lib/cache";
+import type { CachedCard } from "../lib/cache";
+
+function cachedToInbox(c: CachedCard): InboxItem {
+  return {
+    card_id: c.card_id,
+    article_id: c.article_id,
+    title: c.title ?? "",
+    description: c.description,
+    routing: (c.routing as InboxItem["routing"]) ?? null,
+    article_date: c.article_date,
+    read_at: c.read_at,
+    queue_status: null,
+    article_meta: {
+      title: c.title ?? "",
+      account: c.account ?? "",
+      account_id: null,
+      author: c.author,
+      publish_time: null,
+      url: c.url ?? "",
+    },
+  };
+}
 
 export interface DateGroup<T = InboxItem> {
   key: "today" | "yesterday" | "thisWeek" | "lastWeek" | "older";
@@ -11,19 +34,13 @@ export interface DateGroup<T = InboxItem> {
 
 export function useInbox(accountId?: number | null, unreadOnly?: boolean) {
   return useQuery<InboxItem[]>({
-    queryKey: ["inbox", accountId ?? "all", unreadOnly ?? false],
+    queryKey: ["inbox", "local", accountId ?? "all", unreadOnly ?? false],
     queryFn: async () => {
-      const data = await fetchInbox(accountId, unreadOnly);
-      return data.items ?? [];
+      const rows = await getInboxCards(null, unreadOnly ?? false);
+      return rows.map(cachedToInbox);
     },
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: (query) => {
-      const items = query.state.data;
-      if (items?.some((item) => item.queue_status != null)) {
-        return 10_000;
-      }
-      return false;
-    },
+    staleTime: 0,
+    refetchInterval: false,
   });
 }
 
