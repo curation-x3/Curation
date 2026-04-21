@@ -17,87 +17,265 @@ impl SyncClient {
     }
 
     /// Push pending local changes to the server.
+    ///
+    /// Groups consecutive items with the same action into a single batch HTTP
+    /// request each, reducing N POSTs to at most one per action-run.
     pub async fn push_sync_queue(
         &self,
         base_url: &str,
         items: &[SyncQueueItem],
         token: &str,
     ) -> Vec<(i64, Result<(), String>)> {
-        let mut results = Vec::new();
-        for item in items {
-            let res = self.push_one(base_url, item, token).await;
-            results.push((item.id, res));
+        let mut results: Vec<(i64, Result<(), String>)> = Vec::with_capacity(items.len());
+        let mut i = 0;
+        while i < items.len() {
+            let action = items[i].action.as_str();
+            // Find the end of the contiguous run of the same action.
+            let mut j = i + 1;
+            while j < items.len() && items[j].action == action {
+                j += 1;
+            }
+            let run = &items[i..j];
+            let run_results = self.push_run(base_url, action, run, token).await;
+            results.extend(run_results);
+            i = j;
         }
         results
     }
 
-    async fn push_one(&self, base_url: &str, item: &SyncQueueItem, token: &str) -> Result<(), String> {
-        let payload: serde_json::Value =
-            serde_json::from_str(&item.payload).map_err(|e| e.to_string())?;
+    /// Dispatch a run of same-action items to the appropriate batch helper.
+    async fn push_run(
+        &self,
+        base_url: &str,
+        action: &str,
+        run: &[SyncQueueItem],
+        token: &str,
+    ) -> Vec<(i64, Result<(), String>)> {
+        match action {
+            "mark_read" | "mark_unread" => {
+                self.push_card_batch(base_url, action, run, token).await
+            }
+            "add_favorite" | "remove_favorite" => {
+                self.push_favorite_batch(base_url, action, run, token).await
+            }
+            other => run
+                .iter()
+                .map(|it| (it.id, Err(format!("unknown sync action: {}", other))))
+                .collect(),
+        }
+    }
 
-        match item.action.as_str() {
-            "mark_read" => {
-                let card_id = payload["card_id"].as_str().unwrap_or_default();
-                let url = format!("{}/cards/{}/read", base_url, card_id);
-                let resp = self
-                    .client
-                    .post(&url)
-                    .bearer_auth(token)
-                    .send()
-                    .await
-                    .map_err(|e| e.to_string())?;
-                if !resp.status().is_success() {
-                    return Err(format!("mark_read failed: {}", resp.status()));
+    /// Batch-push card read/unread actions.
+    ///
+    /// `mark_read`   → POST /cards/mark-all-read  (returns `{ok: true}`)
+    /// `mark_unread` → POST /cards/mark-unread    (returns `{results: [{id, ok, error?}]}`)
+    async fn push_card_batch(
+        &self,
+        base_url: &str,
+        action: &str,
+        run: &[SyncQueueItem],
+        token: &str,
+    ) -> Vec<(i64, Result<(), String>)> {
+        // Parse payloads; items that fail to parse are immediately marked Err
+        // and excluded from the batch body.
+        let mut card_ids: Vec<String> = Vec::with_capacity(run.len());
+        let mut item_ids: Vec<i64> = Vec::with_capacity(run.len());
+        let mut pre_errors: Vec<(i64, Result<(), String>)> = Vec::new();
+
+        for item in run {
+            match serde_json::from_str::<serde_json::Value>(&item.payload) {
+                Ok(v) => {
+                    let cid = v["card_id"].as_str().unwrap_or_default().to_string();
+                    card_ids.push(cid);
+                    item_ids.push(item.id);
                 }
-            }
-            "mark_unread" => {
-                let card_id = payload["card_id"].as_str().unwrap_or_default();
-                let url = format!("{}/cards/{}/unread", base_url, card_id);
-                let resp = self
-                    .client
-                    .post(&url)
-                    .bearer_auth(token)
-                    .send()
-                    .await
-                    .map_err(|e| e.to_string())?;
-                if !resp.status().is_success() {
-                    return Err(format!("mark_unread failed: {}", resp.status()));
+                Err(e) => {
+                    pre_errors.push((item.id, Err(e.to_string())));
                 }
-            }
-            "add_favorite" => {
-                let url = format!("{}/favorites", base_url);
-                let resp = self
-                    .client
-                    .post(&url)
-                    .bearer_auth(token)
-                    .json(&payload)
-                    .send()
-                    .await
-                    .map_err(|e| e.to_string())?;
-                if !resp.status().is_success() {
-                    return Err(format!("add_favorite failed: {}", resp.status()));
-                }
-            }
-            "remove_favorite" => {
-                let item_type = payload["item_type"].as_str().unwrap_or_default();
-                let item_id = payload["item_id"].as_str().unwrap_or_default();
-                let url = format!("{}/favorites/{}/{}", base_url, item_type, item_id);
-                let resp = self
-                    .client
-                    .delete(&url)
-                    .bearer_auth(token)
-                    .send()
-                    .await
-                    .map_err(|e| e.to_string())?;
-                if !resp.status().is_success() {
-                    return Err(format!("remove_favorite failed: {}", resp.status()));
-                }
-            }
-            other => {
-                return Err(format!("unknown sync action: {}", other));
             }
         }
-        Ok(())
+
+        // If every item failed to parse, return early.
+        if card_ids.is_empty() {
+            return pre_errors;
+        }
+
+        let path = if action == "mark_read" {
+            "/cards/mark-all-read"
+        } else {
+            "/cards/mark-unread"
+        };
+        let url = format!("{}{}", base_url, path);
+        let body = serde_json::json!({ "card_ids": card_ids });
+
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await;
+
+        // Compute per-item results for the successfully-parsed batch.
+        let batch_results: Vec<(i64, Result<(), String>)> = match resp {
+            Ok(r) if r.status().is_success() => {
+                let json_body: serde_json::Value = match r.json().await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let msg = e.to_string();
+                        // Return pre_errors + all-fail for batch items.
+                        let mut out = pre_errors;
+                        out.extend(item_ids.iter().map(|id| (*id, Err(msg.clone()))));
+                        return out;
+                    }
+                };
+
+                if action == "mark_read" {
+                    // /cards/mark-all-read returns {ok: true} — treat all as success.
+                    item_ids.iter().map(|id| (*id, Ok(()))).collect()
+                } else {
+                    // /cards/mark-unread returns {results: [{id, ok, error?}]}.
+                    let results_arr =
+                        json_body["results"].as_array().cloned().unwrap_or_default();
+                    let mut by_cid: std::collections::HashMap<String, Result<(), String>> =
+                        std::collections::HashMap::new();
+                    for r in results_arr {
+                        let cid = r["id"].as_str().unwrap_or_default().to_string();
+                        let ok = r["ok"].as_bool().unwrap_or(false);
+                        let err = r["error"].as_str().unwrap_or("").to_string();
+                        by_cid.insert(cid, if ok { Ok(()) } else { Err(err) });
+                    }
+                    card_ids
+                        .iter()
+                        .zip(item_ids.iter())
+                        .map(|(cid, iid)| {
+                            (*iid, by_cid.remove(cid).unwrap_or(Ok(())))
+                        })
+                        .collect()
+                }
+            }
+            Ok(r) => {
+                let status = r.status();
+                item_ids
+                    .iter()
+                    .map(|iid| (*iid, Err(format!("batch {} status {}", path, status))))
+                    .collect()
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                item_ids.iter().map(|iid| (*iid, Err(msg.clone()))).collect()
+            }
+        };
+
+        // The early-return above moves pre_errors when needed; here we only
+        // reach if pre_errors was NOT moved, so we can safely extend and return.
+        let mut out = pre_errors;
+        out.extend(batch_results);
+        out
+    }
+
+    /// Batch-push favorites add/remove actions.
+    ///
+    /// `add_favorite`    → POST /favorites/batch        (returns `{results: [{id: item_id, ok, error?}]}`)
+    /// `remove_favorite` → POST /favorites/batch-delete (same shape)
+    async fn push_favorite_batch(
+        &self,
+        base_url: &str,
+        action: &str,
+        run: &[SyncQueueItem],
+        token: &str,
+    ) -> Vec<(i64, Result<(), String>)> {
+        // Parse payloads; items that fail to parse are immediately marked Err.
+        let mut items_body: Vec<serde_json::Value> = Vec::with_capacity(run.len());
+        let mut item_ids: Vec<i64> = Vec::with_capacity(run.len());
+        // Parallel vec of item_id strings for result mapping (order-preserving).
+        let mut fav_ids: Vec<String> = Vec::with_capacity(run.len());
+        let mut pre_errors: Vec<(i64, Result<(), String>)> = Vec::new();
+
+        for item in run {
+            match serde_json::from_str::<serde_json::Value>(&item.payload) {
+                Ok(v) => {
+                    let item_type = v["item_type"].as_str().unwrap_or_default().to_string();
+                    let item_id = v["item_id"].as_str().unwrap_or_default().to_string();
+                    fav_ids.push(item_id.clone());
+                    items_body.push(serde_json::json!({
+                        "item_type": item_type,
+                        "item_id": item_id,
+                    }));
+                    item_ids.push(item.id);
+                }
+                Err(e) => {
+                    pre_errors.push((item.id, Err(e.to_string())));
+                }
+            }
+        }
+
+        if items_body.is_empty() {
+            return pre_errors;
+        }
+
+        let path = if action == "add_favorite" {
+            "/favorites/batch"
+        } else {
+            "/favorites/batch-delete"
+        };
+        let url = format!("{}{}", base_url, path);
+        let body = serde_json::json!({ "items": items_body });
+
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await;
+
+        let batch_results: Vec<(i64, Result<(), String>)> = match resp {
+            Ok(r) if r.status().is_success() => {
+                let body: serde_json::Value = match r.json().await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let msg = e.to_string();
+                        return item_ids
+                            .iter()
+                            .map(|id| (*id, Err(msg.clone())))
+                            .collect();
+                    }
+                };
+                // Results keyed by item_id string.
+                let results_arr =
+                    body["results"].as_array().cloned().unwrap_or_default();
+                let mut by_fav_id: std::collections::HashMap<String, Result<(), String>> =
+                    std::collections::HashMap::new();
+                for r in results_arr {
+                    let fid = r["id"].as_str().unwrap_or_default().to_string();
+                    let ok = r["ok"].as_bool().unwrap_or(false);
+                    let err = r["error"].as_str().unwrap_or("").to_string();
+                    by_fav_id.insert(fid, if ok { Ok(()) } else { Err(err) });
+                }
+                fav_ids
+                    .iter()
+                    .zip(item_ids.iter())
+                    .map(|(fid, iid)| {
+                        (*iid, by_fav_id.remove(fid).unwrap_or(Ok(())))
+                    })
+                    .collect()
+            }
+            Ok(r) => {
+                let status = r.status();
+                item_ids
+                    .iter()
+                    .map(|iid| (*iid, Err(format!("batch {} status {}", path, status))))
+                    .collect()
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                item_ids.iter().map(|iid| (*iid, Err(msg.clone()))).collect()
+            }
+        };
+
+        pre_errors.extend(batch_results);
+        pre_errors
     }
 
     /// Fetch a single page from /sync.
