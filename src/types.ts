@@ -160,6 +160,7 @@ export interface QueueEntry {
   retry_count: number;
   last_error_type: string | null;
   run_count: number;
+  queued_at: string;
   started_at: string | null;
   created_at: string;
   updated_at: string;

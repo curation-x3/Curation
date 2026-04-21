@@ -152,6 +152,8 @@ export function RunDetailDrawer({ runId, onClose }: RunDetailDrawerProps) {
     queryKey: ["runDetail", runId],
     queryFn: () => fetchRun(runId!),
     enabled: !!runId,
+    refetchInterval: 3000,
+    staleTime: 1000,
   });
 
   if (!runId) return null;
