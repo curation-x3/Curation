@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useLayout } from "./hooks/useLayout";
-import { useInbox, useDiscarded } from "./hooks/useInbox";
+import { useInbox, useDiscarded, useIsFirstSync } from "./hooks/useInbox";
 import { useAccounts } from "./hooks/useAccounts";
 import { useInitCache, useSyncManager } from "./hooks/useSync";
 import type { InboxItem } from "./types";
@@ -172,7 +172,8 @@ function AppMain({ currentUser, onLogout }: {
 
   // Cache & sync — use authing_sub as userId for key derivation
   const { cacheReady } = useInitCache(true, currentUser?.authing_sub ?? currentUser?.id?.toString() ?? null);
-  useSyncManager(true);
+  const { syncing } = useSyncManager(true);
+  const isFirstSync = useIsFirstSync(syncing);
 
   // Data
   const { data: accounts = [] } = useAccounts();
@@ -425,6 +426,7 @@ function AppMain({ currentUser, onLogout }: {
         />
       ) : (
         <InboxList
+          isFirstSync={!isDiscardedView && selectedView === "inbox" ? isFirstSync : false}
           items={
             isDiscardedView
               ? (discardedItems ?? []).map((d): InboxItem => ({

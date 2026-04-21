@@ -14,6 +14,7 @@ interface InboxListProps {
   isLoading: boolean;
   listWidth: number;
   favoriteCardIds?: Set<string>;
+  isFirstSync?: boolean;
 }
 
 function routingTag(routing: "ai_curation" | "original_push" | null, queueStatus?: "pending" | "running" | null, isDiscarded?: boolean) {
@@ -130,6 +131,7 @@ export function InboxList({
   isLoading,
   listWidth,
   favoriteCardIds = new Set(),
+  isFirstSync = false,
 }: InboxListProps) {
   const [search, setSearch] = useState("");
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -239,6 +241,9 @@ export function InboxList({
 
       {/* List content */}
       <div className="list-content">
+        {isFirstSync && (
+          <div className="sync-banner">首次同步中…内容会陆续出现。</div>
+        )}
         {isLoading ? (
           <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-base)" }}>
             加载中...

@@ -2149,3 +2149,13 @@ body {
   font-weight: 500;
   letter-spacing: 0.5px;
 }
+
+.sync-banner {
+  padding: 6px 14px;
+  font-style: italic;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  background: var(--tint-sticky, transparent);
+  border-bottom: 1px solid var(--border-hairline);
+  letter-spacing: 0.02em;
+}

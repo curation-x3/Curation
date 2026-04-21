@@ -100,6 +100,12 @@ function getMondayOfWeek(d: Date): Date {
   return startOfDay(mon);
 }
 
+export function useIsFirstSync(syncing: boolean): boolean {
+  const { data: items, isLoading } = useInbox();
+  // Show banner while syncing and there are no items yet (empty DB or first load)
+  return syncing && (isLoading || (items !== undefined && items.length === 0));
+}
+
 export function groupByDateBucket<T extends { article_date: string | null }>(items: T[]): DateGroup<T>[] {
   const now = new Date();
   const today = startOfDay(now);

@@ -39,10 +39,12 @@ export function useSyncManager(isLoggedIn: boolean) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastMessageTime = useRef(Date.now());
   const syncInProgress = useRef(false);
+  const [syncing, setSyncing] = useState(false);
 
   const triggerSync = useCallback(async () => {
     if (syncInProgress.current) return;
     syncInProgress.current = true;
+    setSyncing(true);
     try {
       const changedKeys = await runSync();
       for (const key of changedKeys) {
@@ -52,6 +54,7 @@ export function useSyncManager(isLoggedIn: boolean) {
       console.error("[sync] failed:", e);
     } finally {
       syncInProgress.current = false;
+      setSyncing(false);
     }
   }, [queryClient]);
 
@@ -121,5 +124,5 @@ export function useSyncManager(isLoggedIn: boolean) {
     return () => clearTimeout(timer);
   }, [isLoggedIn, triggerSync]);
 
-  return { triggerSync };
+  return { triggerSync, syncing };
 }
