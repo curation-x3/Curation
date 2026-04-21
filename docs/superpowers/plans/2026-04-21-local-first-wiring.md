@@ -62,6 +62,34 @@ git commit -m "plan: record local-first discovery findings"
 
 ---
 
+## Task 0 Findings
+
+**Q1: useCardContent fallback**
+- YES: `cards` table has `content_md` column (db.rs:117)
+- YES: `sync.rs::pull_data` writes `card["content"]` → `content_md` via `upsert_cards` (sync.rs:128, db.rs:410)
+- `get_cached_article` returns HTML only (db.rs:271, queries `articles.content_html`), not markdown
+- **Bottom line:** NO — `getCachedArticle(cardId)` is wrong. Need Tauri command `get_card_content(card_id)` → `cards.content_md` from db.rs. Task 4 must add this.
+
+**Q2: Discarded storage**
+- NO: No `discarded_items` table in db.rs schema
+- NO: `/sync` filters to `["ai_curation", "original_push"]` only (pg_database.py:1784), excludes `"discard"` routing
+- NO: sync.rs does not upsert discarded locally
+- **Bottom line:** NO — discarded unreachable locally. Minimum fix: add `discarded_items` table, sync endpoint param, query + upsert in apply_pull_result. Defer to Task 5; for v1 fall back to server fetch.
+
+**Q3: Queue status**
+- NO: `CachedCard` (CardRow in db.rs:11-24) has no `queue_status` field
+- NO: `/sync` response (pg_database.py:1850) returns no queue_status (only cards, articles, favorites, cursor, has_more, sync_ts)
+- YES: `/queue` endpoint exists (server.py:1661) returning full queue state via `db.get_queue_all()`; NO lightweight `/queue/status` endpoint
+- **Bottom line:** For v1, choose option (b): drop list spinner, rely on WebSocket + sync completion to update. Cheap poll (option a) feasible in Task 8 only if `/queue/status` endpoint added server-side (out of scope here).
+
+**Q4: Sync progressivity**
+- NO: `pull_data` accumulates all pages in memory (sync.rs:96-98 `all_cards/articles/favorites`), then `apply_pull_result` commits once at end (sync.rs:171-194)
+- Each cursor page does NOT commit separately
+- Frontend cannot see per-page progress; only single callback on full completion
+- **Bottom line:** Progressivity deferred — pages batch-commit at end. UX impact: inbox won't show "today's" items first while older backfill runs; entire sync-result appears together. Acceptable for v1 (most users have < 500 pending items). To improve: refactor `apply_pull_result` to split cards/articles/favs per page and commit within the loop (sync.rs ~175).
+
+---
+
 ### Task 1: Rewrite `useInbox` to read from local SQLite
 
 **Files:**
