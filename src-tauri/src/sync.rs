@@ -278,36 +278,6 @@ impl SyncClient {
         pre_errors
     }
 
-    /// Fetch a single page from /sync.
-    async fn fetch_page(
-        &self,
-        base_url: &str,
-        token: &str,
-        since: Option<&str>,
-        cursor: Option<&str>,
-    ) -> Result<serde_json::Value, String> {
-        let url = format!("{}/sync", base_url);
-        let mut params: Vec<(&str, String)> = vec![("limit", "50".to_string())];
-        if let Some(s) = since {
-            params.push(("since", s.to_string()));
-        }
-        if let Some(c) = cursor {
-            params.push(("cursor", c.to_string()));
-        }
-        let resp = self
-            .client
-            .get(&url)
-            .query(&params)
-            .bearer_auth(token)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
-        if !resp.status().is_success() {
-            return Err(format!("sync pull failed: {}", resp.status()));
-        }
-        resp.json().await.map_err(|e| e.to_string())
-    }
-
     /// Pull remote changes since the given timestamp, committing each page to
     /// `db_arc` immediately and emitting a `sync-page-committed` Tauri event so
     /// the UI can invalidate queries without waiting for all pages.
@@ -328,45 +298,75 @@ impl SyncClient {
         F: FnMut(&[String], usize, usize) + Send,
     {
         let mut all_changed: HashSet<String> = HashSet::new();
-        let mut cursor: Option<String> = None;
 
-        // Pass 1: pull meta pages
-        loop {
-            // Async fetch — no lock held here.
-            let body = self
-                .fetch_page(base_url, token, since, cursor.as_deref())
-                .await?;
+        // Pass 1: pipelined pull — 2 page fetches in flight concurrently.
+        // Server cursor is offset-based (returns `cursor + limit`) so we can
+        // predict the next cursor without waiting for the server response,
+        // letting us prefetch page N+1 while we're applying page N.
+        {
+            let base = base_url.to_string();
+            let tok = token.to_string();
+            let since_s = since.map(|s| s.to_string());
+            let client = self.client.clone();
 
-            let page = PullResult {
-                cards: body["cards"].as_array().cloned().unwrap_or_default(),
-                favorites: body["favorites"].as_array().cloned().unwrap_or_default(),
-                sync_ts: body["sync_ts"].as_str().map(|s| s.to_string()),
+            // Kick off page 1 (cursor = None) and, speculatively, page 2
+            // (cursor = PAGE_SIZE). If the dataset only has one page, page 2
+            // simply returns empty — harmless.
+            let spawn = |cur: Option<String>| {
+                let c = client.clone();
+                let b = base.clone();
+                let t = tok.clone();
+                let s = since_s.clone();
+                tokio::spawn(async move {
+                    fetch_page_raw(&c, &b, &t, s.as_deref(), cur.as_deref()).await
+                })
             };
 
-            // Brief synchronous lock to apply the page.
-            let changed = {
-                let guard = db_arc.lock().map_err(|e| e.to_string())?;
-                let db = guard.as_ref().ok_or("database not initialized")?;
-                apply_pull_result(db, &page)?
-            };
+            let mut in_flight: std::collections::VecDeque<tokio::task::JoinHandle<Result<serde_json::Value, String>>> =
+                std::collections::VecDeque::new();
+            in_flight.push_back(spawn(None));
+            in_flight.push_back(spawn(Some(PAGE_SIZE.to_string())));
+            let mut next_cursor: i64 = PAGE_SIZE * 2;
+            let mut stop_scheduling = false;
 
-            for k in &changed {
-                all_changed.insert(k.clone());
-            }
-            if !changed.is_empty() {
-                on_page_committed(&changed, page.cards.len(), page.favorites.len());
-            }
+            while let Some(handle) = in_flight.pop_front() {
+                let body = handle.await.map_err(|e| e.to_string())??;
+                let has_more = body["has_more"].as_bool().unwrap_or(false);
 
-            if body["has_more"].as_bool().unwrap_or(false) {
-                if let Some(c) = body["cursor"].as_i64() {
-                    cursor = Some(c.to_string());
-                } else if let Some(c) = body["cursor"].as_str() {
-                    cursor = Some(c.to_string());
-                } else {
+                // Schedule the next fetch BEFORE applying current page so the
+                // network round-trip overlaps with the DB apply + emit.
+                if has_more && !stop_scheduling {
+                    in_flight.push_back(spawn(Some(next_cursor.to_string())));
+                    next_cursor += PAGE_SIZE;
+                } else if !has_more {
+                    stop_scheduling = true;
+                }
+
+                let page = PullResult {
+                    cards: body["cards"].as_array().cloned().unwrap_or_default(),
+                    favorites: body["favorites"].as_array().cloned().unwrap_or_default(),
+                    sync_ts: body["sync_ts"].as_str().map(|s| s.to_string()),
+                };
+
+                let changed = {
+                    let guard = db_arc.lock().map_err(|e| e.to_string())?;
+                    let db = guard.as_ref().ok_or("database not initialized")?;
+                    apply_pull_result(db, &page)?
+                };
+                for k in &changed {
+                    all_changed.insert(k.clone());
+                }
+                if !changed.is_empty() {
+                    on_page_committed(&changed, page.cards.len(), page.favorites.len());
+                }
+
+                // If we decided to stop scheduling, drain any already-in-flight
+                // speculative fetch, then break out of the loop. This ensures
+                // the speculative page 2 fired when there was actually only 1
+                // page doesn't leak — we still process its (empty) result.
+                if stop_scheduling && in_flight.is_empty() {
                     break;
                 }
-            } else {
-                break;
             }
         }
 
@@ -421,10 +421,42 @@ impl SyncClient {
     }
 }
 
+const PAGE_SIZE: i64 = 50;
+
 struct PullResult {
     cards: Vec<serde_json::Value>,
     favorites: Vec<serde_json::Value>,
     sync_ts: Option<String>,
+}
+
+/// Free-function variant so it can be called from `tokio::spawn` futures
+/// (which require 'static captures — can't borrow &self).
+async fn fetch_page_raw(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    since: Option<&str>,
+    cursor: Option<&str>,
+) -> Result<serde_json::Value, String> {
+    let url = format!("{}/sync", base_url);
+    let mut params: Vec<(&str, String)> = vec![("limit", PAGE_SIZE.to_string())];
+    if let Some(s) = since {
+        params.push(("since", s.to_string()));
+    }
+    if let Some(c) = cursor {
+        params.push(("cursor", c.to_string()));
+    }
+    let resp = client
+        .get(&url)
+        .query(&params)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("sync pull failed: {}", resp.status()));
+    }
+    resp.json().await.map_err(|e| e.to_string())
 }
 
 /// Apply a single page of pull results to the local DB. Returns changed keys.
