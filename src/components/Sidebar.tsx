@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, Trash2, UserMinus, UserPlus, Star, Settings, Search } from "lucide-react";
+import { Inbox, ChevronLeft, ChevronRight, ChevronDown, Menu, ShieldCheck, Trash2, UserMinus, UserPlus, Star, Settings, Search, MessageSquare } from "lucide-react";
 import { useAccounts, useUnsubscribe, useResubscribe } from "../hooks/useAccounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddMenu } from "./AddMenu";
@@ -9,7 +9,7 @@ import type { Account } from "../types";
 
 interface SidebarProps {
   accounts: Account[];
-  selectedView: "inbox" | "discarded" | "favorites" | "search";
+  selectedView: "inbox" | "discarded" | "favorites" | "search" | "home";
   selectedAccountId: number | null;
   unreadCounts: Record<number | string, number>;
   isSidebarCollapsed: boolean;
@@ -19,6 +19,7 @@ interface SidebarProps {
   onSelectDiscarded: () => void;
   onSelectFavorites: () => void;
   onSelectSearch: () => void;
+  onSelectHome: () => void;
   onToggleCollapse: () => void;
   onToggleAdmin: () => void;
   onBack?: () => void;
@@ -46,6 +47,7 @@ export function Sidebar({
   onSelectDiscarded,
   onSelectFavorites,
   onSelectSearch,
+  onSelectHome,
   onToggleCollapse,
   onToggleAdmin,
   onBack,
@@ -134,6 +136,22 @@ export function Sidebar({
       </div>
 
       <div className="account-list">
+        {/* Home: AI assistant */}
+        <div
+          className={`account-item ${selectedView === "home" ? "active" : ""}`}
+          onClick={onSelectHome}
+          title="AI 助手"
+        >
+          <div className="account-avatar" style={{ background: "var(--bg-panel)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+            <MessageSquare size={16} />
+          </div>
+          {!isSidebarCollapsed && (
+            <div className="account-info">
+              <div className="account-name">AI 助手</div>
+            </div>
+          )}
+        </div>
+
         {/* Inbox: all */}
         <div
           className={`account-item ${selectedView === "inbox" && selectedAccountId === null ? "active" : ""}`}

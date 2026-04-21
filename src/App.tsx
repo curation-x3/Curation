@@ -149,7 +149,7 @@ function AppMain({ currentUser, onLogout }: {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // View state
-  const [selectedView, setSelectedView] = useState<"inbox" | "discarded" | "favorites" | "search">("inbox");
+  const [selectedView, setSelectedView] = useState<"inbox" | "discarded" | "favorites" | "search" | "home">("inbox");
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedDiscardedId, setSelectedDiscardedId] = useState<string | null>(null);
@@ -278,6 +278,11 @@ function AppMain({ currentUser, onLogout }: {
     setSelectedFavorite(null);
   }
 
+  function handleSelectHome() {
+    setSelectedView("home");
+    setSelectedCardId(null);
+  }
+
   function handleSelectFavoriteItem(item: FavoriteItem) {
     setSelectedFavorite(item);
   }
@@ -341,6 +346,7 @@ function AppMain({ currentUser, onLogout }: {
         onSelectDiscarded={handleSelectDiscarded}
         onSelectFavorites={handleSelectFavorites}
         onSelectSearch={handleSelectSearch}
+        onSelectHome={handleSelectHome}
         favoritesCount={favoritesData?.length ?? 0}
         onNavigateToCard={handleNavigateToCard}
         onToggleCollapse={toggleSidebar}
@@ -404,6 +410,7 @@ function AppMain({ currentUser, onLogout }: {
           selectedItem={selectedItem}
           selectedDiscardedItem={selectedDiscardedItem}
           isDiscardedView={isDiscardedView}
+          isHomeView={selectedView === "home"}
           onOpenDrawer={() => setIsDrawerOpen(true)}
         />
       )}
