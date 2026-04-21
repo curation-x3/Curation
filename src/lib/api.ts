@@ -95,30 +95,9 @@ export async function triggerAggregation(date: string) {
   return resp.json();
 }
 
-export async function fetchInbox(accountId?: number | null, unreadOnly?: boolean) {
-  const params = new URLSearchParams();
-  if (accountId != null) params.set("account_id", String(accountId));
-  if (unreadOnly) params.set("unread_only", "true");
-  const qs = params.toString();
-  const resp = await apiFetch(`/inbox${qs ? "?" + qs : ""}`);
-  return resp.json();
-}
-
 export async function fetchDiscarded() {
   const resp = await apiFetch("/discarded");
   return resp.json();
-}
-
-export async function markCardUnread(cardId: string) {
-  await apiFetch(`/cards/${cardId}/unread`, { method: "POST" });
-}
-
-export async function markAllCardsRead(cardIds: string[]) {
-  await apiFetch("/cards/mark-all-read", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ card_ids: cardIds }),
-  });
 }
 
 export async function fetchQueue() {
@@ -202,20 +181,4 @@ export async function fetchRunFile(runId: number, filepath: string) {
   return json.content;
 }
 
-export async function fetchFavorites() {
-  const resp = await apiFetch("/favorites");
-  return resp.json();
-}
 
-export async function addFavorite(itemType: "card" | "article", itemId: string) {
-  const resp = await apiFetch("/favorites", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ item_type: itemType, item_id: itemId }),
-  });
-  return resp.json();
-}
-
-export async function removeFavorite(itemType: "card" | "article", itemId: string) {
-  await apiFetch(`/favorites/${itemType}/${itemId}`, { method: "DELETE" });
-}
