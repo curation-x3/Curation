@@ -192,51 +192,42 @@ impl SyncClient {
             }
         }
 
-        // Pass 2: backfill content_md for cards missing it, recent → older, batches of 10
+        // Pass 2: backfill content_md for cards missing it, recent → older, batches of 50
         loop {
             // Read next batch of card_ids missing content_md (brief lock)
             let pending: Vec<String> = {
                 let guard = db_arc.lock().map_err(|e| e.to_string())?;
                 let db = guard.as_ref().ok_or("database not initialized")?;
-                db.get_cards_missing_content(10)?
+                db.get_cards_missing_content(50)?
             };
             if pending.is_empty() {
                 break;
             }
 
+            let body = serde_json::json!({ "card_ids": pending });
+            let url = format!("{}/cards/content", base_url);
+            let resp = self.client.post(&url).bearer_auth(token).json(&body).send().await;
+
+            let contents: serde_json::Map<String, serde_json::Value> = match resp {
+                Ok(r) if r.status().is_success() => {
+                    let j: serde_json::Value = match r.json().await {
+                        Ok(v) => v,
+                        Err(e) => { eprintln!("[sync] Pass2 parse: {}", e); continue; }
+                    };
+                    j["contents"].as_object().cloned().unwrap_or_default()
+                }
+                Ok(r) => { eprintln!("[sync] Pass2 batch status {}", r.status()); continue; }
+                Err(e) => { eprintln!("[sync] Pass2 batch fetch: {}", e); continue; }
+            };
+
+            let now = chrono::Utc::now().to_rfc3339();
             let mut batch_success: usize = 0;
-            for card_id in &pending {
-                let url = format!("{}/cards/{}/content", base_url, card_id);
-                let result = self
-                    .client
-                    .get(&url)
-                    .bearer_auth(token)
-                    .send()
-                    .await;
-                match result {
-                    Err(e) => {
-                        eprintln!("[sync] Pass2 fetch failed for {}: {}", card_id, e);
-                        continue;
-                    }
-                    Ok(resp) => {
-                        if !resp.status().is_success() {
-                            eprintln!("[sync] Pass2 {} returned {}", card_id, resp.status());
-                            continue;
-                        }
-                        let body: serde_json::Value = match resp.json().await {
-                            Ok(v) => v,
-                            Err(e) => {
-                                eprintln!("[sync] Pass2 JSON parse failed for {}: {}", card_id, e);
-                                continue;
-                            }
-                        };
-                        let content = body["content"].as_str().unwrap_or("").to_string();
-                        let now = chrono::Utc::now().to_rfc3339();
-                        {
-                            let guard = db_arc.lock().map_err(|e| e.to_string())?;
-                            let db = guard.as_ref().ok_or("database not initialized")?;
-                            db.update_card_content(card_id, &content, &now)?;
-                        }
+            {
+                let guard = db_arc.lock().map_err(|e| e.to_string())?;
+                let db = guard.as_ref().ok_or("database not initialized")?;
+                for card_id in &pending {
+                    if let Some(c) = contents.get(card_id).and_then(|v| v.as_str()) {
+                        db.update_card_content(card_id, c, &now)?;
                         batch_success += 1;
                     }
                 }
