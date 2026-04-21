@@ -24,18 +24,6 @@ export interface ChatMessage {
   created_at: string;
 }
 
-export interface CardContext {
-  card_id: string;
-  title: string;
-  content_md: string;
-  article_html: string | null;
-  account: string;
-  author: string | null;
-  article_date: string | null;
-  url: string;
-  routing: string;
-}
-
 export interface ChatStreamEvent {
   session_id: string;
   event_type: "text_chunk" | "tool_call" | "tool_call_update" | "done" | "error";
@@ -44,10 +32,6 @@ export interface ChatStreamEvent {
 
 export function detectAgents(): Promise<AgentConfig[]> {
   return invoke("detect_available_agents");
-}
-
-export function setCurrentCardContext(context: CardContext | null): Promise<void> {
-  return invoke("set_current_card_context", { context });
 }
 
 export function createChatSession(

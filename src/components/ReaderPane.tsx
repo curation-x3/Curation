@@ -14,11 +14,17 @@ import { CardFrame } from "./CardFrame";
 import { useChat, useAgentDetection } from "../hooks/useChat";
 import type { InboxItem, DiscardedItem } from "../types";
 
-function routingTag(routing: "ai_curation" | "original_push") {
-  if (routing === "ai_curation") {
-    return <span className="inbox-tag tag-ai" style={{ fontSize: "0.72rem" }}>AI总结</span>;
+function sourceBarTag(routing: "ai_curation" | "original_push" | null, isDiscarded: boolean) {
+  if (isDiscarded) {
+    return <span className="inbox-tag" style={{ fontSize: "0.72rem", color: "var(--accent-red)" }}>丢弃</span>;
   }
-  return <span className="inbox-tag tag-original" style={{ fontSize: "0.72rem" }}>原文</span>;
+  if (routing === "ai_curation") {
+    return <span className="inbox-tag" style={{ fontSize: "0.72rem", color: "var(--accent-blue)" }}>AI总结</span>;
+  }
+  if (routing === "original_push") {
+    return <span className="inbox-tag" style={{ fontSize: "0.72rem", color: "var(--accent-green)" }}>原文</span>;
+  }
+  return null;
 }
 
 function formatTime(t: string | null) {
@@ -33,21 +39,18 @@ interface ReaderPaneProps {
   isHomeView?: boolean;
   cacheReady?: boolean;
   onOpenDrawer: () => void;
-  onSelectAccount?: (accountId: number) => void;
 }
 
 function SourceBar({
   meta,
   routing,
   isDiscarded,
-  routingReason,
   onOpenDrawer,
   cardId,
 }: {
   meta: { title: string; account: string; author: string | null; publish_time: string | null; url: string };
-  routing?: "ai_curation" | "original_push";
+  routing: "ai_curation" | "original_push" | null;
   isDiscarded: boolean;
-  routingReason?: string;
   onOpenDrawer?: () => void;
   cardId?: string;
 }) {
@@ -56,13 +59,10 @@ function SourceBar({
       {/* Line 1: original title + tag */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
         <span style={{ color: "var(--text-primary)", fontWeight: 500, fontSize: "0.88rem", flex: 1 }}>
-          {routing === "original_push" && <span style={{ color: "var(--text-muted)" }}>原文：</span>}
+          <span style={{ color: "var(--text-muted)" }}>原文标题：</span>
           {meta.title}
         </span>
-        {routing && routingTag(routing)}
-        {isDiscarded && (
-          <span className="inbox-tag tag-discard" style={{ fontSize: "0.72rem" }}>丢弃</span>
-        )}
+        {sourceBarTag(routing, isDiscarded)}
       </div>
       {/* Line 2: meta left, buttons right */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -88,11 +88,6 @@ function SourceBar({
           )}
         </div>
       </div>
-      {routingReason && (
-        <div style={{ fontSize: "0.76rem", color: "var(--accent-gold-hi)", marginTop: 4 }}>
-          丢弃原因: {routingReason}
-        </div>
-      )}
     </div>
   );
 }
@@ -270,7 +265,7 @@ ${notesPath ? `\n用户的笔记路径：${notesPath}` : ""}
         card_id: null,
         article_id: selectedDiscardedItem.article_id,
         title: selectedDiscardedItem.title,
-        description: selectedDiscardedItem.routing_reason,
+        description: null,
         routing: null as "ai_curation" | "original_push" | null,
         article_date: selectedDiscardedItem.article_date,
         read_at: null,
@@ -296,9 +291,8 @@ ${notesPath ? `\n用户的笔记路径：${notesPath}` : ""}
     <main className="reader-pane" style={{ position: "relative", overflow: "hidden" }}>
       <SourceBar
         meta={item.article_meta}
-        routing={item.routing ?? undefined}
+        routing={item.routing}
         isDiscarded={isDiscardedView}
-        routingReason={isDiscardedView && selectedDiscardedItem ? selectedDiscardedItem.routing_reason : undefined}
         onOpenDrawer={item.routing === "ai_curation" ? onOpenDrawer : undefined}
         cardId={item.card_id ?? undefined}
       />

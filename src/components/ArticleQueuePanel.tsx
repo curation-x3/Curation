@@ -242,13 +242,13 @@ export function ArticleQueuePanel() {
                     <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", padding: 8 }}>暂无运行记录</div>
                   ) : (
                     <>
-                      <div style={{ display: "grid", gridTemplateColumns: "60px 80px 70px 60px 100px 50px 30px", color: "var(--text-muted)", fontSize: "var(--fs-xs)", padding: "4px 0", borderBottom: "1px solid var(--bg-panel)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 70px 60px 100px 50px 30px", color: "var(--text-muted)", fontSize: "var(--fs-xs)", padding: "4px 0", borderBottom: "1px solid var(--bg-panel)" }}>
                         <span>Run ID</span><span>后端</span><span>状态</span><span>耗时</span><span>创建时间</span><span>推送</span><span></span>
                       </div>
                       {articleRuns.map((run) => {
                         const isServing = run.id === entry.serving_run_id;
                         return (
-                        <div key={run.id} style={{ display: "grid", gridTemplateColumns: "60px 80px 70px 60px 100px 50px 30px", padding: "5px 0", borderBottom: "1px solid var(--bg-panel)", alignItems: "center" }}>
+                        <div key={run.id} style={{ display: "grid", gridTemplateColumns: "60px 1fr 70px 60px 100px 50px 30px", padding: "5px 0", borderBottom: "1px solid var(--bg-panel)", alignItems: "center" }}>
                           <a onClick={() => setDetailRunId(run.id)}
                             style={{ color: "var(--accent-blue)", fontSize: "var(--fs-sm)", cursor: "pointer", textDecoration: "none" }}>
                             #{run.id}

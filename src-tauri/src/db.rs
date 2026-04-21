@@ -339,65 +339,6 @@ impl CacheDb {
         Ok(())
     }
 
-    pub fn get_card_content(&self, card_id: &str) -> Result<Option<serde_json::Value>, String> {
-        let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        let mut stmt = conn
-            .prepare(
-                "SELECT card_id, title, content_md, description, routing,
-                        article_date, account, author, url
-                 FROM cards WHERE card_id = ?1",
-            )
-            .map_err(|e| e.to_string())?;
-        let mut rows = stmt
-            .query_map([card_id], |row| {
-                Ok(serde_json::json!({
-                    "card_id": row.get::<_, String>(0)?,
-                    "title": row.get::<_, Option<String>>(1)?,
-                    "content_md": row.get::<_, Option<String>>(2)?,
-                    "description": row.get::<_, Option<String>>(3)?,
-                    "routing": row.get::<_, Option<String>>(4)?,
-                    "article_date": row.get::<_, Option<String>>(5)?,
-                    "account": row.get::<_, Option<String>>(6)?,
-                    "author": row.get::<_, Option<String>>(7)?,
-                    "url": row.get::<_, Option<String>>(8)?,
-                }))
-            })
-            .map_err(|e| e.to_string())?;
-        match rows.next() {
-            Some(Ok(v)) => Ok(Some(v)),
-            Some(Err(e)) => Err(e.to_string()),
-            None => Ok(None),
-        }
-    }
-
-    pub fn get_favorites_with_card_info(&self) -> Result<serde_json::Value, String> {
-        let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        let mut stmt = conn
-            .prepare(
-                "SELECT f.item_type, f.item_id, f.created_at,
-                        c.title, c.description, c.account, c.article_date
-                 FROM favorites f
-                 LEFT JOIN cards c ON f.item_id = c.card_id AND f.item_type = 'card'
-                 ORDER BY f.created_at DESC",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(serde_json::json!({
-                    "item_type": row.get::<_, String>(0)?,
-                    "item_id": row.get::<_, String>(1)?,
-                    "created_at": row.get::<_, Option<String>>(2)?,
-                    "title": row.get::<_, Option<String>>(3)?,
-                    "description": row.get::<_, Option<String>>(4)?,
-                    "account": row.get::<_, Option<String>>(5)?,
-                    "article_date": row.get::<_, Option<String>>(6)?,
-                }))
-            })
-            .map_err(|e| e.to_string())?;
-        let results: Vec<serde_json::Value> = rows.filter_map(|r| r.ok()).collect();
-        Ok(serde_json::json!(results))
-    }
-
     pub fn search_cards(&self, query: &str) -> Result<Vec<SearchResult>, String> {
         // Sanitize FTS5 query: escape special chars, wrap in double quotes for phrase match
         let sanitized = query.replace('"', "\"\"");

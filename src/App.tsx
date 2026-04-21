@@ -4,8 +4,6 @@ import { useInbox, useDiscarded } from "./hooks/useInbox";
 import { useAccounts } from "./hooks/useAccounts";
 import { useInitCache, useSyncManager } from "./hooks/useSync";
 import type { InboxItem } from "./types";
-import { setCurrentCardContext } from "./lib/chat";
-import type { CardContext } from "./lib/chat";
 
 
 import { useFavorites } from './hooks/useFavorites';
@@ -300,27 +298,6 @@ function AppMain({ currentUser, onLogout }: {
       });
   }, [favoritesData]);
 
-  // Set current card context on card selection for MCP
-  useEffect(() => {
-    const item = activeReaderItem;
-    if (!item || !item.card_id) {
-      setCurrentCardContext(null).catch(console.error);
-      return;
-    }
-    const ctx: CardContext = {
-      card_id: item.card_id,
-      title: item.article_meta.title,
-      content_md: "",
-      article_html: null,
-      account: item.article_meta.account,
-      author: item.article_meta.author ?? null,
-      article_date: item.article_date ?? null,
-      url: item.article_meta.url,
-      routing: item.routing ?? "ai_curation",
-    };
-    setCurrentCardContext(ctx).catch(console.error);
-  }, [activeReaderItem?.card_id]);
-
   // Sibling cards (same article) for drawer
   const siblingCards = useMemo(() => {
     if (!selectedItem || !inboxItems) return [];
@@ -454,7 +431,7 @@ function AppMain({ currentUser, onLogout }: {
                   card_id: null,
                   article_id: d.article_id,
                   title: d.title,
-                  description: d.routing_reason,
+                  description: null,
                   routing: null,
                   article_date: d.article_date,
                   read_at: null,
@@ -522,8 +499,6 @@ function AppMain({ currentUser, onLogout }: {
         onNotesPathChange={handleNotesPathChange}
         onClose={() => setSettingsOpen(false)}
         onChange={appearance.setDraft}
-        onCommit={appearance.commit}
-        onCancel={appearance.cancel}
         onReset={appearance.resetDefaults}
         onLogout={onLogout}
       />

@@ -36,6 +36,7 @@ export function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const composingRef = useRef(false);
 
   const handleSubmit = useCallback(() => {
     const trimmed = text.trim();
@@ -46,7 +47,7 @@ export function ChatInput({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
         e.preventDefault();
         handleSubmit();
       }
@@ -98,6 +99,8 @@ export function ChatInput({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => { composingRef.current = true; }}
+          onCompositionEnd={() => { composingRef.current = false; }}
           rows={1}
         />
         {isStreaming ? (

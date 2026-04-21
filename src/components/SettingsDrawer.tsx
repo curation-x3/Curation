@@ -24,8 +24,6 @@ interface Props {
   onNotesPathChange: (path: string) => void;
   onClose: () => void;
   onChange: (patch: Partial<AppearanceSettings>) => void;
-  onCommit: () => void;
-  onCancel: () => void;
   onReset: () => void;
   onLogout: () => void;
 }
@@ -148,8 +146,6 @@ export function SettingsDrawer({
   onNotesPathChange,
   onClose,
   onChange,
-  onCommit,
-  onCancel,
   onReset,
   onLogout,
 }: Props) {
@@ -158,12 +154,7 @@ export function SettingsDrawer({
   const systemSize = draft.rootSizeOverride ?? autoSize;
   const isAuto = draft.rootSizeOverride === null;
 
-  // Autosave: just close (no commit/cancel distinction).
-  void onCommit;
-  void onCancel;
-  const handleClose = () => {
-    onClose();
-  };
+  const handleClose = onClose;
 
   const [tab, setTab] = useState<"appearance" | "general">("appearance");
 

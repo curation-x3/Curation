@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Inbox, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck, Trash2, Star, Settings } from "lucide-react";
+import { Inbox, ChevronRight, ChevronDown, ShieldCheck, Trash2, Star, Settings } from "lucide-react";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { useAccounts, useUnsubscribe, useResubscribe } from "../hooks/useAccounts";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,10 +20,6 @@ interface SidebarProps {
   onSelectDiscarded: () => void;
   onSelectFavorites: () => void;
   onToggleAdmin: () => void;
-  onBack?: () => void;
-  onForward?: () => void;
-  canBack?: boolean;
-  canForward?: boolean;
   userName: string;
   currentUser: { id: number; email: string; username: string; role: string };
   appVersion: string;
@@ -44,10 +40,6 @@ export function Sidebar({
   onSelectDiscarded,
   onSelectFavorites,
   onToggleAdmin,
-  onBack,
-  onForward,
-  canBack,
-  canForward,
   userName,
   currentUser,
   appVersion,
@@ -101,30 +93,6 @@ export function Sidebar({
             )}
           </span>
         </h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-          {onBack && (
-            <button
-              className="btn-icon"
-              onClick={onBack}
-              disabled={!canBack}
-              title="后退 (Alt+←)"
-              style={{ opacity: canBack ? 1 : 0.3, cursor: canBack ? "pointer" : "default" }}
-            >
-              <ChevronLeft size={18} />
-            </button>
-          )}
-          {onForward && (
-            <button
-              className="btn-icon"
-              onClick={onForward}
-              disabled={!canForward}
-              title="前进 (Alt+→)"
-              style={{ opacity: canForward ? 1 : 0.3, cursor: canForward ? "pointer" : "default" }}
-            >
-              <ChevronRight size={18} />
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="account-list">

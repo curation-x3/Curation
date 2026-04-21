@@ -8,12 +8,10 @@ import {
   getChatMessages,
   sendChatMessage,
   cancelChatStream,
-  setCurrentCardContext,
   type AgentConfig,
   type ChatSession,
   type ChatMessage,
   type ChatStreamEvent,
-  type CardContext,
 } from "../lib/chat";
 
 // ─── useAgentDetection ───────────────────────────────────────────────────────
@@ -286,19 +284,3 @@ export function useChat(cardId: string | null, ready: boolean = true) {
   };
 }
 
-// ─── useCardContext ───────────────────────────────────────────────────────────
-
-export function useCardContext(
-  cardId: string | null,
-  cardData: CardContext | null,
-) {
-  useEffect(() => {
-    if (!cardId || !cardData) return;
-
-    setCurrentCardContext(cardData);
-
-    return () => {
-      setCurrentCardContext(null);
-    };
-  }, [cardId, cardData]);
-}

@@ -4,39 +4,15 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use agent_client_protocol::mcp_server::McpServer;
 use agent_client_protocol::schema::{
     ContentBlock, ContentChunk, InitializeRequest, ProtocolVersion, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
     SessionNotification, SessionUpdate,
 };
 use agent_client_protocol::{
-    on_receive_notification, on_receive_request, tool_fn, Agent, Client, ConnectionTo,
-    SessionMessage,
+    on_receive_notification, on_receive_request, Agent, Client, ConnectionTo, SessionMessage,
 };
 use agent_client_protocol_tokio::AcpAgent;
-
-use crate::db::CacheDb;
-use crate::mcp_server::{CardContext, CurationMcpServer};
-
-// ---------------------------------------------------------------------------
-// MCP tool input types
-// ---------------------------------------------------------------------------
-
-#[derive(serde::Deserialize, schemars::JsonSchema)]
-struct EmptyInput {}
-
-#[derive(serde::Deserialize, schemars::JsonSchema)]
-struct SearchInput {
-    /// 搜索关键词
-    query: String,
-}
-
-#[derive(serde::Deserialize, schemars::JsonSchema)]
-struct CardIdInput {
-    /// 卡片 ID
-    card_id: String,
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentConfig {
@@ -56,9 +32,7 @@ pub struct ChatStreamEvent {
 }
 
 /// Returns the list of known agents with detection status.
-/// Detection checks the actual CLI tool; launch uses the ACP adapter (via npx where needed).
 pub fn detect_agents() -> Vec<AgentConfig> {
-    // (display_name, id, detect_cmd, launch_cmd, launch_args)
     let agents: Vec<(&str, &str, &str, &str, Vec<String>)> = vec![
         ("Claude Code", "claude-acp", "claude", "npx", vec![
             "@agentclientprotocol/claude-agent-acp@0.30.0".to_string(),
@@ -102,7 +76,6 @@ fn is_command_available(cmd: &str) -> bool {
 // ACP Manager — manages a single active ACP session at a time
 // ---------------------------------------------------------------------------
 
-/// Internal command sent from Tauri commands to the ACP connection loop.
 enum SessionCommand {
     SendPrompt {
         text: String,
@@ -111,19 +84,12 @@ enum SessionCommand {
     Stop,
 }
 
-/// Tracks the active connection's communication channel and metadata.
 struct ActiveSessionState {
     session_id: String,
     agent_id: String,
     cmd_tx: mpsc::Sender<SessionCommand>,
 }
 
-/// Manages ACP agent sessions. Holds at most one active session at a time.
-///
-/// The ACP SDK's `connect_with` closure pattern means the entire agent connection
-/// (initialize, create session, send prompts, read responses) must happen inside a
-/// single async block. To bridge this with Tauri's per-command async model, we spawn
-/// the connection as a background tokio task and communicate via channels.
 pub struct AcpManager {
     active: Mutex<Option<ActiveSessionState>>,
 }
@@ -135,18 +101,12 @@ impl AcpManager {
         }
     }
 
-    /// Start a new ACP session with the given agent. If one is already running,
-    /// it will be stopped first.
-    ///
     pub async fn start_session(
         &self,
         agent: &AgentConfig,
         session_id: &str,
         app: &tauri::AppHandle,
-        db: Arc<std::sync::Mutex<Option<CacheDb>>>,
-        current_context: Arc<std::sync::Mutex<Option<CardContext>>>,
     ) -> Result<(), String> {
-        // Stop any existing session
         self.stop_session().await;
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<SessionCommand>(32);
@@ -154,7 +114,6 @@ impl AcpManager {
         let agent_id = agent.id.clone();
         let app_handle = app.clone();
 
-        // Build the AcpAgent from the agent config
         let acp_agent = AcpAgent::from_args(
             std::iter::once(agent.command.clone()).chain(agent.args.iter().cloned()),
         )
@@ -162,15 +121,12 @@ impl AcpManager {
 
         let sid_for_task = session_id_owned.clone();
 
-        // Spawn the ACP connection as a background task
         tokio::spawn(async move {
             let result = run_acp_session(
                 acp_agent,
                 sid_for_task.clone(),
                 app_handle.clone(),
                 cmd_rx,
-                db,
-                current_context,
             )
             .await;
 
@@ -186,7 +142,6 @@ impl AcpManager {
             }
         });
 
-        // Store state
         let mut guard = self.active.lock().await;
         *guard = Some(ActiveSessionState {
             session_id: session_id_owned,
@@ -197,8 +152,6 @@ impl AcpManager {
         Ok(())
     }
 
-    /// Send a prompt to the active session. Streams response chunks as
-    /// "chat-stream" Tauri events and returns the full accumulated response text.
     pub async fn send_prompt(
         &self,
         text: &str,
@@ -217,63 +170,35 @@ impl AcpManager {
             .await
             .map_err(|_| "ACP session task has exited".to_string())?;
 
-        drop(guard); // Release lock while waiting for response
+        drop(guard);
 
         reply_rx
             .await
             .map_err(|_| "ACP session task dropped the reply channel".to_string())?
     }
 
-    /// Stop the active session, killing the agent subprocess.
     pub async fn stop_session(&self) {
         let mut guard = self.active.lock().await;
         if let Some(state) = guard.take() {
             let _ = state.cmd_tx.send(SessionCommand::Stop).await;
-            // Channel drop will cause the background task to exit
         }
     }
 
-    /// Returns the active session ID, if any.
     pub async fn active_session_id(&self) -> Option<String> {
         let guard = self.active.lock().await;
         guard.as_ref().map(|s| s.session_id.clone())
     }
-
-    /// Returns the active agent ID, if any.
-    #[allow(dead_code)]
-    pub async fn active_agent_id(&self) -> Option<String> {
-        let guard = self.active.lock().await;
-        guard.as_ref().map(|s| s.agent_id.clone())
-    }
 }
 
-/// The core ACP connection loop that runs in a background task.
-///
-/// This function:
-/// 1. Spawns the agent subprocess via AcpAgent
-/// 2. Initializes the ACP connection
-/// 3. Creates a session
-/// 4. Sends the system prompt
-/// 5. Loops waiting for prompt commands from the channel
-/// 6. For each prompt, sends it and streams response chunks as Tauri events
 async fn run_acp_session(
     acp_agent: AcpAgent,
     session_id: String,
     app: tauri::AppHandle,
     mut cmd_rx: mpsc::Receiver<SessionCommand>,
-    db: Arc<std::sync::Mutex<Option<CacheDb>>>,
-    current_context: Arc<std::sync::Mutex<Option<CardContext>>>,
 ) -> Result<(), String> {
-    // We need to use Arc for shared state between the notification handler and the main loop.
-    // The notification handler receives streaming chunks from the agent asynchronously.
     let chunk_tx: Arc<Mutex<Option<mpsc::UnboundedSender<StreamChunk>>>> =
         Arc::new(Mutex::new(None));
     let chunk_tx_for_handler = chunk_tx.clone();
-
-    // Flag to control frontend emission (always enabled now — system prompt is
-    // prepended to the first user message, not sent as a separate round).
-    let emit_enabled = Arc::new(std::sync::atomic::AtomicBool::new(true));
-    let emit_enabled_for_handler = emit_enabled.clone();
 
     let session_id_for_handler = session_id.clone();
     let app_for_handler = app.clone();
@@ -281,11 +206,9 @@ async fn run_acp_session(
     let session_id_for_connect = session_id.clone();
     let app_for_connect = app.clone();
 
-    // Run the ACP client connection. This blocks until the connection ends.
     let result = Client
         .builder()
         .name("curation-app")
-        // Handle streaming session notifications (text chunks, tool calls, etc.)
         .on_receive_notification(
             async move |notification: SessionNotification, _cx| {
                 let guard = chunk_tx_for_handler.lock().await;
@@ -311,10 +234,6 @@ async fn run_acp_session(
                     if let Some(c) = chunk {
                         let _ = tx.send(c);
                     }
-                }
-                // Only emit to frontend when not in system prompt phase
-                if !emit_enabled_for_handler.load(std::sync::atomic::Ordering::Relaxed) {
-                    return Ok(());
                 }
                 let event = match &notification.update {
                     SessionUpdate::AgentMessageChunk(ContentChunk {
@@ -348,7 +267,6 @@ async fn run_acp_session(
             },
             on_receive_notification!(),
         )
-        // Auto-approve all permission requests (YOLO mode for now)
         .on_receive_request(
             async move |request: RequestPermissionRequest, responder, _cx| {
                 let option_id = request.options.first().map(|opt| opt.option_id.clone());
@@ -365,102 +283,22 @@ async fn run_acp_session(
             on_receive_request!(),
         )
         .connect_with(acp_agent, async move |cx: ConnectionTo<Agent>| {
-            // Step 1: Initialize the ACP connection
             cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
                 .block_task()
                 .await?;
 
-            // Step 2: Build MCP server with curation tools
-            let mcp_server = {
-                let db1 = db.clone();
-                let ctx1 = current_context.clone();
-                let db2 = db.clone();
-                let ctx2 = current_context.clone();
-                let db3 = db.clone();
-                let ctx3 = current_context.clone();
-                let db4 = db.clone();
-                let ctx4 = current_context.clone();
-
-                McpServer::<Agent, _>::builder("curation".to_string())
-                    .instructions("Curation 本地数据查询工具。可以获取用户当前阅读的卡片、搜索卡片、获取卡片内容、查看收藏列表。")
-                    .tool_fn(
-                        "get_current_context",
-                        "获取用户当前正在阅读的卡片内容和来源信息",
-                        {
-                            let db = db1;
-                            let ctx = ctx1;
-                            async move |_input: EmptyInput, _cx| {
-                                let server = CurationMcpServer::new(db.clone(), ctx.clone());
-                                server.get_current_context().map_err(|e| {
-                                    agent_client_protocol::Error::internal_error().data(e)
-                                })
-                            }
-                        },
-                        tool_fn!(),
-                    )
-                    .tool_fn(
-                        "search_cards",
-                        "根据关键词搜索卡片（标题、内容）",
-                        {
-                            let db = db2;
-                            let ctx = ctx2;
-                            async move |input: SearchInput, _cx| {
-                                let server = CurationMcpServer::new(db.clone(), ctx.clone());
-                                server.search_cards(&input.query).map_err(|e| {
-                                    agent_client_protocol::Error::internal_error().data(e)
-                                })
-                            }
-                        },
-                        tool_fn!(),
-                    )
-                    .tool_fn(
-                        "get_card_content",
-                        "根据 card_id 获取单张卡片的完整内容",
-                        {
-                            let db = db3;
-                            let ctx = ctx3;
-                            async move |input: CardIdInput, _cx| {
-                                let server = CurationMcpServer::new(db.clone(), ctx.clone());
-                                server.get_card_content(&input.card_id).map_err(|e| {
-                                    agent_client_protocol::Error::internal_error().data(e)
-                                })
-                            }
-                        },
-                        tool_fn!(),
-                    )
-                    .tool_fn(
-                        "get_favorites",
-                        "获取用户收藏的卡片列表",
-                        {
-                            let db = db4;
-                            let ctx = ctx4;
-                            async move |_input: EmptyInput, _cx| {
-                                let server = CurationMcpServer::new(db.clone(), ctx.clone());
-                                server.get_favorites().map_err(|e| {
-                                    agent_client_protocol::Error::internal_error().data(e)
-                                })
-                            }
-                        },
-                        tool_fn!(),
-                    )
-                    .build()
-            };
-
-            // Step 3: Create a session with MCP server attached
             let cwd =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
             let mut session = cx
                 .build_session(cwd)
-                .with_mcp_server(mcp_server)?
                 .block_task()
                 .start_session()
                 .await?;
 
-            // Step 4: Enter the command loop — wait for prompts from the Tauri side
             loop {
                 let cmd = match cmd_rx.recv().await {
                     Some(cmd) => cmd,
-                    None => break, // Channel closed, session manager dropped
+                    None => break,
                 };
 
                 match cmd {
@@ -486,14 +324,12 @@ async fn run_acp_session(
     result.map_err(|e| format!("ACP connection error: {}", e))
 }
 
-/// Internal enum for streaming chunks collected during a prompt.
 enum StreamChunk {
     Text(String),
     ToolCall(String),
     ToolCallUpdate(String),
 }
 
-/// Handle a single prompt: send it, collect streaming chunks, emit events, return full text.
 async fn handle_prompt(
     session: &mut agent_client_protocol::ActiveSession<'static, Agent>,
     chunk_tx: &Arc<Mutex<Option<mpsc::UnboundedSender<StreamChunk>>>>,
@@ -513,7 +349,6 @@ async fn handle_prompt(
 
     let mut accumulated = String::new();
 
-    // Read updates from the session until StopReason
     loop {
         let update = session
             .read_update()
@@ -522,8 +357,6 @@ async fn handle_prompt(
 
         match update {
             SessionMessage::SessionMessage(_dispatch) => {
-                // The notification handler already emitted events to the frontend.
-                // Drain the stream_rx to collect text for the accumulated response.
                 while let Ok(chunk) = stream_rx.try_recv() {
                     if let StreamChunk::Text(t) = chunk {
                         accumulated.push_str(&t);
@@ -531,14 +364,12 @@ async fn handle_prompt(
                 }
             }
             SessionMessage::StopReason(_stop) => {
-                // Drain any remaining chunks
                 while let Ok(chunk) = stream_rx.try_recv() {
                     if let StreamChunk::Text(t) = chunk {
                         accumulated.push_str(&t);
                     }
                 }
 
-                // Emit done event
                 let _ = app.emit(
                     "chat-stream",
                     ChatStreamEvent {
@@ -549,13 +380,10 @@ async fn handle_prompt(
                 );
                 break;
             }
-            _ => {
-                // Future SessionMessage variants — ignore gracefully
-            }
+            _ => {}
         }
     }
 
-    // Clear the chunk sender
     {
         let mut guard = chunk_tx.lock().await;
         *guard = None;
