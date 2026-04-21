@@ -51,6 +51,24 @@ pub struct SyncQueueItem {
     pub retries: i32,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ChatSession {
+    pub session_id: String,
+    pub card_id: Option<String>,
+    pub agent_id: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ChatMessage {
+    pub id: i64,
+    pub session_id: String,
+    pub role: String,
+    pub content: String,
+    pub created_at: String,
+}
+
 // ---------------------------------------------------------------------------
 // CacheDb
 // ---------------------------------------------------------------------------
@@ -134,6 +152,28 @@ impl CacheDb {
                 tokenize='unicode61'
             );
             ",
+        )
+        .map_err(|e| e.to_string())?;
+
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS chat_sessions (
+                session_id TEXT PRIMARY KEY,
+                card_id TEXT,
+                agent_id TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_card ON chat_sessions(card_id);
+
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);",
         )
         .map_err(|e| e.to_string())
     }
@@ -508,5 +548,124 @@ impl CacheDb {
         )
         .map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Chat
+    // -----------------------------------------------------------------------
+
+    pub fn create_chat_session(
+        &self,
+        session_id: &str,
+        card_id: Option<&str>,
+        agent_id: &str,
+    ) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO chat_sessions (session_id, card_id, agent_id) VALUES (?1, ?2, ?3)",
+            rusqlite::params![session_id, card_id, agent_id],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn get_latest_session_for_card(
+        &self,
+        card_id: &str,
+    ) -> Result<Option<ChatSession>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT session_id, card_id, agent_id, created_at, updated_at
+                 FROM chat_sessions WHERE card_id = ?1 ORDER BY updated_at DESC LIMIT 1",
+            )
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query_map([card_id], |row| {
+                Ok(ChatSession {
+                    session_id: row.get(0)?,
+                    card_id: row.get(1)?,
+                    agent_id: row.get(2)?,
+                    created_at: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        match rows.next() {
+            Some(Ok(session)) => Ok(Some(session)),
+            Some(Err(e)) => Err(e.to_string()),
+            None => Ok(None),
+        }
+    }
+
+    pub fn get_home_session(&self) -> Result<Option<ChatSession>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT session_id, card_id, agent_id, created_at, updated_at
+                 FROM chat_sessions WHERE card_id IS NULL ORDER BY updated_at DESC LIMIT 1",
+            )
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query_map([], |row| {
+                Ok(ChatSession {
+                    session_id: row.get(0)?,
+                    card_id: row.get(1)?,
+                    agent_id: row.get(2)?,
+                    created_at: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        match rows.next() {
+            Some(Ok(session)) => Ok(Some(session)),
+            Some(Err(e)) => Err(e.to_string()),
+            None => Ok(None),
+        }
+    }
+
+    pub fn insert_chat_message(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+    ) -> Result<i64, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO chat_messages (session_id, role, content) VALUES (?1, ?2, ?3)",
+            rusqlite::params![session_id, role, content],
+        )
+        .map_err(|e| e.to_string())?;
+        let id = conn.last_insert_rowid();
+        conn.execute(
+            "UPDATE chat_sessions SET updated_at = datetime('now') WHERE session_id = ?1",
+            [session_id],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(id)
+    }
+
+    pub fn get_chat_messages(&self, session_id: &str) -> Result<Vec<ChatMessage>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, session_id, role, content, created_at
+                 FROM chat_messages WHERE session_id = ?1 ORDER BY id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([session_id], |row| {
+                Ok(ChatMessage {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    role: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
     }
 }
