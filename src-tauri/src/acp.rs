@@ -275,6 +275,10 @@ async fn run_acp_session(
         Arc::new(Mutex::new(None));
     let chunk_tx_for_handler = chunk_tx.clone();
 
+    // Flag to suppress frontend emission during system prompt phase
+    let emit_enabled = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let emit_enabled_for_handler = emit_enabled.clone();
+
     let session_id_for_handler = session_id.clone();
     let app_for_handler = app.clone();
 
@@ -313,7 +317,10 @@ async fn run_acp_session(
                         let _ = tx.send(c);
                     }
                 }
-                // Also emit directly to frontend for real-time streaming
+                // Only emit to frontend when not in system prompt phase
+                if !emit_enabled_for_handler.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Ok(());
+                }
                 let event = match &notification.update {
                     SessionUpdate::AgentMessageChunk(ContentChunk {
                         content: ContentBlock::Text(text),
@@ -363,6 +370,7 @@ async fn run_acp_session(
             on_receive_request!(),
         )
         .connect_with(acp_agent, async move |cx: ConnectionTo<Agent>| {
+            let emit_enabled = emit_enabled; // move into closure
             // Step 1: Initialize the ACP connection
             cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
                 .block_task()
@@ -482,6 +490,9 @@ async fn run_acp_session(
                     *guard = None;
                 }
             }
+
+            // Enable frontend emission now that system prompt is done
+            emit_enabled.store(true, std::sync::atomic::Ordering::Relaxed);
 
             // Step 4: Enter the command loop — wait for prompts from the Tauri side
             loop {
