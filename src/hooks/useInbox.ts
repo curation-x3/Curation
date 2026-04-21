@@ -6,11 +6,12 @@ import { getInboxCards, markCardRead, markCardUnread as markUnreadLocal, markAll
 import type { CachedCard, SearchResult } from "../lib/cache";
 
 function cachedToInbox(c: CachedCard): InboxItem {
+  const desc = c.description && c.description.trim().length > 0 ? c.description : c.digest;
   return {
     card_id: c.card_id,
     article_id: c.article_id,
     title: c.title ?? "",
-    description: c.description,
+    description: desc ?? null,
     routing: (c.routing as InboxItem["routing"]) ?? null,
     article_date: c.article_date,
     read_at: c.read_at,
@@ -22,6 +23,8 @@ function cachedToInbox(c: CachedCard): InboxItem {
       author: c.author,
       publish_time: c.publish_time ?? c.article_date,
       url: c.url ?? "",
+      cover_url: c.cover_url,
+      digest: c.digest,
     },
   };
 }

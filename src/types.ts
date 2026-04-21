@@ -120,6 +120,8 @@ export interface ArticleMeta {
   author: string | null;
   publish_time: string | null;
   url: string;
+  cover_url?: string | null;
+  digest?: string | null;
 }
 
 export interface InboxItem {

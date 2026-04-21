@@ -97,26 +97,41 @@ function InboxItemRow({
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const isAnalyzing = !!item.queue_status;
+  const cover = item.article_meta.cover_url;
+  const showCover = item.routing === "original_push" && !!cover;
   return (
     <div
       className={`inbox-item ${isSelected ? "selected" : ""} ${!isAnalyzing && item.read_at ? "read" : ""}`}
       onClick={onSelect}
       onContextMenu={onContextMenu}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-        {isFavorite && (
-          <Star size={13} style={{ color: "var(--accent-gold)", fill: "var(--accent-gold)", flexShrink: 0, marginTop: 3 }} />
-        )}
-        <span className="inbox-item-title" style={{ flex: 1 }}>{item.title}</span>
-        {routingTag(item.routing, item.queue_status, isDiscarded)}
-      </div>
-      {item.description && (
-        <div className="inbox-item-desc">{item.description}</div>
-      )}
-      <div className="inbox-item-meta">
-        {item.article_meta.account}
-        {item.article_meta.publish_time && (
-          <> · {formatTime(item.article_meta.publish_time)}</>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
+            {isFavorite && (
+              <Star size={13} style={{ color: "var(--accent-gold)", fill: "var(--accent-gold)", flexShrink: 0, marginTop: 3 }} />
+            )}
+            <span className="inbox-item-title" style={{ flex: 1 }}>{item.title}</span>
+            {routingTag(item.routing, item.queue_status, isDiscarded)}
+          </div>
+          {item.description && (
+            <div className="inbox-item-desc">{item.description}</div>
+          )}
+          <div className="inbox-item-meta">
+            {item.article_meta.account}
+            {item.article_meta.publish_time && (
+              <> · {formatTime(item.article_meta.publish_time)}</>
+            )}
+          </div>
+        </div>
+        {showCover && (
+          <img
+            src={cover!}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="inbox-item-cover"
+            loading="lazy"
+          />
         )}
       </div>
     </div>

@@ -2156,6 +2156,15 @@ body {
   letter-spacing: 0.5px;
 }
 
+.inbox-item-cover {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+}
+
 .sync-banner {
   padding: 6px 14px;
   font-style: italic;
