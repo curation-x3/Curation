@@ -172,12 +172,11 @@ function AppMain({ currentUser, onLogout }: {
   // Data
   const { data: accounts = [] } = useAccounts();
   // Always fetch full inbox (no account filter) for unread counts
-  const { data: allInboxItems } = useInbox(undefined, false, accounts);
+  const { data: allInboxItems } = useInbox(undefined, false);
   // Filtered inbox for list display
   const { data: inboxItems, isLoading: isLoadingInbox } = useInbox(
     selectedView === "inbox" ? selectedAccountId : undefined,
     false,
-    accounts,
   );
   const { data: discardedItems, isLoading: isLoadingDiscarded } = useDiscarded();
 

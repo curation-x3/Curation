@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchInbox, fetchDiscarded, markAllCardsRead, apiFetch } from "../lib/api";
-import { getInboxCards, markCardRead } from "../lib/cache";
-import type { InboxItem, DiscardedItem, Account } from "../types";
+import type { InboxItem, DiscardedItem } from "../types";
 
 export interface DateGroup<T = InboxItem> {
   key: "today" | "yesterday" | "thisWeek" | "lastWeek" | "older";
@@ -10,58 +9,15 @@ export interface DateGroup<T = InboxItem> {
   items: T[];
 }
 
-function cachedCardToInboxItem(c: {
-  card_id: string; article_id: string; title: string | null;
-  content_md: string | null; description: string | null; routing: string | null;
-  article_date: string | null; account: string | null; author: string | null;
-  url: string | null; read_at: string | null; updated_at: string;
-}): InboxItem {
-  return {
-    card_id: c.card_id,
-    article_id: c.article_id,
-    title: c.title ?? "",
-    description: c.description,
-    routing: c.routing as InboxItem["routing"],
-    article_date: c.article_date,
-    read_at: c.read_at,
-    queue_status: null,
-    article_meta: {
-      title: c.title ?? "",
-      account: c.account ?? "",
-      account_id: null,
-      author: c.author ?? null,
-      publish_time: c.article_date ?? null,
-      url: c.url ?? "",
-    },
-  };
-}
-
-export function useInbox(accountId?: number | null, unreadOnly?: boolean, accounts?: Account[]) {
-  // Build account name lookup for filtering
-  const accountName = useMemo(() => {
-    if (accountId == null || !accounts) return undefined;
-    return accounts.find((a) => a.id === accountId)?.name;
-  }, [accountId, accounts]);
-
+export function useInbox(accountId?: number | null, unreadOnly?: boolean) {
   return useQuery<InboxItem[]>({
     queryKey: ["inbox", accountId ?? "all", unreadOnly ?? false],
     queryFn: async () => {
-      try {
-        // Try local cache first
-        const cached = await getInboxCards(accountName, unreadOnly);
-        if (cached.length > 0) {
-          return cached.map(cachedCardToInboxItem);
-        }
-      } catch {
-        // Local cache not ready — fall through to server
-      }
-      // Fallback to server (first launch before sync, or cache not initialized)
       const data = await fetchInbox(accountId, unreadOnly);
       return data.items ?? [];
     },
-    staleTime: Infinity, // Sync invalidates; no stale time needed
+    staleTime: 5 * 60 * 1000,
     refetchInterval: (query) => {
-      // Still poll if analyzing articles present (they come from server merge)
       const items = query.state.data;
       if (items?.some((item) => item.queue_status != null)) {
         return 10_000;
@@ -86,12 +42,7 @@ export function useMarkCardReadSingle() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (cardId: string) => {
-      try {
-        await markCardRead(cardId);
-      } catch {
-        // Fallback to server if local cache not ready
-        await apiFetch(`/cards/${cardId}/read`, { method: "POST" });
-      }
+      await apiFetch(`/cards/${cardId}/read`, { method: "POST" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inbox"] });
@@ -103,13 +54,7 @@ export function useMarkAllRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (cardIds: string[]) => {
-      try {
-        for (const id of cardIds) {
-          await markCardRead(id);
-        }
-      } catch {
-        await markAllCardsRead(cardIds);
-      }
+      await markAllCardsRead(cardIds);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inbox"] });

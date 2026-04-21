@@ -1,12 +1,9 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchFavorites, addFavorite, removeFavorite } from "../lib/api";
-import { toggleFavoriteLocal } from "../lib/cache";
 import type { FavoriteItem } from "../types";
 
 export function useFavorites() {
-  // Keep reading from server — favorites need joined card/article metadata
-  // that the local cache doesn't store. Sync still works for write-back.
   return useQuery<FavoriteItem[]>({
     queryKey: ["favorites"],
     queryFn: async () => {
@@ -38,13 +35,6 @@ export function useToggleFavorite() {
       itemId: string;
       isFavorited: boolean;
     }) => {
-      // Write locally for instant response + sync queue
-      try {
-        await toggleFavoriteLocal(itemType, itemId, isFavorited);
-      } catch {
-        // Fallback to server
-      }
-      // Also write to server directly for immediate consistency
       if (isFavorited) {
         await removeFavorite(itemType, itemId);
       } else {
