@@ -9,11 +9,21 @@ if (!appId || !domain) {
   console.warn("[Authing] VITE_AUTHING_APP_ID or VITE_AUTHING_DOMAIN not set");
 }
 
+export const AUTHING_SCOPE =
+  "openid profile email phone offline_access username roles external_id extended_fields address";
+
+console.log("[Authing] config", {
+  domain,
+  redirectUri,
+  appId_preview: appId ? `${appId.slice(0, 6)}…(len=${appId.length})` : null,
+  scope: AUTHING_SCOPE,
+});
+
 export const authingClient = new Authing({
   appId,
   domain,
   redirectUri,
-  scope: "openid profile email phone offline_access username roles external_id extended_fields address",
+  scope: AUTHING_SCOPE,
 });
 
 // Tauri WKWebView may clear sessionStorage across origin navigations during redirect flow.

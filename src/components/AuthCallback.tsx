@@ -12,9 +12,18 @@ interface AuthCallbackProps {
 // regardless of how many times the component mounts (StrictMode, HMR, etc.).
 // Call resetCallback() before starting a new loginWithRedirect flow.
 type CallbackResult =
-  | { accessToken: string; idToken: string; refreshToken: string }
-  | { error: string };
+  | {
+      accessToken: string;
+      idToken: string;
+      refreshToken: string;
+      rawKeys: string[];
+      rawScope?: string;
+    }
+  | { error: string; missing?: "access_token" | "id_token" | "refresh_token"; rawKeys?: string[]; rawScope?: string };
+
 let _callbackPromise: Promise<CallbackResult> | null = null;
+
+const FORCED_RETRY_KEY = "__auth_forced_retry";
 
 function getCallbackResult(): Promise<CallbackResult> {
   if (!_callbackPromise) {
@@ -24,15 +33,32 @@ function getCallbackResult(): Promise<CallbackResult> {
     const exchange = authingClient
       .handleRedirectCallback()
       .then((res: any) => {
+        const rawKeys = Object.keys(res || {});
+        const rawScope: string | undefined = res?.scope;
         const accessToken: string = res?.accessToken ?? "";
         const idToken: string = res?.idToken ?? "";
         const refreshToken: string = res?.refreshToken ?? "";
-        if (!accessToken) return { error: `No access_token returned. Response keys: ${Object.keys(res || {}).join(",")}` };
-        if (!idToken) return { error: `No id_token returned. Response keys: ${Object.keys(res || {}).join(",")}` };
-        if (!refreshToken) return { error: `No refresh_token returned. Check Authing scope includes offline_access.` };
-        return { accessToken, idToken, refreshToken };
+        console.log("[auth] handleRedirectCallback returned", {
+          keys: rawKeys,
+          accessToken_len: accessToken.length,
+          idToken_len: idToken.length,
+          refreshToken_len: refreshToken.length,
+          scope: rawScope ?? "(missing)",
+          url_had_code: window.location.search.includes("code="),
+        });
+        if (!accessToken) return { error: `No access_token returned. Response keys: ${rawKeys.join(",")}`, missing: "access_token" as const, rawKeys, rawScope };
+        if (!idToken) return { error: `No id_token returned. Response keys: ${rawKeys.join(",")}`, missing: "id_token" as const, rawKeys, rawScope };
+        if (!refreshToken) return { error: `No refresh_token returned. Keys: ${rawKeys.join(",")}, scope: ${rawScope ?? "(missing)"}`, missing: "refresh_token" as const, rawKeys, rawScope };
+        return { accessToken, idToken, refreshToken, rawKeys, rawScope };
       })
-      .catch((e: any) => ({ error: `${e?.message ?? "Auth error"} (${e?.code ?? ""})` }));
+      .catch((e: any) => {
+        console.error("[auth] handleRedirectCallback threw", {
+          message: e?.message,
+          code: e?.code,
+          name: e?.name,
+        });
+        return { error: `${e?.message ?? "Auth error"} (${e?.code ?? ""})` };
+      });
     _callbackPromise = Promise.race([exchange, timeout]);
   }
   return _callbackPromise;
@@ -63,12 +89,34 @@ export function AuthCallback({ onDone }: AuthCallbackProps) {
       const result = await getCallbackResult();
 
       if ("error" in result) {
+        // Auto-recovery: if refresh_token is missing (likely stale Authing SSO session
+        // from before offline_access was requested), force a fresh consent once.
+        // Guarded by localStorage flag to prevent infinite loop.
+        if (result.missing === "refresh_token" && localStorage.getItem(FORCED_RETRY_KEY) !== "1") {
+          console.warn("[auth] no refresh_token — forcing re-authentication to refresh Authing consent", {
+            rawKeys: result.rawKeys,
+            rawScope: result.rawScope,
+          });
+          localStorage.setItem(FORCED_RETRY_KEY, "1");
+          resetCallback();
+          // forced: true makes the SDK add prompt=login — forces Authing to re-authenticate
+          // the user, which results in a fresh consent that includes offline_access.
+          authingClient.loginWithRedirect({ forced: true } as any);
+          return;
+        }
+        console.error("[auth] fatal", { error: result.error, missing: result.missing });
         setError(result.error);
         setStep("error");
         return;
       }
 
+      // Success — clear the forced-retry flag if set.
+      localStorage.removeItem(FORCED_RETRY_KEY);
       const { accessToken, idToken, refreshToken } = result;
+      console.log("[auth] tokens captured OK", {
+        accessToken_len: accessToken.length,
+        refreshToken_len: refreshToken.length,
+      });
 
       try {
         const resp = await apiFetch("/auth/login", {
