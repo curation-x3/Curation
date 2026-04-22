@@ -35,7 +35,7 @@ export interface DateGroup<T = InboxItem> {
   items: T[];
 }
 
-export function useInbox(accountId?: number | null, unreadOnly?: boolean) {
+export function useInbox(accountId?: number | null, unreadOnly?: boolean, enabled = true) {
   return useQuery<InboxItem[]>({
     queryKey: ["inbox", "local", accountId ?? "all", unreadOnly ?? false],
     queryFn: async () => {
@@ -44,6 +44,7 @@ export function useInbox(accountId?: number | null, unreadOnly?: boolean) {
     },
     staleTime: 0,
     refetchInterval: false,
+    enabled,
   });
 }
 

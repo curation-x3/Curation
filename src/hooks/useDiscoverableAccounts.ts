@@ -33,7 +33,7 @@ export function useDiscoverableAccounts(targetUserId?: number, enabled = true) {
 }
 
 /** Pre-warm discoverable accounts from local SQLite cache. */
-export function usePrimeDiscoverableCache(targetUserId?: number) {
+export function usePrimeDiscoverableCache(targetUserId?: number, enabled = true) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: ["accounts", "discoverable", "_cache_prime", targetUserId ?? "self"],
@@ -56,5 +56,6 @@ export function usePrimeDiscoverableCache(targetUserId?: number) {
       return null;
     },
     staleTime: Infinity,
+    enabled,
   });
 }

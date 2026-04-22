@@ -179,11 +179,11 @@ function AppMain({ currentUser, onLogout }: {
   const isFirstSync = useIsFirstSync(syncing);
 
   // Data
-  usePrimeAccountsCache();
-  usePrimeDiscoverableCache();
+  usePrimeAccountsCache(cacheReady);
+  usePrimeDiscoverableCache(undefined, cacheReady);
   const { data: accounts = [] } = useAccounts();
   // Single local read — full inbox. Account filtering is applied client-side below.
-  const { data: cachedInboxItems, isLoading: isLoadingInbox } = useInbox(undefined, false);
+  const { data: cachedInboxItems, isLoading: isLoadingInbox } = useInbox(undefined, false, cacheReady);
   const analyzingItems = useAnalyzingQueue();
   // Merge analyzing placeholders (card_id === null) for articles whose cards
   // haven't been synced yet. Skip entries whose article already has a card.

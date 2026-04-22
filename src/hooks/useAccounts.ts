@@ -26,7 +26,7 @@ export function useAccounts() {
 }
 
 /** Pre-warm the accounts query with local SQLite data so the sidebar renders instantly. */
-export function usePrimeAccountsCache() {
+export function usePrimeAccountsCache(enabled = true) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: ["accounts", "_cache_prime"],
@@ -52,6 +52,7 @@ export function usePrimeAccountsCache() {
       return null;
     },
     staleTime: Infinity, // Only run once
+    enabled,
   });
 }
 
