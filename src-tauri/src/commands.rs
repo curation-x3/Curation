@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
 
-use crate::db::{CacheDb, CardRow, FavoriteRow, SearchResult};
+use crate::db::{AccountRow, CacheDb, CardRow, FavoriteRow, SearchResult};
 use crate::sync::SyncClient;
 
 pub struct AppState {
@@ -136,6 +136,36 @@ pub fn get_card_content(
     card_id: String,
 ) -> Result<Option<String>, String> {
     with_db(&state, |db| db.get_card_content(&card_id))
+}
+
+#[tauri::command]
+pub fn get_cached_accounts(
+    state: State<'_, AppState>,
+) -> Result<Vec<AccountRow>, String> {
+    with_db(&state, |db| db.get_cached_accounts())
+}
+
+#[tauri::command]
+pub fn save_cached_accounts(
+    state: State<'_, AppState>,
+    accounts: Vec<serde_json::Value>,
+) -> Result<usize, String> {
+    with_db(&state, |db| db.upsert_accounts(&accounts))
+}
+
+#[tauri::command]
+pub fn get_cached_discoverable_accounts(
+    state: State<'_, AppState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    with_db(&state, |db| db.get_cached_discoverable_accounts())
+}
+
+#[tauri::command]
+pub fn save_cached_discoverable_accounts(
+    state: State<'_, AppState>,
+    accounts: Vec<serde_json::Value>,
+) -> Result<usize, String> {
+    with_db(&state, |db| db.upsert_discoverable_accounts(&accounts))
 }
 
 #[tauri::command]

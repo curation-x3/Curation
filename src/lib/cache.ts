@@ -83,6 +83,34 @@ export function getCardContent(cardId: string): Promise<string | null> {
   return invoke("get_card_content", { cardId });
 }
 
+export interface CachedAccount {
+  id: number;
+  biz: string;
+  name: string | null;
+  avatar_url: string | null;
+  description: string | null;
+  last_monitored_at: string | null;
+  article_count: number | null;
+  subscription_type: string | null;
+  sync_count: number | null;
+}
+
+export function getCachedAccounts(): Promise<CachedAccount[]> {
+  return invoke("get_cached_accounts");
+}
+
+export function saveCachedAccounts(accounts: Record<string, unknown>[]): Promise<number> {
+  return invoke("save_cached_accounts", { accounts });
+}
+
+export function getCachedDiscoverableAccounts(): Promise<Record<string, unknown>[]> {
+  return invoke("get_cached_discoverable_accounts");
+}
+
+export function saveCachedDiscoverableAccounts(accounts: Record<string, unknown>[]): Promise<number> {
+  return invoke("save_cached_discoverable_accounts", { accounts });
+}
+
 export function runSync(): Promise<string[]> {
   return invoke("run_sync");
 }

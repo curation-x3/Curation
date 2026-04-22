@@ -50,6 +50,18 @@ pub struct SearchResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountRow {
+    pub id: i64,
+    pub biz: String,
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+    pub description: Option<String>,
+    pub last_monitored_at: Option<String>,
+    pub article_count: Option<i64>,
+    pub subscription_type: Option<String>,
+    pub sync_count: Option<i64>,
+}
+
 pub struct SyncQueueItem {
     pub id: i64,
     pub action: String,
@@ -153,6 +165,25 @@ impl CacheDb {
             CREATE TABLE IF NOT EXISTS sync_state (
                 key TEXT PRIMARY KEY,
                 value TEXT
+            );
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY,
+                biz TEXT NOT NULL,
+                name TEXT,
+                avatar_url TEXT,
+                description TEXT,
+                last_monitored_at TEXT,
+                article_count INTEGER,
+                subscription_type TEXT DEFAULT 'subscribed',
+                sync_count INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS discoverable_accounts (
+                biz TEXT PRIMARY KEY,
+                name TEXT,
+                avatar_url TEXT,
+                description TEXT,
+                account_type TEXT,
+                already_subscribed INTEGER DEFAULT 0
             );
             CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
                 title, content_md, content=cards, content_rowid=rowid,
@@ -509,6 +540,119 @@ impl CacheDb {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         Ok(rows)
+    }
+
+    // -----------------------------------------------------------------------
+    // Accounts cache
+    // -----------------------------------------------------------------------
+
+    pub fn get_cached_accounts(&self) -> Result<Vec<AccountRow>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, biz, name, avatar_url, description, last_monitored_at,
+                        article_count, subscription_type, sync_count
+                 FROM accounts ORDER BY name",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(AccountRow {
+                    id: row.get(0)?,
+                    biz: row.get(1)?,
+                    name: row.get(2)?,
+                    avatar_url: row.get(3)?,
+                    description: row.get(4)?,
+                    last_monitored_at: row.get(5)?,
+                    article_count: row.get(6)?,
+                    subscription_type: row.get(7)?,
+                    sync_count: row.get(8)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    pub fn upsert_accounts(&self, accounts: &[serde_json::Value]) -> Result<usize, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute_batch("BEGIN TRANSACTION").map_err(|e| e.to_string())?;
+        // Replace all — server is source of truth
+        conn.execute("DELETE FROM accounts", []).map_err(|e| e.to_string())?;
+        let mut count = 0usize;
+        for acct in accounts {
+            conn.execute(
+                "INSERT INTO accounts (id, biz, name, avatar_url, description,
+                 last_monitored_at, article_count, subscription_type, sync_count)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                rusqlite::params![
+                    acct["id"].as_i64().unwrap_or(0),
+                    acct["biz"].as_str().unwrap_or_default(),
+                    acct["name"].as_str(),
+                    acct["avatar_url"].as_str(),
+                    acct["description"].as_str(),
+                    acct["last_monitored_at"].as_str(),
+                    acct["article_count"].as_i64(),
+                    acct["subscription_type"].as_str().unwrap_or("subscribed"),
+                    acct["sync_count"].as_i64(),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            count += 1;
+        }
+        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+        Ok(count)
+    }
+
+    pub fn get_cached_discoverable_accounts(&self) -> Result<Vec<serde_json::Value>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT biz, name, avatar_url, description, account_type, already_subscribed
+                 FROM discoverable_accounts ORDER BY name",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(serde_json::json!({
+                    "biz": row.get::<_, String>(0)?,
+                    "name": row.get::<_, Option<String>>(1)?,
+                    "avatar_url": row.get::<_, Option<String>>(2)?,
+                    "description": row.get::<_, Option<String>>(3)?,
+                    "account_type": row.get::<_, Option<String>>(4)?,
+                    "already_subscribed": row.get::<_, i64>(5)? != 0,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    pub fn upsert_discoverable_accounts(&self, accounts: &[serde_json::Value]) -> Result<usize, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute_batch("BEGIN TRANSACTION").map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM discoverable_accounts", []).map_err(|e| e.to_string())?;
+        let mut count = 0usize;
+        for acct in accounts {
+            conn.execute(
+                "INSERT INTO discoverable_accounts (biz, name, avatar_url, description, account_type, already_subscribed)
+                 VALUES (?1,?2,?3,?4,?5,?6)",
+                rusqlite::params![
+                    acct["biz"].as_str().unwrap_or_default(),
+                    acct["name"].as_str(),
+                    acct["avatar_url"].as_str(),
+                    acct["description"].as_str(),
+                    acct["account_type"].as_str(),
+                    if acct["already_subscribed"].as_bool().unwrap_or(false) { 1i64 } else { 0i64 },
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            count += 1;
+        }
+        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+        Ok(count)
     }
 
     // -----------------------------------------------------------------------

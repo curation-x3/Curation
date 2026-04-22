@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useLayout } from "./hooks/useLayout";
 import { useInbox, useDiscarded, useIsFirstSync, useAnalyzingQueue } from "./hooks/useInbox";
-import { useAccounts } from "./hooks/useAccounts";
+import { useAccounts, usePrimeAccountsCache } from "./hooks/useAccounts";
+import { usePrimeDiscoverableCache } from "./hooks/useDiscoverableAccounts";
 import { useInitCache, useSyncManager } from "./hooks/useSync";
 import type { InboxItem } from "./types";
 
@@ -178,6 +179,8 @@ function AppMain({ currentUser, onLogout }: {
   const isFirstSync = useIsFirstSync(syncing);
 
   // Data
+  usePrimeAccountsCache();
+  usePrimeDiscoverableCache();
   const { data: accounts = [] } = useAccounts();
   // Single local read — full inbox. Account filtering is applied client-side below.
   const { data: cachedInboxItems, isLoading: isLoadingInbox } = useInbox(undefined, false);
