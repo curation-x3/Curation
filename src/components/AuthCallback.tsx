@@ -11,7 +11,9 @@ interface AuthCallbackProps {
 // Module-level Promise singleton — handleRedirectCallback() is called exactly once
 // regardless of how many times the component mounts (StrictMode, HMR, etc.).
 // Call resetCallback() before starting a new loginWithRedirect flow.
-type CallbackResult = { idToken: string } | { error: string };
+type CallbackResult =
+  | { accessToken: string; idToken: string; refreshToken: string }
+  | { error: string };
 let _callbackPromise: Promise<CallbackResult> | null = null;
 
 function getCallbackResult(): Promise<CallbackResult> {
@@ -22,9 +24,13 @@ function getCallbackResult(): Promise<CallbackResult> {
     const exchange = authingClient
       .handleRedirectCallback()
       .then((res: any) => {
-        const idToken = res?.idToken ?? "";
-        if (!idToken) return { error: `No ID token returned. Response: ${JSON.stringify(res)}` };
-        return { idToken };
+        const accessToken: string = res?.accessToken ?? "";
+        const idToken: string = res?.idToken ?? "";
+        const refreshToken: string = res?.refreshToken ?? "";
+        if (!accessToken) return { error: `No access_token returned. Response keys: ${Object.keys(res || {}).join(",")}` };
+        if (!idToken) return { error: `No id_token returned. Response keys: ${Object.keys(res || {}).join(",")}` };
+        if (!refreshToken) return { error: `No refresh_token returned. Check Authing scope includes offline_access.` };
+        return { accessToken, idToken, refreshToken };
       })
       .catch((e: any) => ({ error: `${e?.message ?? "Auth error"} (${e?.code ?? ""})` }));
     _callbackPromise = Promise.race([exchange, timeout]);
@@ -44,7 +50,11 @@ export function AuthCallback({ onDone }: AuthCallbackProps) {
   type Step = "loading" | "invite" | "error";
   const [step, setStep] = useState<Step>("loading");
   const [error, setError] = useState("");
-  const [pendingToken, setPendingToken] = useState("");
+  const [pendingTokens, setPendingTokens] = useState<{
+    accessToken: string;
+    idToken: string;
+    refreshToken: string;
+  }>({ accessToken: "", idToken: "", refreshToken: "" });
   const [inviteCode, setInviteCode] = useState("");
   const [activating, setActivating] = useState(false);
 
@@ -58,7 +68,7 @@ export function AuthCallback({ onDone }: AuthCallbackProps) {
         return;
       }
 
-      const { idToken } = result;
+      const { accessToken, idToken, refreshToken } = result;
 
       try {
         const resp = await apiFetch("/auth/login", {
@@ -69,7 +79,8 @@ export function AuthCallback({ onDone }: AuthCallbackProps) {
         const data = await resp.json();
 
         if (resp.ok) {
-          login(idToken, {
+          // Store accessToken + refreshToken; idToken is discarded (not persisted).
+          login(accessToken, refreshToken, {
             id: data.user_id,
             email: data.email || "",
             username: data.username || "",
@@ -81,8 +92,8 @@ export function AuthCallback({ onDone }: AuthCallbackProps) {
         }
 
         if (resp.status === 401) {
-          // New user — need activation
-          setPendingToken(idToken);
+          // New user — need activation. Hold all three until register call completes.
+          setPendingTokens({ accessToken, idToken, refreshToken });
           setStep("invite");
         } else {
           setError(data.detail || "登录失败");
@@ -116,7 +127,10 @@ export function AuthCallback({ onDone }: AuthCallbackProps) {
       const rResp = await apiFetch("/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: pendingToken, invite_token: vData.validation_token }),
+        body: JSON.stringify({
+          id_token: pendingTokens.idToken,
+          invite_token: vData.validation_token,
+        }),
       });
       const rData = await rResp.json();
       if (!rResp.ok) {
@@ -124,7 +138,8 @@ export function AuthCallback({ onDone }: AuthCallbackProps) {
         return;
       }
 
-      login(pendingToken, {
+      // Store accessToken + refreshToken; idToken is discarded.
+      login(pendingTokens.accessToken, pendingTokens.refreshToken, {
         id: rData.user_id,
         email: rData.email || "",
         username: rData.username || "",
