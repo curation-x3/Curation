@@ -10,7 +10,7 @@ import { useMarkCardReadSingle } from "../hooks/useInbox";
 import { useAuth } from "../lib/authStore";
 import { FavoriteButton } from "./FavoriteButton";
 import { CardVoteBar } from "./CardVoteBar";
-import { CardAnnotationPanel } from "./CardAnnotationPanel";
+import { AdminAnnotationFlag } from "./AdminAnnotationFlag";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
 import { CardFrame } from "./CardFrame";
@@ -50,14 +50,12 @@ function SourceBar({
   isDiscarded,
   onOpenDrawer,
   cardId,
-  isAdmin,
 }: {
   meta: { title: string; account: string; author: string | null; publish_time: string | null; url: string };
   routing: "ai_curation" | "original_push" | null;
   isDiscarded: boolean;
   onOpenDrawer?: () => void;
   cardId?: string;
-  isAdmin?: boolean;
 }) {
   return (
     <div className="reader-source-bar">
@@ -96,7 +94,6 @@ function SourceBar({
           )}
         </div>
       </div>
-      {cardId && isAdmin && <CardAnnotationPanel cardId={cardId} />}
     </div>
   );
 }
@@ -306,7 +303,6 @@ ${cardContentData?.content ?? "（正文加载中）"}`;
         isDiscarded={isDiscardedView}
         onOpenDrawer={item.routing === "ai_curation" ? onOpenDrawer : undefined}
         cardId={item.card_id ?? undefined}
-        isAdmin={isAdmin}
       />
       <div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
         <div className="reader-content animate-in" style={{ paddingBottom: 140 }}>
@@ -345,6 +341,7 @@ ${cardContentData?.content ?? "（正文加载中）"}`;
         onSaveToNotes={handleSaveToNotes}
         hasMessages={chat.messages.length > 0}
       />
+      {item.card_id && isAdmin && <AdminAnnotationFlag cardId={item.card_id} />}
     </main>
   );
 }
