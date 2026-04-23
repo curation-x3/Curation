@@ -28,7 +28,7 @@ export function CardVoteBar({ cardId }: { cardId: string }) {
     color: selected ? "var(--accent-gold)" : "var(--text-muted)",
     border: "none",
     borderRadius: 6,
-    padding: "4px 8px",
+    padding: "2px 6px",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -38,30 +38,33 @@ export function CardVoteBar({ cardId }: { cardId: string }) {
     <div
       style={{
         display: "inline-flex",
+        flexDirection: "column",
         alignItems: "center",
-        gap: 10,
-        padding: "6px 12px",
+        gap: 2,
+        padding: "6px 10px",
         background: "var(--bg-panel)",
         border: "1px solid var(--border)",
-        borderRadius: 999,
+        borderRadius: 12,
         boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
       }}
     >
-      <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{prompt}</span>
-      <button
-        onClick={() => click(1)}
-        style={btn(1, current === 1)}
-        aria-label="点赞"
-      >
-        <ThumbsUp size={16} />
-      </button>
-      <button
-        onClick={() => click(-1)}
-        style={btn(-1, current === -1)}
-        aria-label="点踩"
-      >
-        <ThumbsDown size={16} />
-      </button>
+      <span style={{ color: "var(--text-muted)", fontSize: "0.68rem", lineHeight: 1.3 }}>{prompt}</span>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button
+          onClick={() => click(1)}
+          style={btn(1, current === 1)}
+          aria-label="点赞"
+        >
+          <ThumbsUp size={14} />
+        </button>
+        <button
+          onClick={() => click(-1)}
+          style={btn(-1, current === -1)}
+          aria-label="点踩"
+        >
+          <ThumbsDown size={14} />
+        </button>
+      </div>
     </div>
   );
 }
