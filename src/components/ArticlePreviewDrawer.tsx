@@ -7,7 +7,7 @@ import { stripFrontmatter, mdComponents } from "../lib/markdown";
 import { useArticleContent } from "../hooks/useArticles";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../lib/api";
-import { CardAnnotationPanel } from "./CardAnnotationPanel";
+import { AdminAnnotationFlag } from "./AdminAnnotationFlag";
 
 function RoutingPill({ routing }: { routing: string | null }) {
   if (!routing) {
@@ -55,7 +55,7 @@ function CardMarkdownView({ articleId }: { articleId: string }) {
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={mdComponents}>
             {stripFrontmatter(card.content)}
           </ReactMarkdown>
-          <CardAnnotationPanel cardId={card.card_id} />
+          <AdminAnnotationFlag cardId={card.card_id} variant="inline" />
         </div>
       ))}
     </div>
