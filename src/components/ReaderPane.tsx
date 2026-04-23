@@ -305,14 +305,22 @@ ${cardContentData?.content ?? "（正文加载中）"}`;
         <div className="reader-content animate-in" style={{ paddingBottom: 140 }}>
           {/* Card content (markdown) */}
           {item.card_id && (
-            <CardFrame chatActive={chatActive} label={undefined}>
+            <CardFrame
+              chatActive={chatActive}
+              label={item.routing === "original_push" ? "AI 卡片" : undefined}
+              force={item.routing === "original_push"}
+            >
               <CardContentView cardId={item.card_id} />
             </CardFrame>
           )}
 
           {/* Original article HTML — for original_push or discarded or analyzing (no card) */}
           {(item.routing === "original_push" || !item.card_id) && (
-            <CardFrame chatActive={chatActive} label={undefined}>
+            <CardFrame
+              chatActive={chatActive}
+              label={item.routing === "original_push" ? "原文" : undefined}
+              force={item.routing === "original_push"}
+            >
               <ArticleHtmlView articleId={item.article_id} />
             </CardFrame>
           )}

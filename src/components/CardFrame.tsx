@@ -4,10 +4,12 @@ interface CardFrameProps {
   chatActive: boolean;
   children: ReactNode;
   label?: string;
+  /** Force the frame to render even when chat is inactive. */
+  force?: boolean;
 }
 
-export function CardFrame({ chatActive, children, label }: CardFrameProps) {
-  if (!chatActive) {
+export function CardFrame({ chatActive, children, label, force }: CardFrameProps) {
+  if (!chatActive && !force) {
     return <>{children}</>;
   }
 
