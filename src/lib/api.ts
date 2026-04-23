@@ -214,4 +214,99 @@ export async function fetchRunFile(runId: number, filepath: string) {
   return json.content;
 }
 
+// ==================== Feedback ====================
+
+export interface AnnotationRow {
+  id: number;
+  card_id: string;
+  article_id: string;
+  run_id: string | null;
+  label: string;
+  note: string | null;
+  admin_username: string;
+  created_at: string | null;
+}
+
+export interface AdminCardRow {
+  card_id: string;
+  article_id: string;
+  title: string;
+  description: string | null;
+  routing: string | null;
+  article_date: string | null;
+  annotation_count: number;
+  upvote_count: number;
+  downvote_count: number;
+}
+
+export async function fetchVotes(cardIds: string[]): Promise<Record<string, 1 | -1>> {
+  if (cardIds.length === 0) return {};
+  const resp = await apiFetch(`/feedback/vote?card_ids=${cardIds.join(",")}`);
+  if (!resp.ok) throw new Error(`fetchVotes ${resp.status}`);
+  const body = await resp.json();
+  return body.votes ?? {};
+}
+
+export async function putVote(cardId: string, vote: 1 | -1): Promise<{ card_id: string; vote: 1 | -1 | null }> {
+  const resp = await apiFetch(`/feedback/vote`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ card_id: cardId, vote }),
+  });
+  if (!resp.ok) throw new Error(`putVote ${resp.status}`);
+  return resp.json();
+}
+
+export async function deleteVote(cardId: string): Promise<void> {
+  const resp = await apiFetch(`/feedback/vote/${encodeURIComponent(cardId)}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(`deleteVote ${resp.status}`);
+}
+
+export async function fetchAnnotationsSingle(cardId: string): Promise<AnnotationRow[]> {
+  const resp = await apiFetch(`/feedback/annotations?card_id=${encodeURIComponent(cardId)}`);
+  if (!resp.ok) throw new Error(`fetchAnnotationsSingle ${resp.status}`);
+  const body = await resp.json();
+  return body.annotations ?? [];
+}
+
+export async function fetchAnnotationsBatch(cardIds: string[]): Promise<Record<string, AnnotationRow[]>> {
+  if (cardIds.length === 0) return {};
+  const resp = await apiFetch(`/feedback/annotations?card_ids=${cardIds.join(",")}`);
+  if (!resp.ok) throw new Error(`fetchAnnotationsBatch ${resp.status}`);
+  const body = await resp.json();
+  return body.annotations ?? {};
+}
+
+export async function addAnnotation(cardId: string, label: string, note?: string): Promise<AnnotationRow> {
+  const resp = await apiFetch(`/feedback/annotations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ card_id: cardId, label, note }),
+  });
+  if (!resp.ok) throw new Error(`addAnnotation ${resp.status}`);
+  return resp.json();
+}
+
+export async function deleteAnnotation(annotationId: number): Promise<void> {
+  const resp = await apiFetch(`/feedback/annotations/${annotationId}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(`deleteAnnotation ${resp.status}`);
+}
+
+export async function fetchAdminCards(params: {
+  has_annotation?: boolean;
+  has_downvote?: boolean;
+  routing?: string;
+  order?: "recent" | "downvotes" | "annotations";
+  limit?: number;
+  offset?: number;
+}): Promise<AdminCardRow[]> {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) usp.set(k, String(v));
+  }
+  const resp = await apiFetch(`/feedback/admin/cards?${usp.toString()}`);
+  if (!resp.ok) throw new Error(`fetchAdminCards ${resp.status}`);
+  const body = await resp.json();
+  return body.cards ?? [];
+}
 
