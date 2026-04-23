@@ -199,6 +199,15 @@ function logoutWithRedirect(options: LogoutOptions = {}): void {
   window.location.assign(url);
 }
 
+function endSessionSilently(): void {
+  const params = new URLSearchParams({ client_id: APP_ID });
+  const url = `${DOMAIN}/oidc/session/end?${params.toString()}`;
+  console.log("[authing] endSessionSilently");
+  // Fire-and-forget: end the OIDC session without navigating the webview.
+  // We don't care about the response — local state is already cleared.
+  fetch(url, { mode: "no-cors" }).catch(() => {});
+}
+
 function resetTransaction(): void {
   localStorage.removeItem(TX_KEY);
 }
@@ -214,6 +223,7 @@ export const authingClient = {
   loginWithRedirect,
   handleRedirectCallback,
   logoutWithRedirect,
+  endSessionSilently,
   resetTransaction,
   isRedirectCallback,
 };

@@ -127,9 +127,8 @@ function App() {
 
   function handleLogout() {
     logout();
-    authingClient.logoutWithRedirect({
-      redirectUri: import.meta.env.VITE_AUTHING_REDIRECT_URI?.replace("/auth/callback", "") || window.location.origin,
-    });
+    // Silently end Authing OIDC session in background (no redirect)
+    authingClient.endSessionSilently();
   }
 
   return (
