@@ -1,6 +1,8 @@
 use serde::Serialize;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::Emitter;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
@@ -92,6 +94,37 @@ fn is_command_available(cmd: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Timing instrumentation — one-line stderr logs for startup/latency analysis
+// ---------------------------------------------------------------------------
+
+struct AcpTiming {
+    session_id: String,
+    start: Instant,
+    last: Instant,
+}
+
+impl AcpTiming {
+    fn new(session_id: &str) -> Self {
+        let now = Instant::now();
+        Self {
+            session_id: session_id.to_string(),
+            start: now,
+            last: now,
+        }
+    }
+    fn mark(&mut self, step: &str) {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last).as_millis();
+        let total = now.duration_since(self.start).as_millis();
+        eprintln!(
+            "[acp-timing] session={} step={} elapsed=+{}ms total={}ms",
+            self.session_id, step, elapsed, total
+        );
+        self.last = now;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ACP Manager — manages a single active ACP session at a time
 // ---------------------------------------------------------------------------
 
@@ -128,6 +161,8 @@ impl AcpManager {
     ) -> Result<(), String> {
         self.stop_session().await;
 
+        let mut timing = AcpTiming::new(session_id);
+
         let (cmd_tx, cmd_rx) = mpsc::channel::<SessionCommand>(32);
         let session_id_owned = session_id.to_string();
         let agent_id = agent.id.clone();
@@ -137,8 +172,10 @@ impl AcpManager {
             std::iter::once(agent.command.clone()).chain(agent.args.iter().cloned()),
         )
         .map_err(|e| format!("Failed to create ACP agent: {}", e))?;
+        timing.mark("b1 subprocess_spawned");
 
         let sid_for_task = session_id_owned.clone();
+        let timing = Arc::new(Mutex::new(timing));
 
         tokio::spawn(async move {
             let result = run_acp_session(
@@ -146,6 +183,7 @@ impl AcpManager {
                 sid_for_task.clone(),
                 app_handle.clone(),
                 cmd_rx,
+                timing,
             )
             .await;
 
@@ -214,7 +252,9 @@ async fn run_acp_session(
     session_id: String,
     app: tauri::AppHandle,
     mut cmd_rx: mpsc::Receiver<SessionCommand>,
+    timing: Arc<Mutex<AcpTiming>>,
 ) -> Result<(), String> {
+    let first_notification_seen = Arc::new(AtomicBool::new(false));
     let chunk_tx: Arc<Mutex<Option<mpsc::UnboundedSender<StreamChunk>>>> =
         Arc::new(Mutex::new(None));
     let chunk_tx_for_handler = chunk_tx.clone();
@@ -228,8 +268,13 @@ async fn run_acp_session(
     let result = Client
         .builder()
         .name("curation-app")
-        .on_receive_notification(
+        .on_receive_notification({
+            let timing = timing.clone();
+            let first_notification_seen = first_notification_seen.clone();
             async move |notification: SessionNotification, _cx| {
+                if !first_notification_seen.swap(true, Ordering::SeqCst) {
+                    timing.lock().await.mark("b5 first_notification");
+                }
                 let guard = chunk_tx_for_handler.lock().await;
                 if let Some(tx) = guard.as_ref() {
                     let chunk = match &notification.update {
@@ -274,7 +319,7 @@ async fn run_acp_session(
                     let _ = app_for_handler.emit("chat-stream", evt);
                 }
                 Ok(())
-            },
+            }},
             on_receive_notification!(),
         )
         .on_receive_request(
@@ -292,10 +337,13 @@ async fn run_acp_session(
             },
             on_receive_request!(),
         )
-        .connect_with(acp_agent, async move |cx: ConnectionTo<Agent>| {
+        .connect_with(acp_agent, {
+            let timing = timing.clone();
+            async move |cx: ConnectionTo<Agent>| {
             cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
                 .block_task()
                 .await?;
+            timing.lock().await.mark("b2 initialize_done");
 
             let cwd =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
@@ -304,6 +352,7 @@ async fn run_acp_session(
                 .block_task()
                 .start_session()
                 .await?;
+            timing.lock().await.mark("b3 session_started");
 
             loop {
                 let cmd = match cmd_rx.recv().await {
@@ -328,7 +377,7 @@ async fn run_acp_session(
             }
 
             Ok(())
-        })
+        }})
         .await;
 
     result.map_err(|e| format!("ACP connection error: {}", e))
@@ -353,6 +402,7 @@ async fn handle_prompt(
         *guard = Some(stream_tx);
     }
 
+    eprintln!("[acp-timing] session={} step=b4 prompt_sent", session_id);
     session
         .send_prompt(text)
         .map_err(|e| format!("Failed to send prompt: {}", e))?;

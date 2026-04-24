@@ -13,6 +13,7 @@ import {
   type ChatMessage,
   type ChatStreamEvent,
 } from "../lib/chat";
+import { AcpTiming } from "../lib/acp/timing";
 
 // ─── useAgentDetection ───────────────────────────────────────────────────────
 
@@ -57,6 +58,11 @@ export function useChat(cardId: string | null, ready: boolean = true) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const doneRef = useRef<boolean>(false);      // true when "done" event received
 
+  // Timing instrumentation (per turn)
+  const timingRef = useRef<AcpTiming | null>(null);
+  const firstStreamRef = useRef<boolean>(true);
+  const firstTextRef = useRef<boolean>(true);
+
   const startTypingTimer = useCallback(() => {
     if (timerRef.current) return; // already running
     timerRef.current = setInterval(() => {
@@ -100,11 +106,24 @@ export function useChat(cardId: string | null, ready: boolean = true) {
     listen<ChatStreamEvent>("chat-stream", (event) => {
       const { event_type, content } = event.payload;
 
+      if (firstStreamRef.current && timingRef.current) {
+        timingRef.current.mark("t2 first_stream_event");
+        firstStreamRef.current = false;
+      }
+
       if (event_type === "text_chunk") {
+        if (firstTextRef.current && timingRef.current) {
+          timingRef.current.mark("t3 first_text_chunk");
+          firstTextRef.current = false;
+        }
         bufferRef.current += content;
         setConnectionStatus("connected");
         startTypingTimer();
       } else if (event_type === "done") {
+        if (timingRef.current) {
+          timingRef.current.mark("t4 done");
+          timingRef.current = null;
+        }
         // Mark done — the typing timer will flush remaining buffer then finalize
         doneRef.current = true;
         if (!timerRef.current) {
@@ -203,6 +222,12 @@ export function useChat(cardId: string | null, ready: boolean = true) {
           setSession(activeSession);
         }
 
+        // Timing instrumentation for this turn
+        timingRef.current = new AcpTiming(activeSession.session_id);
+        timingRef.current.mark("t0 send_clicked");
+        firstStreamRef.current = true;
+        firstTextRef.current = true;
+
         // Optimistically add user message to UI
         const optimisticMsg: ChatMessage = {
           id: Date.now(),
@@ -219,10 +244,12 @@ export function useChat(cardId: string | null, ready: boolean = true) {
           text,
           systemPrompt,
         );
+        timingRef.current?.mark("t1 invoke_returned");
         // Streaming events handled by the listener above
       } catch {
         setIsStreaming(false);
         setConnectionStatus("error");
+        timingRef.current = null;
       }
     },
     [cardId],
