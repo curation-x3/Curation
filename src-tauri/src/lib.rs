@@ -367,6 +367,9 @@ pub fn run() {
             chat_commands::get_chat_messages,
             chat_commands::send_chat_message,
             chat_commands::cancel_chat_stream,
+            chat_commands::list_acp_runtime,
+            chat_commands::set_acp_max_alive,
+            chat_commands::get_acp_max_alive,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

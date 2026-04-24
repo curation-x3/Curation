@@ -125,8 +125,11 @@ impl AcpTiming {
 }
 
 // ---------------------------------------------------------------------------
-// ACP Manager — manages a single active ACP session at a time
+// ACP Manager — registry of alive ACP runtime sessions
 // ---------------------------------------------------------------------------
+
+use std::collections::HashMap;
+use std::sync::atomic::AtomicUsize;
 
 enum SessionCommand {
     SendPrompt {
@@ -136,35 +139,226 @@ enum SessionCommand {
     Stop,
 }
 
-struct ActiveSessionState {
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum SessionRuntimeStatus {
+    Starting,
+    Idle,
+    Running,
+    Stopping,
+    Errored { message: String },
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeSnapshot {
+    pub session_id: String,
+    pub card_id: Option<String>,
+    pub agent_id: String,
+    pub status: SessionRuntimeStatus,
+    pub last_active_ms: u128,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AcpRuntimeEvent {
+    pub session_id: String,
+    pub card_id: Option<String>,
+    pub agent_id: String,
+    pub status: SessionRuntimeStatus,
+}
+
+struct RuntimeSession {
     session_id: String,
-    _agent_id: String,
+    card_id: Option<String>,
+    agent_id: String,
+    status: SessionRuntimeStatus,
+    last_active: Instant,
     cmd_tx: mpsc::Sender<SessionCommand>,
 }
 
 pub struct AcpManager {
-    active: Mutex<Option<ActiveSessionState>>,
+    sessions: Arc<Mutex<HashMap<String, RuntimeSession>>>,
+    max_alive: Arc<AtomicUsize>,
 }
 
 impl AcpManager {
     pub fn new() -> Self {
         Self {
-            active: Mutex::new(None),
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+            max_alive: Arc::new(AtomicUsize::new(3)),
         }
     }
 
-    pub async fn start_session(
+    pub fn set_max_alive(&self, n: usize) {
+        self.max_alive.store(n.clamp(1, 5), Ordering::Relaxed);
+    }
+
+    pub async fn list_runtime(&self) -> Vec<RuntimeSnapshot> {
+        let sessions = self.sessions.lock().await;
+        sessions
+            .values()
+            .map(|s| RuntimeSnapshot {
+                session_id: s.session_id.clone(),
+                card_id: s.card_id.clone(),
+                agent_id: s.agent_id.clone(),
+                status: s.status.clone(),
+                last_active_ms: s.last_active.elapsed().as_millis(),
+            })
+            .collect()
+    }
+
+    pub async fn stop(&self, session_id: &str, app: &tauri::AppHandle) {
+        let tx = {
+            let mut sessions = self.sessions.lock().await;
+            sessions.get_mut(session_id).map(|s| {
+                s.status = SessionRuntimeStatus::Stopping;
+                s.cmd_tx.clone()
+            })
+        };
+        if let Some(tx) = tx {
+            // Emit stopping status outside the lock
+            self.emit_status(session_id, SessionRuntimeStatus::Stopping, app)
+                .await;
+            let _ = tx.send(SessionCommand::Stop).await;
+        }
+    }
+
+    pub async fn send_prompt(
         &self,
-        agent: &AgentConfig,
         session_id: &str,
+        card_id: Option<&str>,
+        agent: &AgentConfig,
+        prompt: &str,
+        app: &tauri::AppHandle,
+    ) -> Result<String, String> {
+        self.prune_errored().await;
+
+        // Fast path: runtime exists and is Idle — reuse warm subprocess.
+        let reuse_tx = {
+            let sessions = self.sessions.lock().await;
+            sessions.get(session_id).and_then(|s| match &s.status {
+                SessionRuntimeStatus::Idle => Some(s.cmd_tx.clone()),
+                _ => None,
+            })
+        };
+
+        if let Some(tx) = reuse_tx {
+            self.mark_status(session_id, SessionRuntimeStatus::Running, app)
+                .await;
+            let result = Self::send_cmd(&tx, prompt).await;
+            self.finalize_turn(session_id, &result, app).await;
+            return result;
+        }
+
+        // Reject if busy (Running / Starting / Stopping)
+        {
+            let sessions = self.sessions.lock().await;
+            if let Some(s) = sessions.get(session_id) {
+                if matches!(
+                    s.status,
+                    SessionRuntimeStatus::Running
+                        | SessionRuntimeStatus::Starting
+                        | SessionRuntimeStatus::Stopping
+                ) {
+                    return Err("ACP session is busy".to_string());
+                }
+            }
+        }
+
+        self.acquire_slot(session_id, app).await?;
+        self.spawn_runtime(session_id, card_id, agent, app).await?;
+
+        let tx = {
+            let sessions = self.sessions.lock().await;
+            sessions
+                .get(session_id)
+                .map(|s| s.cmd_tx.clone())
+                .ok_or_else(|| "spawned session missing from registry".to_string())?
+        };
+
+        self.mark_status(session_id, SessionRuntimeStatus::Running, app)
+            .await;
+        let result = Self::send_cmd(&tx, prompt).await;
+        self.finalize_turn(session_id, &result, app).await;
+        result
+    }
+
+    async fn send_cmd(
+        tx: &mpsc::Sender<SessionCommand>,
+        prompt: &str,
+    ) -> Result<String, String> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        tx.send(SessionCommand::SendPrompt {
+            text: prompt.to_string(),
+            reply: reply_tx,
+        })
+        .await
+        .map_err(|_| "ACP session task has exited".to_string())?;
+        reply_rx
+            .await
+            .map_err(|_| "ACP session task dropped the reply channel".to_string())?
+    }
+
+    async fn prune_errored(&self) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.retain(|_, s| !matches!(s.status, SessionRuntimeStatus::Errored { .. }));
+    }
+
+    async fn acquire_slot(
+        &self,
+        new_session_id: &str,
         app: &tauri::AppHandle,
     ) -> Result<(), String> {
-        self.stop_session().await;
+        let max = self.max_alive.load(Ordering::Relaxed);
 
+        let victim: Option<(String, mpsc::Sender<SessionCommand>)> = {
+            let sessions = self.sessions.lock().await;
+            let alive = sessions
+                .iter()
+                .filter(|(k, _)| k.as_str() != new_session_id)
+                .filter(|(_, s)| !matches!(s.status, SessionRuntimeStatus::Errored { .. }))
+                .count();
+            if alive < max {
+                return Ok(());
+            }
+            sessions
+                .iter()
+                .filter(|(k, _)| k.as_str() != new_session_id)
+                .filter(|(_, s)| matches!(s.status, SessionRuntimeStatus::Idle))
+                .min_by_key(|(_, s)| s.last_active)
+                .map(|(k, s)| (k.clone(), s.cmd_tx.clone()))
+        };
+
+        if let Some((victim_id, tx)) = victim {
+            self.mark_status(&victim_id, SessionRuntimeStatus::Stopping, app)
+                .await;
+            let _ = tx.send(SessionCommand::Stop).await;
+            for _ in 0..100 {
+                {
+                    let sessions = self.sessions.lock().await;
+                    if !sessions.contains_key(&victim_id) {
+                        return Ok(());
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+            Err("timed out waiting for evicted session to shut down".to_string())
+        } else {
+            Err("all ACP sessions busy; close one or wait".to_string())
+        }
+    }
+
+    async fn spawn_runtime(
+        &self,
+        session_id: &str,
+        card_id: Option<&str>,
+        agent: &AgentConfig,
+        app: &tauri::AppHandle,
+    ) -> Result<(), String> {
         let mut timing = AcpTiming::new(session_id);
-
         let (cmd_tx, cmd_rx) = mpsc::channel::<SessionCommand>(32);
+
         let session_id_owned = session_id.to_string();
+        let card_id_owned = card_id.map(|s| s.to_string());
         let agent_id = agent.id.clone();
         let app_handle = app.clone();
 
@@ -174,8 +368,33 @@ impl AcpManager {
         .map_err(|e| format!("Failed to create ACP agent: {}", e))?;
         timing.mark("b1 subprocess_spawned");
 
+        {
+            let mut sessions = self.sessions.lock().await;
+            sessions.insert(
+                session_id_owned.clone(),
+                RuntimeSession {
+                    session_id: session_id_owned.clone(),
+                    card_id: card_id_owned.clone(),
+                    agent_id: agent_id.clone(),
+                    status: SessionRuntimeStatus::Starting,
+                    last_active: Instant::now(),
+                    cmd_tx: cmd_tx.clone(),
+                },
+            );
+        }
+        emit_runtime(
+            app,
+            &session_id_owned,
+            &card_id_owned,
+            &agent_id,
+            &SessionRuntimeStatus::Starting,
+        );
+
         let sid_for_task = session_id_owned.clone();
+        let card_for_task = card_id_owned.clone();
+        let agent_for_task = agent_id.clone();
         let timing = Arc::new(Mutex::new(timing));
+        let sessions_for_task = self.sessions.clone();
 
         tokio::spawn(async move {
             let result = run_acp_session(
@@ -184,10 +403,28 @@ impl AcpManager {
                 app_handle.clone(),
                 cmd_rx,
                 timing,
+                sessions_for_task.clone(),
+                card_for_task.clone(),
+                agent_for_task.clone(),
             )
             .await;
 
+            // Task exited — remove from map and emit terminal status.
+            {
+                let mut sessions = sessions_for_task.lock().await;
+                sessions.remove(&sid_for_task);
+            }
+
             if let Err(e) = result {
+                emit_runtime(
+                    &app_handle,
+                    &sid_for_task,
+                    &card_for_task,
+                    &agent_for_task,
+                    &SessionRuntimeStatus::Errored {
+                        message: e.clone(),
+                    },
+                );
                 let _ = app_handle.emit(
                     "chat-stream",
                     ChatStreamEvent {
@@ -199,52 +436,95 @@ impl AcpManager {
             }
         });
 
-        let mut guard = self.active.lock().await;
-        *guard = Some(ActiveSessionState {
-            session_id: session_id_owned,
-            _agent_id: agent_id,
-            cmd_tx,
-        });
-
-        Ok(())
+        // Wait for session to reach Idle (or fail/exit during startup).
+        for _ in 0..200 {
+            {
+                let sessions = self.sessions.lock().await;
+                match sessions.get(session_id).map(|s| &s.status) {
+                    Some(SessionRuntimeStatus::Idle)
+                    | Some(SessionRuntimeStatus::Running) => return Ok(()),
+                    Some(SessionRuntimeStatus::Errored { message }) => {
+                        return Err(message.clone())
+                    }
+                    None => return Err("runtime disappeared during startup".to_string()),
+                    _ => {}
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        Err("timed out waiting for ACP session to start".to_string())
     }
 
-    pub async fn send_prompt(
+    async fn mark_status(
         &self,
-        text: &str,
-        _app: &tauri::AppHandle,
-    ) -> Result<String, String> {
-        let guard = self.active.lock().await;
-        let state = guard.as_ref().ok_or("No active ACP session")?;
-
-        let (reply_tx, reply_rx) = oneshot::channel();
-        state
-            .cmd_tx
-            .send(SessionCommand::SendPrompt {
-                text: text.to_string(),
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| "ACP session task has exited".to_string())?;
-
-        drop(guard);
-
-        reply_rx
-            .await
-            .map_err(|_| "ACP session task dropped the reply channel".to_string())?
-    }
-
-    pub async fn stop_session(&self) {
-        let mut guard = self.active.lock().await;
-        if let Some(state) = guard.take() {
-            let _ = state.cmd_tx.send(SessionCommand::Stop).await;
+        session_id: &str,
+        status: SessionRuntimeStatus,
+        app: &tauri::AppHandle,
+    ) {
+        let meta = {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(s) = sessions.get_mut(session_id) {
+                s.status = status.clone();
+                s.last_active = Instant::now();
+                Some((s.card_id.clone(), s.agent_id.clone()))
+            } else {
+                None
+            }
+        };
+        if let Some((card_id, agent_id)) = meta {
+            emit_runtime(app, session_id, &card_id, &agent_id, &status);
         }
     }
 
-    pub async fn active_session_id(&self) -> Option<String> {
-        let guard = self.active.lock().await;
-        guard.as_ref().map(|s| s.session_id.clone())
+    async fn emit_status(
+        &self,
+        session_id: &str,
+        status: SessionRuntimeStatus,
+        app: &tauri::AppHandle,
+    ) {
+        let meta = {
+            let sessions = self.sessions.lock().await;
+            sessions
+                .get(session_id)
+                .map(|s| (s.card_id.clone(), s.agent_id.clone()))
+        };
+        if let Some((card_id, agent_id)) = meta {
+            emit_runtime(app, session_id, &card_id, &agent_id, &status);
+        }
     }
+
+    async fn finalize_turn(
+        &self,
+        session_id: &str,
+        result: &Result<String, String>,
+        app: &tauri::AppHandle,
+    ) {
+        let status = match result {
+            Ok(_) => SessionRuntimeStatus::Idle,
+            Err(e) => SessionRuntimeStatus::Errored {
+                message: e.clone(),
+            },
+        };
+        self.mark_status(session_id, status, app).await;
+    }
+}
+
+fn emit_runtime(
+    app: &tauri::AppHandle,
+    session_id: &str,
+    card_id: &Option<String>,
+    agent_id: &str,
+    status: &SessionRuntimeStatus,
+) {
+    let _ = app.emit(
+        "acp-runtime",
+        AcpRuntimeEvent {
+            session_id: session_id.to_string(),
+            card_id: card_id.clone(),
+            agent_id: agent_id.to_string(),
+            status: status.clone(),
+        },
+    );
 }
 
 async fn run_acp_session(
@@ -253,6 +533,9 @@ async fn run_acp_session(
     app: tauri::AppHandle,
     mut cmd_rx: mpsc::Receiver<SessionCommand>,
     timing: Arc<Mutex<AcpTiming>>,
+    sessions: Arc<Mutex<HashMap<String, RuntimeSession>>>,
+    card_id: Option<String>,
+    agent_id: String,
 ) -> Result<(), String> {
     let first_notification_seen = Arc::new(AtomicBool::new(false));
     let chunk_tx: Arc<Mutex<Option<mpsc::UnboundedSender<StreamChunk>>>> =
@@ -339,6 +622,11 @@ async fn run_acp_session(
         )
         .connect_with(acp_agent, {
             let timing = timing.clone();
+            let sessions = sessions.clone();
+            let session_id_init = session_id.clone();
+            let card_id_init = card_id.clone();
+            let agent_id_init = agent_id.clone();
+            let app_for_init = app.clone();
             async move |cx: ConnectionTo<Agent>| {
             cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
                 .block_task()
@@ -353,6 +641,22 @@ async fn run_acp_session(
                 .start_session()
                 .await?;
             timing.lock().await.mark("b3 session_started");
+
+            // Mark the session Idle so the spawn_runtime wait loop proceeds.
+            {
+                let mut map = sessions.lock().await;
+                if let Some(s) = map.get_mut(&session_id_init) {
+                    s.status = SessionRuntimeStatus::Idle;
+                    s.last_active = Instant::now();
+                }
+            }
+            emit_runtime(
+                &app_for_init,
+                &session_id_init,
+                &card_id_init,
+                &agent_id_init,
+                &SessionRuntimeStatus::Idle,
+            );
 
             loop {
                 let cmd = match cmd_rx.recv().await {

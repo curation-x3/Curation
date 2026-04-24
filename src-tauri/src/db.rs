@@ -293,7 +293,13 @@ impl CacheDb {
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id)
             );
-            CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);",
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );",
         )
         .map_err(|e| e.to_string())
     }
@@ -1019,6 +1025,54 @@ impl CacheDb {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         Ok(rows)
+    }
+
+    pub fn get_card_id_for_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<String>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT card_id FROM chat_sessions WHERE session_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query_map([session_id], |row| row.get::<_, Option<String>>(0))
+            .map_err(|e| e.to_string())?;
+        match rows.next() {
+            Some(Ok(v)) => Ok(v),
+            Some(Err(e)) => Err(e.to_string()),
+            None => Ok(None),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // App settings
+    // -----------------------------------------------------------------------
+
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT value FROM app_settings WHERE key = ?1")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query_map([key], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        match rows.next() {
+            Some(Ok(v)) => Ok(Some(v)),
+            Some(Err(e)) => Err(e.to_string()),
+            None => Ok(None),
+        }
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
+            rusqlite::params![key, value],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
     }
 
 }
