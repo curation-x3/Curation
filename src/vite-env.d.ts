@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare const __IS_WEB__: boolean;
+declare const __IS_TAURI__: boolean;
