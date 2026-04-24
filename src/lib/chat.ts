@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-
+// Types owned here; both platform implementations import them.
 export interface AgentConfig {
   name: string;
   id: string;
@@ -30,38 +29,13 @@ export interface ChatStreamEvent {
   content: string;
 }
 
-export function detectAgents(): Promise<AgentConfig[]> {
-  return invoke("detect_available_agents");
-}
-
-export function createChatSession(
-  cardId: string | null,
-  agentId: string,
-): Promise<ChatSession> {
-  return invoke("create_chat_session", { cardId, agentId });
-}
-
-export function getSessionForCard(cardId: string): Promise<ChatSession | null> {
-  return invoke("get_session_for_card", { cardId });
-}
-
-export function getHomeSession(): Promise<ChatSession | null> {
-  return invoke("get_home_session");
-}
-
-export function getChatMessages(sessionId: string): Promise<ChatMessage[]> {
-  return invoke("get_chat_messages", { sessionId });
-}
-
-export function sendChatMessage(
-  sessionId: string,
-  agentId: string,
-  message: string,
-  systemPrompt: string,
-): Promise<string> {
-  return invoke("send_chat_message", { sessionId, agentId, message, systemPrompt });
-}
-
-export function cancelChatStream(): Promise<void> {
-  return invoke("cancel_chat_stream");
-}
+export {
+  IS_CHAT_AVAILABLE,
+  detectAgents,
+  createChatSession,
+  getSessionForCard,
+  getHomeSession,
+  getChatMessages,
+  sendChatMessage,
+  cancelChatStream,
+} from "./platform/chat";
