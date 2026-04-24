@@ -38,6 +38,38 @@ export function sendChatMessage(
   return unavailable("sendChatMessage");
 }
 
-export function cancelChatStream(): Promise<void> {
+export function cancelChatStream(_sessionId: string): Promise<void> {
   return Promise.resolve();
+}
+
+export interface RuntimeSnapshot {
+  session_id: string;
+  card_id: string | null;
+  agent_id: string;
+  status:
+    | { kind: "starting" }
+    | { kind: "idle" }
+    | { kind: "running" }
+    | { kind: "stopping" }
+    | { kind: "errored"; message: string };
+  last_active_ms: number;
+}
+
+export interface AcpRuntimeEvent {
+  session_id: string;
+  card_id: string | null;
+  agent_id: string;
+  status: RuntimeSnapshot["status"];
+}
+
+export function listAcpRuntime(): Promise<RuntimeSnapshot[]> {
+  return Promise.resolve([]);
+}
+
+export function setAcpMaxAlive(_n: number): Promise<void> {
+  return Promise.resolve();
+}
+
+export function getAcpMaxAlive(): Promise<number> {
+  return Promise.resolve(3);
 }

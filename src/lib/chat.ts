@@ -38,4 +38,8 @@ export {
   getChatMessages,
   sendChatMessage,
   cancelChatStream,
+  listAcpRuntime,
+  setAcpMaxAlive,
+  getAcpMaxAlive,
 } from "./platform/chat";
+export type { RuntimeSnapshot, AcpRuntimeEvent } from "./platform/chat";

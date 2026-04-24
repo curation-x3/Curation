@@ -11,3 +11,7 @@ export const getHomeSession = impl.getHomeSession;
 export const getChatMessages = impl.getChatMessages;
 export const sendChatMessage = impl.sendChatMessage;
 export const cancelChatStream = impl.cancelChatStream;
+export const listAcpRuntime = impl.listAcpRuntime;
+export const setAcpMaxAlive = impl.setAcpMaxAlive;
+export const getAcpMaxAlive = impl.getAcpMaxAlive;
+export type { RuntimeSnapshot, AcpRuntimeEvent } from "./chat.tauri";

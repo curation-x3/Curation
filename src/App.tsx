@@ -28,6 +28,7 @@ import { authingClient } from './lib/authing';
 import { useAppearance } from "./hooks/useAppearance";
 import { useFontShortcuts } from "./hooks/useFontShortcuts";
 import { SettingsDrawer } from "./components/SettingsDrawer";
+import { startAcpListener } from "./lib/acp/listener";
 import "./App.css";
 
 // Boot info
@@ -199,6 +200,11 @@ function AppMain({ currentUser, onLogout }: {
   const { data: discardedItems, isLoading: isLoadingDiscarded } = useDiscarded();
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
+
+  // Start ACP runtime event listener once (survives card switches).
+  useEffect(() => {
+    startAcpListener().catch(() => {});
+  }, []);
 
   // Reset admin view when leaving admin mode
   useEffect(() => {

@@ -35,6 +35,38 @@ export function sendChatMessage(
   return invoke("send_chat_message", { sessionId, agentId, message, systemPrompt });
 }
 
-export function cancelChatStream(): Promise<void> {
-  return invoke("cancel_chat_stream");
+export function cancelChatStream(sessionId: string): Promise<void> {
+  return invoke("cancel_chat_stream", { sessionId });
+}
+
+export interface RuntimeSnapshot {
+  session_id: string;
+  card_id: string | null;
+  agent_id: string;
+  status:
+    | { kind: "starting" }
+    | { kind: "idle" }
+    | { kind: "running" }
+    | { kind: "stopping" }
+    | { kind: "errored"; message: string };
+  last_active_ms: number;
+}
+
+export interface AcpRuntimeEvent {
+  session_id: string;
+  card_id: string | null;
+  agent_id: string;
+  status: RuntimeSnapshot["status"];
+}
+
+export function listAcpRuntime(): Promise<RuntimeSnapshot[]> {
+  return invoke("list_acp_runtime");
+}
+
+export function setAcpMaxAlive(n: number): Promise<void> {
+  return invoke("set_acp_max_alive", { n });
+}
+
+export function getAcpMaxAlive(): Promise<number> {
+  return invoke("get_acp_max_alive");
 }
