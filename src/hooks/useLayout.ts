@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const LAYOUT_RATIO_SIDEBAR = 1;
+const LAYOUT_RATIO_SIDEBAR = 1.4;
 const LAYOUT_RATIO_LIST = 1.8;
 const LAYOUT_RATIO_READER = 4;
 const LAYOUT_RATIO_SUM = LAYOUT_RATIO_SIDEBAR + LAYOUT_RATIO_LIST + LAYOUT_RATIO_READER;
@@ -10,7 +10,7 @@ function initialColumnWidthsFromViewport(): { sidebar: number; list: number } {
   const w = typeof window !== "undefined" ? window.innerWidth : 1200;
   const avail = Math.max(0, w - LIST_READER_RESIZER_PX);
   const unit = avail / LAYOUT_RATIO_SUM;
-  const sidebar = Math.max(150, Math.min(500, Math.round(unit * LAYOUT_RATIO_SIDEBAR)));
+  const sidebar = Math.max(220, Math.min(500, Math.round(unit * LAYOUT_RATIO_SIDEBAR)));
   const list = Math.max(200, Math.min(600, Math.round(unit * LAYOUT_RATIO_LIST)));
   return { sidebar, list };
 }
