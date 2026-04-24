@@ -14,22 +14,24 @@ export function setApiBase(_apiBase: string): Promise<void> {
 }
 
 export async function getInboxCards(
-  account?: string | null,
+  biz?: string | null,
   unreadOnly?: boolean,
 ): Promise<CachedCard[]> {
   const params = new URLSearchParams();
-  if (account) params.set("account", account);
+  if (biz) params.set("biz", biz);
   if (unreadOnly) params.set("unread_only", "true");
   const qs = params.toString();
   const res = await apiFetch(`/inbox${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error(`GET /inbox failed: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  return data.items ?? [];
 }
 
 export async function getFavorites(): Promise<CachedFavorite[]> {
   const res = await apiFetch(`/favorites`);
   if (!res.ok) throw new Error(`GET /favorites failed: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  return data.items ?? [];
 }
 
 export function searchCards(_query: string): Promise<SearchResult[]> {
@@ -87,7 +89,8 @@ export async function getCardContent(cardId: string): Promise<string | null> {
 export async function getCachedAccounts(): Promise<CachedAccount[]> {
   const res = await apiFetch(`/accounts`);
   if (!res.ok) throw new Error(`GET /accounts failed: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  return data.status === "ok" ? data.data : [];
 }
 
 export function saveCachedAccounts(_accounts: Record<string, unknown>[]): Promise<number> {
@@ -97,7 +100,8 @@ export function saveCachedAccounts(_accounts: Record<string, unknown>[]): Promis
 export async function getCachedDiscoverableAccounts(): Promise<Record<string, unknown>[]> {
   const res = await apiFetch(`/accounts/discoverable`);
   if (!res.ok) return [];
-  return res.json();
+  const data = await res.json();
+  return data.status === "ok" ? data.data : [];
 }
 
 export function saveCachedDiscoverableAccounts(
@@ -106,9 +110,9 @@ export function saveCachedDiscoverableAccounts(
   return Promise.resolve(0);
 }
 
-export async function runSync(): Promise<string[]> {
-  const res = await apiFetch(`/sync`);
-  if (!res.ok) throw new Error(`run_sync failed: ${res.status}`);
-  const data = await res.json();
-  return Array.isArray(data?.updated_card_ids) ? data.updated_card_ids : [];
+export function runSync(): Promise<string[]> {
+  // Web has no local cache to refresh; just invalidate React Query keys
+  // by returning an empty "touched keys" list. The WebSocket push path
+  // will tell us when to refetch specific queries.
+  return Promise.resolve([]);
 }
