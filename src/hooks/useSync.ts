@@ -15,6 +15,13 @@ export function useInitCache(isLoggedIn: boolean, userId: string | null) {
       const token = getAuthToken();
       if (!token) return;
 
+      if (__IS_WEB__) {
+        // Web build has no local cache; skip secret fetch + DB init entirely.
+        initialized.current = true;
+        setCacheReady(true);
+        return;
+      }
+
       await setApiBase(getApiBase());
 
       // Fetch server-managed DB secret; stable across token rotations.
