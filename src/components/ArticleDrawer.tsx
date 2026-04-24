@@ -4,16 +4,8 @@ import { useArticleContent } from "../hooks/useArticles";
 import { FavoriteButton } from "./FavoriteButton";
 import { AdminAnnotationFlag } from "./AdminAnnotationFlag";
 import { useAuth } from "../lib/authStore";
+import { openExternal } from "../lib/platform/url-opener";
 import type { InboxItem } from "../types";
-
-async function openInAppWindow(url: string) {
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("open_url_window", { url });
-  } catch {
-    window.open(url, "_blank");
-  }
-}
 
 interface ArticleDrawerProps {
   isOpen: boolean;
@@ -97,7 +89,7 @@ export function ArticleDrawer({
             )}
             <button
               className="btn-icon"
-              onClick={() => openInAppWindow(item.article_meta.url)}
+              onClick={() => openExternal(item.article_meta.url)}
               title="在浏览器打开"
               style={{ padding: 4 }}
             >
