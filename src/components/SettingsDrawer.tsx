@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X, ArrowUpRight, FolderOpen } from "lucide-react";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { openFolderPicker } from "../lib/platform/dialog";
 import type { AppearanceSettings, FontBody, ThemeMode } from "../lib/appearance";
 import {
   READER_SIZE_DEFAULT,
@@ -350,13 +350,9 @@ export function SettingsDrawer({
                   className="ts-footer-btn primary"
                   style={{ padding: "5px 12px", fontSize: "var(--fs-sm)", display: "flex", alignItems: "center", gap: 4 }}
                   onClick={async () => {
-                    const selected = await openDialog({
-                      directory: true,
-                      title: "选择笔记文件夹",
-                      defaultPath: notesPath || undefined,
-                    });
+                    const selected = await openFolderPicker({ title: "选择笔记文件夹" });
                     if (selected) {
-                      onNotesPathChange(selected as string);
+                      onNotesPathChange(selected);
                     }
                   }}
                 >
