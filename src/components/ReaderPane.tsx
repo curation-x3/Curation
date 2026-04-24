@@ -14,6 +14,7 @@ import { AdminAnnotationFlag } from "./AdminAnnotationFlag";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
 import { CardFrame } from "./CardFrame";
+import { TauriOnly } from "./platform/TauriOnly";
 import { useChat, useAgentDetection } from "../hooks/useChat";
 import type { InboxItem, DiscardedItem } from "../types";
 
@@ -334,18 +335,20 @@ ${cardContentData?.content ?? "（正文加载中）"}`;
           />
         </div>
       </div>
-      <ChatInput
-        agents={agents}
-        selectedAgentId={selectedAgentId}
-        onSelectAgent={setSelectedAgentId}
-        connectionStatus={chat.connectionStatus}
-        isStreaming={chat.isStreaming}
-        onSend={handleSend}
-        onCancel={chat.cancel}
-        onClear={handleClear}
-        onSaveToNotes={handleSaveToNotes}
-        hasMessages={chat.messages.length > 0}
-      />
+      <TauriOnly>
+        <ChatInput
+          agents={agents}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={setSelectedAgentId}
+          connectionStatus={chat.connectionStatus}
+          isStreaming={chat.isStreaming}
+          onSend={handleSend}
+          onCancel={chat.cancel}
+          onClear={handleClear}
+          onSaveToNotes={handleSaveToNotes}
+          hasMessages={chat.messages.length > 0}
+        />
+      </TauriOnly>
       {(item.card_id || item.article_id) && (
         <div
           style={{

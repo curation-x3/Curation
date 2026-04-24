@@ -280,7 +280,7 @@ export function Sidebar({
               + {!isSidebarCollapsed && <span style={{ fontSize: "var(--fs-sm)", marginLeft: 4 }}>添加</span>}
             </button>
           </div>
-          {!isSidebarCollapsed && currentUser.role === "admin" && (
+          {!isSidebarCollapsed && currentUser.role === "admin" && !__IS_WEB__ && (
             <button
               className="btn-icon"
               style={{ background: isAdminMode ? "var(--accent-gold)" : "var(--bg-panel)" }}

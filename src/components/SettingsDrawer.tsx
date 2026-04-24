@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, ArrowUpRight, FolderOpen } from "lucide-react";
 import { openFolderPicker } from "../lib/platform/dialog";
+import { TauriOnly } from "./platform/TauriOnly";
 import type { AppearanceSettings, FontBody, ThemeMode } from "../lib/appearance";
 import {
   READER_SIZE_DEFAULT,
@@ -322,49 +323,51 @@ export function SettingsDrawer({
           </>}
 
           {tab === "general" && <>
-          <Section roman="V" title="笔记" stagger={0}>
-            <div className="ts-field">
-              <div className="ts-field-label">
-                <span>笔记路径</span>
-                <span className="ts-field-hint">保存卡片到本地笔记系统</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div
-                  style={{
-                    flex: 1,
-                    background: "var(--bg-base)",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: 6,
-                    padding: "6px 10px",
-                    color: notesPath ? "var(--text-primary)" : "var(--text-muted)",
-                    fontSize: "var(--fs-sm)",
-                    fontFamily: "var(--font-mono)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {notesPath || "未设置"}
+          <TauriOnly>
+            <Section roman="V" title="笔记" stagger={0}>
+              <div className="ts-field">
+                <div className="ts-field-label">
+                  <span>笔记路径</span>
+                  <span className="ts-field-hint">保存卡片到本地笔记系统</span>
                 </div>
-                <button
-                  className="ts-footer-btn primary"
-                  style={{ padding: "5px 12px", fontSize: "var(--fs-sm)", display: "flex", alignItems: "center", gap: 4 }}
-                  onClick={async () => {
-                    const selected = await openFolderPicker({
-                      title: "选择笔记文件夹",
-                      defaultPath: notesPath || undefined,
-                    });
-                    if (selected) {
-                      onNotesPathChange(selected);
-                    }
-                  }}
-                >
-                  <FolderOpen size={13} />
-                  选择
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div
+                    style={{
+                      flex: 1,
+                      background: "var(--bg-base)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: 6,
+                      padding: "6px 10px",
+                      color: notesPath ? "var(--text-primary)" : "var(--text-muted)",
+                      fontSize: "var(--fs-sm)",
+                      fontFamily: "var(--font-mono)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {notesPath || "未设置"}
+                  </div>
+                  <button
+                    className="ts-footer-btn primary"
+                    style={{ padding: "5px 12px", fontSize: "var(--fs-sm)", display: "flex", alignItems: "center", gap: 4 }}
+                    onClick={async () => {
+                      const selected = await openFolderPicker({
+                        title: "选择笔记文件夹",
+                        defaultPath: notesPath || undefined,
+                      });
+                      if (selected) {
+                        onNotesPathChange(selected);
+                      }
+                    }}
+                  >
+                    <FolderOpen size={13} />
+                    选择
+                  </button>
+                </div>
               </div>
-            </div>
-          </Section>
+            </Section>
+          </TauriOnly>
 
           <Section roman="VI" title="账号" stagger={1}>
             <div className="ts-account">

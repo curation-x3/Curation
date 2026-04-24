@@ -481,7 +481,7 @@ function AppMain({ currentUser, onLogout }: {
       />
 
       {/* Pane 3: Reader / Admin */}
-      {isAdminMode ? (
+      {isAdminMode && !__IS_WEB__ ? (
         <main className="reader-pane" style={{ overflow: "hidden" }}>
           <AdminPane
             adminView={adminView}
