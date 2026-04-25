@@ -2,6 +2,7 @@ import { listen, type UnlistenFn } from "../platform/sync-event";
 import { listAcpRuntime, type AcpRuntimeEvent, type ChatStreamEvent } from "../chat";
 import { useAcpStore } from "./store";
 import { useStreamStore } from "./streamStore";
+import { useCardStatusStore } from "./cardStatusStore";
 
 let started = false;
 let unlistenRuntime: UnlistenFn | null = null;
@@ -35,7 +36,21 @@ function startTypingLoop(): void {
         store.reveal(sessionId, delta);
       } else if (state.done) {
         // Buffer drained — finalize this session.
+        const wasErrored = state.errored;
         store.clear(sessionId);
+        if (!wasErrored) {
+          // Transition card to "unread" — ReaderPane downgrades to "read"
+          // for the currently-viewed card. Skip if card is already "error"
+          // so a prior failure remains visible.
+          const entry = useAcpStore.getState().bySession[sessionId];
+          const cardId = entry?.cardId ?? null;
+          if (cardId) {
+            const cur = useCardStatusStore.getState().byCard[cardId];
+            if (cur !== "error") {
+              useCardStatusStore.getState().setStatus(cardId, "unread");
+            }
+          }
+        }
         window.dispatchEvent(new CustomEvent(STREAM_FINALIZED, { detail: sessionId }));
       }
     }
@@ -61,7 +76,21 @@ export async function startAcpListener(): Promise<void> {
   }
 
   unlistenRuntime = await listen<AcpRuntimeEvent>("acp-runtime", (event) => {
-    useAcpStore.getState().applyEvent(event.payload);
+    const evt = event.payload;
+    // Errored runtime events delete the session from the store, so capture
+    // the cardId here before applyEvent runs.
+    if (evt.status.kind === "errored" && evt.card_id) {
+      useCardStatusStore.getState().setStatus(evt.card_id, "error");
+    }
+    // Stopping is the only signal for graceful shutdown — backend does not
+    // emit a "removed" event after the task exits cleanly.
+    if (evt.status.kind === "stopping" && evt.card_id) {
+      const cur = useCardStatusStore.getState().byCard[evt.card_id];
+      if (cur && cur !== "error") {
+        useCardStatusStore.getState().setStatus(evt.card_id, "closed");
+      }
+    }
+    useAcpStore.getState().applyEvent(evt);
   });
 
   unlistenStream = await listen<ChatStreamEvent>("chat-stream", (event) => {
@@ -73,6 +102,10 @@ export async function startAcpListener(): Promise<void> {
       stream.markDone(session_id);
     } else if (event_type === "error") {
       stream.markError(session_id);
+      const entry = useAcpStore.getState().bySession[session_id];
+      if (entry?.cardId) {
+        useCardStatusStore.getState().setStatus(entry.cardId, "error");
+      }
       window.dispatchEvent(new CustomEvent(STREAM_FINALIZED, { detail: session_id }));
     }
   });

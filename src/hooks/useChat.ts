@@ -15,6 +15,7 @@ import { AcpTiming } from "../lib/acp/timing";
 import { useRuntimeEntry } from "../lib/acp/store";
 import { useSessionStream, useStreamStore } from "../lib/acp/streamStore";
 import { onStreamFinalized } from "../lib/acp/listener";
+import { useCardStatusStore } from "../lib/acp/cardStatusStore";
 
 // ─── useAgentDetection ───────────────────────────────────────────────────────
 
@@ -149,6 +150,10 @@ export function useChat(cardId: string | null, ready: boolean = true) {
           setSession(activeSession);
         }
 
+        if (cardId) {
+          useCardStatusStore.getState().setStatus(cardId, "pending");
+        }
+
         // Timing instrumentation for this turn
         timingRef.current = new AcpTiming(activeSession.session_id);
         timingRef.current.mark("t0 send_clicked");
@@ -202,6 +207,9 @@ export function useChat(cardId: string | null, ready: boolean = true) {
       const newSession = await createChatSession(cardId, agentId);
       setSession(newSession);
       setMessages([]);
+      if (cardId) {
+        useCardStatusStore.getState().clear(cardId);
+      }
     },
     [cardId, sessionId],
   );

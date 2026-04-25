@@ -17,6 +17,7 @@ import { CardFrame } from "./CardFrame";
 import { AcpRunningDot } from "./AcpRunningDot";
 import { TauriOnly } from "./platform/TauriOnly";
 import { useChat, useAgentDetection } from "../hooks/useChat";
+import { useCardStatusStore } from "../lib/acp/cardStatusStore";
 import type { InboxItem, DiscardedItem } from "../types";
 
 function sourceBarTag(routing: "ai_curation" | "original_push" | null, isDiscarded: boolean) {
@@ -246,6 +247,22 @@ ${cardContentData?.content ?? "（正文加载中）"}`;
     if (!selectedAgentId) return;
     chat.clearSession(selectedAgentId);
   }, [selectedAgentId, chat.clearSession]);
+
+  // While viewing a card, downgrade ACP "unread" → "read" immediately,
+  // and keep doing so if a new reply arrives during this visit.
+  useEffect(() => {
+    const cid = selectedItem?.card_id;
+    if (!cid) return;
+    const downgrade = () => {
+      const cur = useCardStatusStore.getState().byCard[cid];
+      if (cur === "unread") {
+        useCardStatusStore.getState().setStatus(cid, "read");
+      }
+    };
+    downgrade();
+    const unsub = useCardStatusStore.subscribe(downgrade);
+    return unsub;
+  }, [selectedItem?.card_id]);
 
   // Auto mark-read after 2 seconds
   useEffect(() => {
