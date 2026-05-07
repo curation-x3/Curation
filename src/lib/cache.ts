@@ -1,4 +1,6 @@
 // Types are owned here; both platform implementations import them.
+import type { TopicRef } from "../types";
+
 export interface CachedCard {
   card_id: string;
   article_id: string;
@@ -29,6 +31,7 @@ export interface CachedCard {
   /** JSON-encoded array of canonical entity name strings, exactly as stored
    *  in the local SQLite TEXT column. Parse with `parseEntities()` below. */
   entities: string | null;
+  topic?: TopicRef | null;
 }
 
 export interface CachedFavorite {

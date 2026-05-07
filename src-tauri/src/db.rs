@@ -17,6 +17,17 @@ fn encode_string_array(value: &serde_json::Value) -> Option<String> {
     }
 }
 
+fn decode_json_value(raw: Option<String>) -> Option<serde_json::Value> {
+    raw.and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+}
+
+fn encode_json_object(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::Object(_) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
 fn value_string_array(value: &serde_json::Value) -> Vec<String> {
     match value {
         serde_json::Value::Array(items) => items
@@ -63,6 +74,7 @@ pub struct CardRow {
     /// JSON-encoded array of canonical entity name strings, e.g. `["Anthropic","Claude Mythos"]`.
     /// Stored as TEXT in SQLite; the frontend parses it back to `string[]`.
     pub entities: Option<String>,
+    pub topic: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,7 +196,8 @@ impl CacheDb {
                 digest TEXT,
                 word_count INTEGER,
                 is_original INTEGER,
-                entities TEXT
+                entities TEXT,
+                topic TEXT
             );
             CREATE TABLE IF NOT EXISTS wechat_articles (
                 article_id TEXT PRIMARY KEY,
@@ -332,6 +345,7 @@ impl CacheDb {
                 "source_article_ids",
                 "ALTER TABLE cards ADD COLUMN source_article_ids TEXT",
             ),
+            ("topic", "ALTER TABLE cards ADD COLUMN topic TEXT"),
         ] {
             let probe = format!("SELECT {} FROM cards LIMIT 0", name);
             if !conn.prepare(&probe).is_ok() {
@@ -562,6 +576,30 @@ impl CacheDb {
             .ok();
         }
 
+        // 2026-05-07: /sync now carries inline Atlas topic refs. Rebuild
+        // local card rows once so the map can derive its taxonomy locally.
+        const MAP_TOPIC_SYNC_MARKER: &str = "map_topic_sync_v1";
+        let map_topic_done: bool = conn
+            .query_row(
+                "SELECT 1 FROM sync_state WHERE key = ?1",
+                [MAP_TOPIC_SYNC_MARKER],
+                |r| r.get::<_, i64>(0),
+            )
+            .is_ok();
+        if !map_topic_done {
+            let _ = conn.execute_batch(
+                "DELETE FROM cards;
+                 DELETE FROM cards_fts;
+                 DELETE FROM wechat_articles;
+                 DELETE FROM sync_state WHERE key = 'last_sync_ts';",
+            );
+            conn.execute(
+                "INSERT OR REPLACE INTO sync_state (key, value) VALUES (?1, '1')",
+                [MAP_TOPIC_SYNC_MARKER],
+            )
+            .ok();
+        }
+
         Ok(())
     }
 
@@ -579,7 +617,7 @@ impl CacheDb {
             "SELECT card_id, article_id, kind, source_card_ids, source_article_ids,
                     title, article_title, content_md, additional_content, description, routing,
                     template, template_reason, card_date, account, author, url, read_at, updated_at, publish_time,
-                    account_id, biz, cover_url, digest, word_count, is_original, entities
+                    account_id, biz, cover_url, digest, word_count, is_original, entities, topic
              FROM cards WHERE routing IS NOT NULL",
         );
         if let Some(_) = account {
@@ -622,6 +660,7 @@ impl CacheDb {
                     word_count: row.get(24)?,
                     is_original: row.get(25)?,
                     entities: row.get(26)?,
+                    topic: decode_json_value(row.get::<_, Option<String>>(27)?),
                 })
             })
             .map_err(|e| e.to_string())?
@@ -657,6 +696,7 @@ impl CacheDb {
                     word_count: row.get(24)?,
                     is_original: row.get(25)?,
                     entities: row.get(26)?,
+                    topic: decode_json_value(row.get::<_, Option<String>>(27)?),
                 })
             })
             .map_err(|e| e.to_string())?
@@ -1023,6 +1063,7 @@ impl CacheDb {
             let entities_json: Option<String> = match &card["entities"] {
                 v => encode_string_array(v),
             };
+            let topic_json = encode_json_object(&card["topic"]);
             // UPSERT. Server /sync owns content_md and additional_content;
             // both overwrite local values so card bodies and rich original
             // HTML are available from SQLite.
@@ -1031,8 +1072,8 @@ impl CacheDb {
                  (card_id, article_id, kind, source_card_ids, source_article_ids,
                   title, article_title, content_md, additional_content, description, routing,
                   template, template_reason, card_date, account, author, url, read_at, updated_at, publish_time,
-                  account_id, biz, cover_url, digest, word_count, is_original, entities)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27)
+                  account_id, biz, cover_url, digest, word_count, is_original, entities, topic)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28)
                  ON CONFLICT(card_id) DO UPDATE SET
                    article_id      = excluded.article_id,
                    kind            = excluded.kind,
@@ -1059,7 +1100,8 @@ impl CacheDb {
                    digest          = excluded.digest,
                    word_count      = excluded.word_count,
                    is_original     = excluded.is_original,
-                   entities        = excluded.entities",
+                   entities        = excluded.entities,
+                   topic           = excluded.topic",
                 rusqlite::params![
                     card_id,
                     card["article_id"].as_str().unwrap_or_default(),
@@ -1088,6 +1130,7 @@ impl CacheDb {
                     card["word_count"].as_i64(),
                     card["is_original"].as_bool().map(|b| if b { 1i64 } else { 0i64 }),
                     entities_json,
+                    topic_json,
                 ],
             )
             .map_err(|e| e.to_string())?;

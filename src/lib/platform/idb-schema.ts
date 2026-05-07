@@ -37,7 +37,9 @@ export const DB_NAME = "curation_cache_v2";
 // Force a card cache rebuild so existing rows receive that field.
 // v6 (2026-05-06): /sync now carries cards.content as content_md, so card
 // body reads are local and no longer lazy-loaded per card.
-export const DB_VERSION = 6;
+// v7 (2026-05-07): /sync now carries inline Atlas topic refs. Rebuild card
+// rows so the map can build its taxonomy from local cache.
+export const DB_VERSION = 7;
 
 export interface ArticleContentRow {
   article_id: string;

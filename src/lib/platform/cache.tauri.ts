@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { FavoriteItem } from "../../types";
+import type { FavoriteItem, TopicRef } from "../../types";
 
 export interface CachedCard {
   card_id: string;
@@ -32,6 +32,7 @@ export interface CachedCard {
    *  in the local SQLite TEXT column. Parse with `parseEntities()` from
    *  `lib/cache.ts` (returns [] for null / malformed input). */
   entities: string | null;
+  topic?: TopicRef | null;
 }
 
 export interface CachedFavorite {
