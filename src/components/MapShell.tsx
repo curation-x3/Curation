@@ -79,19 +79,22 @@ export function MapShell() {
       const meta = (card as any).article_meta ?? {};
       // useArticleContent returns ArticleContent from useArticles.ts which has
       // rawMarkdown as the primary body field (raw article markdown).
-      const body =
-        (q.data as any).rawMarkdown ??
-        (q.data as any).markdown ??
-        (q.data as any).content_md ??
-        (q.data as any).content ??
-        (q.data as any).body ??
-        "";
+      const rawHtml = typeof (q.data as any).rawHtml === "string" ? (q.data as any).rawHtml : undefined;
+      const rawMarkdown =
+        typeof (q.data as any).rawMarkdown === "string"
+          ? (q.data as any).rawMarkdown
+          : typeof (q.data as any).markdown === "string"
+            ? (q.data as any).markdown
+            : undefined;
+      const body = rawMarkdown ?? rawHtml ?? "";
       return {
         id: card.card_id ?? card.article_id ?? "",
         title: card.title ?? meta.title ?? "",
         account: meta.account ?? "",
         publish_time: meta.publish_time ?? "",
         content_md: typeof body === "string" ? body : "",
+        rawHtml,
+        rawMarkdown,
       };
     }, [q.data, card]);
     return { data, isLoading: q.isLoading };

@@ -41,6 +41,8 @@ export type ArticleContent = {
   account: string;
   publish_time: string;
   content_md: string;
+  rawHtml?: string;
+  rawMarkdown?: string;
 };
 
 // ===== Layout output (derived in lib/layout.ts) =====
