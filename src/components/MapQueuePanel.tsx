@@ -41,7 +41,8 @@ function RowRuns({ rowId, onOpenRun }: { rowId: number; onOpenRun: (runId: numbe
   const { data: runs = [], isLoading } = useQuery<Run[]>({
     queryKey: ["mapQueueRuns", rowId],
     queryFn: () => fetchMapQueueRuns(rowId),
-    staleTime: 10_000,
+    refetchInterval: 1000,
+    staleTime: 500,
   });
 
   return <InlineRunTable rows={runs} loading={isLoading} onOpenRun={onOpenRun} />;
