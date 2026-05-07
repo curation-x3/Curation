@@ -193,7 +193,7 @@ function AppMain({ currentUser, onLogout }: {
   // Layout
   const { listWidth, isResizingList, startResizeList } = useLayout();
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [adminView, setAdminView] = useState<"management" | "queue" | "aggregation" | "invites" | "users" | "annotations">("management");
+  const [adminView, setAdminView] = useState<"management" | "queue" | "aggregation" | "map" | "invites" | "users" | "annotations">("management");
   const [notification, setNotification] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string>("");
 

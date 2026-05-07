@@ -8,8 +8,9 @@ import { PreviewTriggerModal } from "./PreviewTriggerModal";
 import { InviteManagementPanel } from "./InviteManagementPanel";
 import { UserManagementPanel } from "./UserManagementPanel";
 import { AdminAnnotationTab } from "./AdminAnnotationTab";
+import { MapQueuePanel } from "./MapQueuePanel";
 
-type AdminView = "management" | "queue" | "aggregation" | "invites" | "users" | "annotations";
+type AdminView = "management" | "queue" | "aggregation" | "map" | "invites" | "users" | "annotations";
 
 interface AdminPaneProps {
   adminView: AdminView;
@@ -48,6 +49,16 @@ export function AdminPane({
             }}
           >
             文章队列
+          </button>
+          <button
+            onClick={() => onAdminViewChange("map")}
+            style={{
+              fontSize: '0.75rem', padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+              background: adminView === "map" ? 'var(--accent-gold)' : 'var(--bg-panel)',
+              color: adminView === "map" ? '#1a1208' : 'var(--text-muted)',
+            }}
+          >
+            今日舆图
           </button>
           <button
             onClick={() => onAdminViewChange("aggregation")}
@@ -103,6 +114,8 @@ export function AdminPane({
           <AdminSubscriptionPanel />
         ) : adminView === "queue" ? (
           <ArticleQueuePanel />
+        ) : adminView === "map" ? (
+          <MapQueuePanel />
         ) : adminView === "aggregation" ? (
           <DedupAggregationSection />
         ) : adminView === "invites" ? (

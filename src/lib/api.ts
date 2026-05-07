@@ -26,7 +26,7 @@ function computeWsBase(): string {
 }
 
 import { refreshAccessToken } from "./refreshAuth";
-import type { DedupQueueGroup, DedupQueueRow, DedupQueueSummary, DedupTaskRow, DedupTaskRun, CardSource } from "../types";
+import type { DedupQueueGroup, DedupQueueRow, DedupQueueSummary, DedupTaskRow, DedupTaskRun, CardSource, Run } from "../types";
 
 export const API_BASE = computeApiBase();
 export const WS_BASE = computeWsBase();
@@ -501,6 +501,113 @@ export async function setDedupAutoConfig(
 
 export async function runDedupAutoNow(target_date?: string): Promise<unknown> {
   const res = await apiFetch("/dedup/auto-run-now", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(target_date ? { target_date } : {}),
+  });
+  return res.json();
+}
+
+// ── Map / 今日舆图 admin queue ──────────────────────────────────────────
+
+export interface MapQueueRow {
+  id: number;
+  user_id: number;
+  card_date: string;
+  status: "pending" | "running" | "done" | "failed" | "locked";
+  task_id: number | null;
+  run_id: number | null;
+  card_count: number;
+  assignment_count: number;
+  l1_count: number;
+  fail_reason: string | null;
+  retry_count: number;
+  next_retry_at: string | null;
+  last_error_type: string | null;
+  started_at: string | null;
+  queued_at: string;
+  created_at: string;
+  updated_at: string;
+  latest_run?: {
+    run_id: number;
+    status: string;
+    backend: string | null;
+    error_msg: string | null;
+    created_at: string | null;
+    completed_at: string | null;
+  } | null;
+}
+
+export interface MapAutoConfig {
+  enabled: boolean;
+  last_run_date: string | null;
+  schedule: string;
+  auto_launch: boolean;
+  max_concurrency: number;
+  max_concurrency_hard_cap: number;
+  map_backend: string;
+}
+
+export async function fetchMapQueue(params: { user_id?: number; date?: string; status?: string } = {}): Promise<MapQueueRow[]> {
+  const qs = new URLSearchParams();
+  if (params.user_id !== undefined) qs.set("user_id", String(params.user_id));
+  if (params.date) qs.set("date", params.date);
+  if (params.status && params.status !== "all") qs.set("status", params.status);
+  const res = await apiFetch(qs.toString() ? `/map/queue?${qs}` : "/map/queue");
+  return res.json();
+}
+
+export async function enqueueMapQueue(user_ids: number[], dates: string[]): Promise<{ rows: unknown[] }> {
+  const res = await apiFetch("/map/queue/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_ids, dates }),
+  });
+  return res.json();
+}
+
+export async function dispatchMapQueue(queue_ids: number[], backend?: string): Promise<{ results: unknown[] }> {
+  const res = await apiFetch("/map/queue/dispatch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ queue_ids, backend }),
+  });
+  return res.json();
+}
+
+export async function retryMapQueueRow(id: number): Promise<unknown> {
+  const res = await apiFetch(`/map/queue/${id}/retry`, { method: "POST" });
+  return res.json();
+}
+
+export async function deleteMapQueueRow(id: number): Promise<unknown> {
+  const res = await apiFetch(`/map/queue/${id}`, { method: "DELETE" });
+  return res.json();
+}
+
+export async function fetchMapQueueRuns(id: number): Promise<Run[]> {
+  const res = await apiFetch(`/map/queue/${id}/runs`);
+  return res.json();
+}
+
+export async function fetchMapAutoConfig(): Promise<MapAutoConfig> {
+  const res = await apiFetch("/map/auto-config");
+  return res.json();
+}
+
+export async function setMapAutoConfig(
+  patch: Partial<{ enabled: boolean; auto_launch: boolean; max_concurrency: number; map_backend: string }>,
+): Promise<MapAutoConfig> {
+  const res = await apiFetch("/map/auto-config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return res.json();
+}
+
+export async function runMapAutoNow(target_date?: string): Promise<unknown> {
+  const res = await apiFetch("/map/auto-run-now", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(target_date ? { target_date } : {}),
