@@ -10,12 +10,12 @@
 import type { DBSchema } from "idb";
 import type { CachedCard, CachedFavorite, CachedAccount } from "../cache";
 
-// Web cache v2 intentionally uses a new IndexedDB database name instead of
+// Web cache v3 intentionally uses a new IndexedDB database name instead of
 // another in-place upgrade. The previous cache could be blocked by an old tab
 // during large clear-and-resync migrations, leaving the inbox query pending on
 // first paint. A fresh DB opens immediately, then /sync repopulates it page by
 // page just like the desktop app.
-export const DB_NAME = "curation_cache_v2";
+export const DB_NAME = "curation_cache_v3";
 // v2 (2026-05-04): server's /sync semantics changed from
 //   filter: card.updated_at > since
 // to
