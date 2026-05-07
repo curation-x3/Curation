@@ -14,6 +14,10 @@ type Props = {
   onMouseLeave: () => void;
   /** Optional: clicking the card body opens the drawer with full content. */
   onOpenDrawer?: () => void;
+  /** Route-hover previews should not steal hover from the route beneath them. */
+  interactive?: boolean;
+  /** Display label for the left footer; aggregate cards can override inherited account meta. */
+  sourceLabel?: string;
 };
 
 export function MapFloatingCard({
@@ -24,11 +28,16 @@ export function MapFloatingCard({
   onMouseEnter,
   onMouseLeave,
   onOpenDrawer,
+  interactive = true,
+  sourceLabel,
 }: Props) {
   const topic = dsl.topics.find((s) => s.id === card.topic?.id);
   const domain = dsl.domains.find((b) => b.id === topic?.domain_id);
   const sources = sourceCount(card);
   const account = card.article_meta?.account ?? "";
+  const defaultSourceLabel = sources > 1
+    ? `来源汇总 · ${sources} 张`
+    : `— ${account || "—"}`;
 
   return (
     <div
@@ -53,8 +62,8 @@ export function MapFloatingCard({
         boxShadow: "var(--map-shadow-pinned)",
         fontFamily: "var(--map-serif)",
         zIndex: 30,
-        pointerEvents: "auto",
-        cursor: onOpenDrawer ? "pointer" : "default",
+        pointerEvents: interactive ? "auto" : "none",
+        cursor: interactive && onOpenDrawer ? "pointer" : "default",
         animation: "map-fade-in 180ms cubic-bezier(.16,1,.3,1) both",
       }}
     >
@@ -112,7 +121,7 @@ export function MapFloatingCard({
           justifyContent: "space-between",
         }}
       >
-        <span>— {account || "—"}</span>
+        <span>{sourceLabel ?? defaultSourceLabel}</span>
         <span>{sources > 1 ? `多源汇聚 · ${sources} 张` : "· 单源"}</span>
       </div>
       <button
@@ -131,7 +140,7 @@ export function MapFloatingCard({
           color: "var(--map-vellum)",
           border: "none",
           padding: "8px 10px",
-          cursor: "pointer",
+          cursor: interactive ? "pointer" : "default",
           transition: "background .15s",
         }}
         onMouseEnter={(e) => {

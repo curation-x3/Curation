@@ -9,7 +9,7 @@ export function MapLegend() {
     <div
       style={{
         position: "absolute",
-        bottom: 36,
+        bottom: 178,
         left: 36,
         background: "var(--map-vellum)",
         border: "1px solid var(--map-ink)",
@@ -97,6 +97,19 @@ export function MapLegend() {
           </svg>
         }
         text="已读卡片"
+      />
+      <Row
+        glyph={
+          <svg width={22} height={14} viewBox="0 0 22 14">
+            <path
+              d="M11 1.3 12.6 5.1 16.7 5.4 13.6 8 14.6 12 11 9.9 7.4 12 8.4 8 5.3 5.4 9.4 5.1Z"
+              fill="var(--map-gold)"
+              stroke="var(--map-gold)"
+              strokeWidth={0.7}
+            />
+          </svg>
+        }
+        text="收藏卡片"
       />
       {/* Clickable row — toggles shared-entity links. */}
       <div

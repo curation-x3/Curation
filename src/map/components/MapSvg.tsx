@@ -81,6 +81,7 @@ export function MapSvg({
   favoritedIds,
 }: Props) {
   const [hoveredBigDomain, setHoveredBigDomain] = useState<string | null>(null);
+  const hasFocus = routeFocus != null || hoveredBigDomain != null;
 
   // Entity-based focus expansion: collect ALL cards that share the focused
   // entity, and ALL routes whose shared_entities list contains it. So hovering
@@ -233,7 +234,11 @@ export function MapSvg({
           dashed segments. Continents in front make it look like the
           journey "threads" through the islands. */}
       {layout.voyage_path && (
-        <g pointerEvents="none">
+        <g
+          pointerEvents="none"
+          opacity={hasFocus ? 0.18 : 1}
+          style={{ transition: "opacity 180ms" }}
+        >
           {/* Wide soft wash — the ink "halo" / wake */}
           <path
             d={layout.voyage_path}

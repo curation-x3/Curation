@@ -279,6 +279,28 @@ export function MapCanvas({
     setHovered(null);
   };
 
+  const sourceLabelForCard = useCallback(
+    (card: MapCard): string | undefined => {
+      const sourceIds = Array.isArray(card.source_card_ids)
+        ? card.source_card_ids
+        : [];
+      if (sourceIds.length <= 1) return undefined;
+
+      const sourceAccounts = sourceIds
+        .map((id) => cards.find((c) => c.card_id === id)?.article_meta?.account)
+        .filter((account): account is string => Boolean(account));
+      const uniqueAccounts = Array.from(new Set(sourceAccounts));
+      if (uniqueAccounts.length === 0) {
+        return `来源汇总 · ${sourceIds.length} 张`;
+      }
+      const visibleAccounts = uniqueAccounts.slice(0, 3).join("、");
+      const suffix =
+        uniqueAccounts.length > 3 ? ` 等 ${uniqueAccounts.length} 个来源` : "";
+      return `来源汇总 · ${sourceIds.length} 张 · ${visibleAccounts}${suffix}`;
+    },
+    [cards],
+  );
+
   const isCardReadFn = (card_id: string): boolean => {
     const c = cards.find((x) => x.card_id === card_id);
     if (!c) return false;
@@ -337,6 +359,7 @@ export function MapCanvas({
           onMouseEnter={() => setHovered(hoveredCard.card_id!)}
           onMouseLeave={() => setHovered(null)}
           onOpenDrawer={() => openDrawer(hoveredCard.card_id!)}
+          sourceLabel={sourceLabelForCard(hoveredCard)}
         />
       )}
 
@@ -355,6 +378,8 @@ export function MapCanvas({
             onMouseEnter={() => {}}
             onMouseLeave={() => {}}
             onOpenDrawer={() => openDrawer(card.card_id!)}
+            interactive={routeFocus?.pinned ?? false}
+            sourceLabel={sourceLabelForCard(card)}
           />
         ))}
 
