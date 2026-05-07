@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Play, RotateCcw, Trash2, RefreshCw, ChevronRight, ChevronDown, Eye } from "lucide-react";
+import { Play, RotateCcw, Trash2, ChevronRight, ChevronDown, Eye } from "lucide-react";
 import {
   fetchDedupQueueGroups, deleteDedupQueueRow, dispatchDedup, retryDedupQueueRow,
   fetchDedupAutoConfig, fetchDedupQueueSummary, setDedupAutoConfig, apiFetch,
@@ -9,6 +9,7 @@ import type { DedupQueueGroup, DedupQueueRow, DedupQueueSummary } from "../types
 import { cmp, fmtTime, SortableHeader, statusLabel } from "../lib/tableHelpers";
 import { SourceCardsDrawer } from "./SourceCardsDrawer";
 import { ArticleDrawer } from "./ArticleDrawer";
+import { DateFilter, QueueButton, QueueControlBar, QueueDivider, QueueSelect, QueueSpacer, QueueSummaryBar, QueueToggle, RefreshButton, StatusChips, type StatusOption } from "./AdminQueueControls";
 
 interface AdminUser {
   id: number;
@@ -20,6 +21,13 @@ interface AdminUser {
 type SortKey = "user_id" | "card_date" | "cluster_count" | "status" | "created_at" | "updated_at";
 const GROUP_COLS = "minmax(180px,1fr) 120px 90px 130px 100px 100px 110px";
 const CLUSTER_COLS = "70px minmax(180px,1fr) 110px 90px 90px 120px 120px 96px";
+const STATUS_OPTIONS: StatusOption[] = [
+  { value: "pending", label: "待派发" },
+  { value: "queued", label: "已排队", tone: "blue" },
+  { value: "running", label: "运行中", tone: "gold" },
+  { value: "done", label: "完成", tone: "green" },
+  { value: "failed", label: "失败", tone: "red" },
+];
 
 function groupStatusSummary(rows: DedupQueueRow[]) {
   if (rows.length === 0) return "无候选 cluster";
@@ -105,7 +113,7 @@ function QueueGroupSummary({ group }: { group: DedupQueueGroup }) {
 export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }) {
   const qc = useQueryClient();
 
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [dateFilter, setDateFilter]     = useState<string>("");
   const [expandedKey, setExpandedKey]   = useState<string | null>(null);
   const [sortKey, setSortKey]           = useState<SortKey>("created_at");
@@ -120,9 +128,8 @@ export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }
   const invalidate = () => qc.invalidateQueries({ queryKey: ["dedupQueue"] });
 
   const { data: queueGroups = [], refetch, isFetching } = useQuery<DedupQueueGroup[]>({
-    queryKey: ["dedupQueue", statusFilter === "all" ? undefined : statusFilter, dateFilter || undefined],
+    queryKey: ["dedupQueue", dateFilter || undefined],
     queryFn: () => fetchDedupQueueGroups({
-      status: statusFilter === "all" ? undefined : statusFilter,
       date:   dateFilter || undefined,
     }),
     refetchInterval: 1000,
@@ -165,17 +172,19 @@ export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }
   });
 
   const grouped = useMemo<DedupQueueGroup[]>(() => {
-    const groups = queueGroups.map((group) => ({
-      ...group,
-      rows: group.rows.slice().sort((a, b) => cmp(a.cluster_signature, b.cluster_signature)),
-    }));
+    const groups = queueGroups
+      .filter((group) => statusFilters.size === 0 || statusFilters.has(group.status))
+      .map((group) => ({
+        ...group,
+        rows: group.rows.slice().sort((a, b) => cmp(a.cluster_signature, b.cluster_signature)),
+      }));
     const dir = sortDir === "asc" ? 1 : -1;
     return groups.sort((a, b) => {
       const av = sortKey === "cluster_count" ? a.rows.length : (a as any)[sortKey];
       const bv = sortKey === "cluster_count" ? b.rows.length : (b as any)[sortKey];
       return cmp(av, bv) * dir;
     });
-  }, [queueGroups, sortDir, sortKey]);
+  }, [queueGroups, sortDir, sortKey, statusFilters]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => d === "asc" ? "desc" : "asc");
@@ -188,79 +197,63 @@ export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }
   const totalRunning = grouped.filter((g) => g.status === "running").length;
   const totalDone    = grouped.filter((g) => g.status === "done").length;
   const totalFailed  = grouped.filter((g) => g.status === "failed").length;
+  const toggleStatus = (status: string) => {
+    setStatusFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
 
       {/* Summary bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-base)", fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+      <QueueSummaryBar>
         <span>共 {grouped.length}</span>
-        <span style={{ color: "var(--border)" }}>|</span>
+        <QueueDivider />
         {totalPending > 0 && <span>待派发 <b style={{ color: "var(--text-primary)" }}>{totalPending}</b></span>}
         {totalQueued  > 0 && <span style={{ color: "var(--accent-blue)" }}>已排队 <b>{totalQueued}</b></span>}
         {totalRunning > 0 && <span style={{ color: "var(--accent-gold)" }}>运行中 <b>{totalRunning}</b></span>}
         {totalDone    > 0 && <span style={{ color: "var(--accent-green)" }}>完成 <b>{totalDone}</b></span>}
         {totalFailed  > 0 && <span style={{ color: "var(--accent-red)" }}>失败 <b>{totalFailed}</b></span>}
-        <div style={{ flex: 1 }} />
+        <QueueSpacer />
         {/* Tab1 controls only the cluster auto-preview (whether 4-5am batch
             generates clusters & enqueues them). Execution scheduler controls
             (auto_launch / max_concurrency) live on Tab2. */}
-        <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
-          title={autoConfig?.schedule ?? "daily 04:00-05:00 CST"}>
-          <input type="checkbox"
-            checked={!!autoConfig?.enabled}
-            disabled={autoToggleMut.isPending}
-            onChange={(e) => autoToggleMut.mutate({ enabled: e.target.checked })} />
-          <span>每日4-5点自动入队 {autoConfig?.enabled ? <b style={{ color: "var(--accent-green)" }}>开</b> : <b style={{ color: "var(--text-muted)" }}>关</b>}</span>
-          {autoConfig?.last_run_date && (
-            <span style={{ color: "var(--text-faint)" }}>· {autoConfig.last_run_date}</span>
-          )}
-        </label>
+        <QueueToggle
+          label="每日入队"
+          checked={!!autoConfig?.enabled}
+          disabled={autoToggleMut.isPending}
+          onChange={(checked) => autoToggleMut.mutate({ enabled: checked })}
+          title={autoConfig?.schedule ?? "daily 04:00-05:00 CST"}
+        />
+        {autoConfig?.last_run_date && <span style={{ color: "var(--text-faint)" }}>上次 {autoConfig.last_run_date}</span>}
         <label style={{ display: "flex", alignItems: "center", gap: 4 }}
           title={`自动入队用户并发（硬顶 ${autoConfig?.auto_user_concurrency_hard_cap ?? 4}）`}>
           <span>用户并发</span>
-          <select
+          <QueueSelect
             value={autoConfig?.auto_user_concurrency ?? 1}
             disabled={autoToggleMut.isPending}
-            onChange={(e) => autoToggleMut.mutate({ auto_user_concurrency: Number(e.target.value) })}
-            style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 6px", fontSize: "var(--fs-xs)" }}>
+            onChange={(value) => autoToggleMut.mutate({ auto_user_concurrency: Number(value) })}>
             {Array.from({ length: autoConfig?.auto_user_concurrency_hard_cap ?? 4 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
-          </select>
+          </QueueSelect>
         </label>
-      </div>
+      </QueueSummaryBar>
 
       {/* Controls bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", flexWrap: "wrap", fontSize: "var(--fs-sm)" }}>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 8px", fontSize: "var(--fs-xs)" }}>
-          <option value="all">全部状态</option>
-          <option value="pending">待派发</option>
-          <option value="queued">已排队</option>
-          <option value="running">运行中</option>
-          <option value="done">完成</option>
-          <option value="failed">失败</option>
-        </select>
-        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 6px", fontSize: "var(--fs-xs)" }} />
-        {dateFilter && (
-          <button onClick={() => setDateFilter("")} title="清除日期"
-            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "0 2px", fontSize: "var(--fs-xs)" }}>×</button>
-        )}
-
-        <div style={{ flex: 1 }} />
-
-        <button onClick={onOpenPreview}
-          style={{ background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontSize: "var(--fs-xs)" }}>
+      <QueueControlBar>
+        <StatusChips options={STATUS_OPTIONS} selected={statusFilters} onToggle={toggleStatus} onClear={() => setStatusFilters(new Set())} />
+        <DateFilter value={dateFilter} onChange={setDateFilter} />
+        <QueueSpacer />
+        <QueueButton onClick={onOpenPreview}>
           + 预触发
-        </button>
-
-        <button onClick={() => refetch()} title="刷新" disabled={isFetching}
-          style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", color: "var(--text-primary)", borderRadius: 4, padding: "2px 6px", cursor: isFetching ? "default" : "pointer", display: "flex", alignItems: "center" }}>
-          <RefreshCw size={12} style={isFetching ? { animation: "spin 1s linear infinite" } : undefined} />
-        </button>
-      </div>
+        </QueueButton>
+        <RefreshButton loading={isFetching} onClick={() => refetch()} />
+      </QueueControlBar>
 
       <div style={{ flex: 1, overflow: "auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: GROUP_COLS, padding: "6px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500, position: "sticky", top: 0, zIndex: 1, alignItems: "center" }}>

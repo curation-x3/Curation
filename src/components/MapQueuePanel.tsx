@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Play, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Play, RotateCcw, Trash2, X } from "lucide-react";
 import {
   apiFetch,
   deleteMapQueueRow,
@@ -16,7 +16,8 @@ import {
   type MapQueueRow,
 } from "../lib/api";
 import type { AgentBackends, Run } from "../types";
-import { cmp, fmtTime, runStatusColor, SortableHeader, statusLabel } from "../lib/tableHelpers";
+import { cmp, fmtTime, SortableHeader, statusLabel } from "../lib/tableHelpers";
+import { DateFilter, InlineRunTable, QueueButton, QueueControlBar, QueueDivider, QueueSelect, QueueSpacer, QueueSummaryBar, QueueToggle, RefreshButton, StatusChips, type StatusOption } from "./AdminQueueControls";
 import { RunDetailDrawer } from "./RunDetailDrawer";
 
 interface AdminUser {
@@ -28,6 +29,13 @@ interface AdminUser {
 
 type SortKey = "user_id" | "card_date" | "status" | "card_count" | "l1_count" | "queued_at" | "started_at";
 const COLS = "34px minmax(160px,1fr) 105px 90px 80px 80px 110px 105px 92px";
+const STATUS_OPTIONS: StatusOption[] = [
+  { value: "pending", label: "待处理" },
+  { value: "running", label: "运行中", tone: "gold" },
+  { value: "done", label: "完成", tone: "green" },
+  { value: "failed", label: "失败", tone: "red" },
+  { value: "locked", label: "锁定" },
+];
 
 function RowRuns({ rowId, onOpenRun }: { rowId: number; onOpenRun: (runId: number) => void }) {
   const { data: runs = [], isLoading } = useQuery<Run[]>({
@@ -36,48 +44,109 @@ function RowRuns({ rowId, onOpenRun }: { rowId: number; onOpenRun: (runId: numbe
     staleTime: 10_000,
   });
 
-  if (isLoading) return <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", padding: 8 }}>加载中...</div>;
-  if (runs.length === 0) return <div style={{ color: "var(--text-faint)", fontSize: "var(--fs-sm)", padding: 8 }}>暂无运行记录</div>;
+  return <InlineRunTable rows={runs} loading={isLoading} onOpenRun={onOpenRun} />;
+}
+
+function MapTriggerModal({
+  users,
+  backendList,
+  defaultBackend,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  users: AdminUser[];
+  backendList: string[];
+  defaultBackend: string;
+  onClose: () => void;
+  onSubmit: (input: { userId: number; date: string; backend?: string }) => Promise<unknown>;
+  submitting: boolean;
+}) {
+  const activeUsers = users.filter((u) => u.is_active);
+  const [userId, setUserId] = useState<number | "">(activeUsers[0]?.id ?? "");
+  const [date, setDate] = useState("");
+  const [backend, setBackend] = useState(defaultBackend);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (!userId) { setError("请选择用户"); return; }
+    if (!date) { setError("请选择日期"); return; }
+    try {
+      await onSubmit({ userId: Number(userId), date, backend: backend || undefined });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "触发失败");
+    }
+  };
 
   return (
-    <>
-      <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 80px 110px 110px", color: "var(--text-muted)", fontSize: "var(--fs-xs)", padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
-        <span>Run ID</span><span>后端</span><span>状态</span><span>开始时间</span><span>完成时间</span>
-      </div>
-      {runs.map((run) => (
-        <div key={run.run_id} style={{ display: "grid", gridTemplateColumns: "70px 1fr 80px 110px 110px", padding: "5px 0", borderBottom: "1px solid var(--bg-panel)", alignItems: "center" }}>
-          <a onClick={() => onOpenRun(run.run_id)} style={{ color: "var(--accent-blue)", fontSize: "var(--fs-sm)", cursor: "pointer", textDecoration: "none" }}>
-            #{run.run_id}
-          </a>
-          <span style={{ color: "var(--text-primary)", fontSize: "var(--fs-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{run.backend ?? "—"}</span>
-          <span style={{ color: runStatusColor(run.status), fontSize: "var(--fs-sm)" }}>{run.status}</span>
-          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>{fmtTime(run.started_at)}</span>
-          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>{fmtTime(run.completed_at)}</span>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 8, padding: 24, width: 420, maxWidth: "90vw", display: "flex", flexDirection: "column", gap: 16, color: "var(--text-primary)", fontSize: "var(--fs-sm)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontWeight: 600, fontSize: "var(--fs-base)" }}>触发今日舆图</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2, display: "flex" }}>
+            <X size={16} />
+          </button>
         </div>
-      ))}
-    </>
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500 }}>用户</span>
+          <select value={userId} onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : "")}
+            style={{ background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "5px 8px", fontSize: "var(--fs-sm)" }}>
+            {activeUsers.length === 0 && <option value="">暂无活跃用户</option>}
+            {activeUsers.map((u) => <option key={u.id} value={u.id}>{u.username || u.email || `user #${u.id}`}</option>)}
+          </select>
+        </label>
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500 }}>日期</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            style={{ background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: "var(--fs-sm)" }} />
+        </label>
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500 }}>后端</span>
+          <select value={backend} onChange={(e) => setBackend(e.target.value)}
+            style={{ background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "5px 8px", fontSize: "var(--fs-sm)" }}>
+            {defaultBackend && !backendList.includes(defaultBackend) && <option value={defaultBackend}>{defaultBackend}</option>}
+            {backendList.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </label>
+
+        {error && <div style={{ color: "var(--accent-red)", fontSize: "var(--fs-xs)" }}>{error}</div>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+          <QueueButton onClick={onClose}>取消</QueueButton>
+          <button onClick={submit} disabled={submitting}
+            style={{ background: submitting ? "var(--bg-base)" : "var(--accent-gold)", border: "none", borderRadius: 4, color: submitting ? "var(--text-muted)" : "#fff", padding: "5px 16px", cursor: submitting ? "default" : "pointer", fontSize: "var(--fs-sm)", fontWeight: 500 }}>
+            {submitting ? "提交中..." : "触发"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export function MapQueuePanel() {
   const qc = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [dateFilter, setDateFilter] = useState("");
   const [userFilter, setUserFilter] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [detailRunId, setDetailRunId] = useState<number | null>(null);
+  const [triggerOpen, setTriggerOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("queued_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const params = {
-    status: statusFilter,
     date: dateFilter || undefined,
     user_id: userFilter ? Number(userFilter) : undefined,
   };
 
   const { data: rows = [], refetch, isFetching } = useQuery<MapQueueRow[]>({
-    queryKey: ["mapQueue", params.status, params.date, params.user_id],
+    queryKey: ["mapQueue", params.date, params.user_id],
     queryFn: () => fetchMapQueue(params),
     refetchInterval: 1000,
     staleTime: 500,
@@ -117,6 +186,15 @@ export function MapQueuePanel() {
     mutationFn: (ids: number[]) => dispatchMapQueue(ids),
     onSuccess: invalidate,
   });
+  const triggerOneMut = useMutation({
+    mutationFn: async ({ userId, date, backend }: { userId: number; date: string; backend?: string }) => {
+      const created = await enqueueMapQueue([userId], [date]);
+      const ids = created.rows.map((row) => row.queue_id);
+      if (ids.length === 0) return { results: [] };
+      return dispatchMapQueue(ids, backend);
+    },
+    onSuccess: invalidate,
+  });
   const rerunMut = useMutation({
     mutationFn: async (id: number) => {
       await retryMapQueueRow(id);
@@ -130,10 +208,14 @@ export function MapQueuePanel() {
   });
 
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
+  const filteredRows = useMemo(() => {
+    if (statusFilters.size === 0) return rows;
+    return rows.filter((row) => statusFilters.has(row.status));
+  }, [rows, statusFilters]);
   const sortedRows = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
-    return rows.slice().sort((a, b) => cmp((a as any)[sortKey], (b as any)[sortKey]) * dir);
-  }, [rows, sortDir, sortKey]);
+    return filteredRows.slice().sort((a, b) => cmp((a as any)[sortKey], (b as any)[sortKey]) * dir);
+  }, [filteredRows, sortDir, sortKey]);
   const backendList = backendsData ? Object.keys(backendsData.backends ?? {}) : [];
 
   const toggleSort = (k: SortKey) => {
@@ -151,6 +233,14 @@ export function MapQueuePanel() {
       return next;
     });
   };
+  const toggleStatus = (status: string) => {
+    setStatusFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
@@ -162,68 +252,62 @@ export function MapQueuePanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-base)", fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+      <QueueSummaryBar>
         <span>共 {rows.length}</span>
-        <span style={{ color: "var(--border)" }}>|</span>
+        <QueueDivider />
         {(counts.pending ?? 0) > 0 && <span>待处理 <b style={{ color: "var(--text-primary)" }}>{counts.pending}</b></span>}
         {(counts.running ?? 0) > 0 && <span style={{ color: "var(--accent-gold)" }}>运行中 <b>{counts.running}</b></span>}
         {(counts.done ?? 0) > 0 && <span style={{ color: "var(--accent-green)" }}>完成 <b>{counts.done}</b></span>}
         {(counts.failed ?? 0) > 0 && <span style={{ color: "var(--accent-red)" }}>失败 <b>{counts.failed}</b></span>}
-        <div style={{ flex: 1 }} />
-        <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }} title={cfg?.schedule ?? "daily yesterday CST"}>
-          <input type="checkbox" checked={!!cfg?.enabled} disabled={cfgMut.isPending || !cfg} onChange={(e) => cfgMut.mutate({ enabled: e.target.checked })} />
-          <span>每日自动入队 {cfg?.enabled ? <b style={{ color: "var(--accent-green)" }}>开</b> : <b style={{ color: "var(--text-muted)" }}>关</b>}</span>
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }} title="默认保持关闭；打开后 scheduler 才会执行 pending 今日舆图任务">
-          <input type="checkbox" checked={!!cfg?.auto_launch} disabled={cfgMut.isPending || !cfg} onChange={(e) => cfgMut.mutate({ auto_launch: e.target.checked })} />
-          <span>调度 {cfg?.auto_launch ? <b style={{ color: "var(--accent-green)" }}>开</b> : <b style={{ color: "var(--accent-red)" }}>停</b>}</span>
-        </label>
-      </div>
+        <QueueSpacer />
+        <QueueToggle
+          label="每日入队"
+          checked={!!cfg?.enabled}
+          disabled={cfgMut.isPending || !cfg}
+          onChange={(checked) => cfgMut.mutate({ enabled: checked })}
+          title={cfg?.schedule ?? "daily yesterday CST"}
+        />
+        <QueueToggle
+          label="调度"
+          checked={!!cfg?.auto_launch}
+          disabled={cfgMut.isPending || !cfg}
+          onChange={(checked) => cfgMut.mutate({ auto_launch: checked })}
+          title="打开后 scheduler 才会执行 pending 今日舆图任务"
+        />
+      </QueueSummaryBar>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", flexWrap: "wrap", fontSize: "var(--fs-sm)" }}>
+      <QueueControlBar>
         <span style={{ color: "var(--text-muted)" }}>并发</span>
-        <select value={cfg?.max_concurrency ?? 1} disabled={!cfg || cfgMut.isPending} onChange={(e) => cfgMut.mutate({ max_concurrency: Number(e.target.value) })}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 4px", fontSize: "var(--fs-sm)" }}>
+        <QueueSelect value={cfg?.max_concurrency ?? 1} disabled={!cfg || cfgMut.isPending} onChange={(value) => cfgMut.mutate({ max_concurrency: Number(value) })}>
           {Array.from({ length: cfg?.max_concurrency_hard_cap ?? 3 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
+        </QueueSelect>
 
+        <QueueDivider />
         <span style={{ color: "var(--text-muted)" }}>后端</span>
-        <select value={cfg?.map_backend ?? ""} disabled={!cfg || cfgMut.isPending} onChange={(e) => cfgMut.mutate({ map_backend: e.target.value })}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 4px", fontSize: "var(--fs-sm)", maxWidth: 280 }}>
+        <QueueSelect value={cfg?.map_backend ?? ""} disabled={!cfg || cfgMut.isPending} maxWidth={280} onChange={(value) => cfgMut.mutate({ map_backend: value })}>
           {cfg?.map_backend && !backendList.includes(cfg.map_backend) && <option value={cfg.map_backend}>{cfg.map_backend}</option>}
           {backendList.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
+        </QueueSelect>
 
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 8px", fontSize: "var(--fs-xs)" }}>
-          <option value="all">全部状态</option>
-          <option value="pending">待处理</option>
-          <option value="running">运行中</option>
-          <option value="done">完成</option>
-          <option value="failed">失败</option>
-        </select>
-        <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 8px", fontSize: "var(--fs-xs)" }}>
+        <QueueDivider />
+        <StatusChips options={STATUS_OPTIONS} selected={statusFilters} onToggle={toggleStatus} onClear={() => setStatusFilters(new Set())} />
+
+        <QueueSelect value={userFilter} onChange={setUserFilter}>
           <option value="">全部用户</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.username || u.email || `user #${u.id}`}</option>)}
-        </select>
-        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 6px", fontSize: "var(--fs-xs)" }} />
+        </QueueSelect>
+        <DateFilter value={dateFilter} onChange={setDateFilter} />
 
-        <div style={{ flex: 1 }} />
-        <button disabled={!dateFilter || activeUsers.length === 0 || enqueueMut.isPending} onClick={() => enqueueMut.mutate({ userIds: activeUsers.map((u) => u.id), dates: [dateFilter] })}
-          style={{ background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", borderRadius: 4, padding: "2px 10px", cursor: dateFilter ? "pointer" : "default", fontSize: "var(--fs-xs)" }}>
+        <QueueSpacer />
+        <QueueButton disabled={triggerOneMut.isPending} onClick={() => setTriggerOpen(true)}>+ 单用户触发</QueueButton>
+        <QueueButton disabled={!dateFilter || activeUsers.length === 0 || enqueueMut.isPending} onClick={() => enqueueMut.mutate({ userIds: activeUsers.map((u) => u.id), dates: [dateFilter] })}>
           + 全用户入队
-        </button>
-        <button disabled={selectedIds.length === 0 || dispatchMut.isPending} onClick={() => dispatchMut.mutate(selectedIds)}
-          style={{ background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", borderRadius: 4, padding: "2px 10px", cursor: selectedIds.length ? "pointer" : "default", fontSize: "var(--fs-xs)" }}>
+        </QueueButton>
+        <QueueButton disabled={selectedIds.length === 0 || dispatchMut.isPending} onClick={() => dispatchMut.mutate(selectedIds)}>
           触发选中 {selectedIds.length || ""}
-        </button>
-        <button onClick={() => refetch()} title="刷新" disabled={isFetching}
-          style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", color: "var(--text-primary)", borderRadius: 4, padding: "2px 6px", cursor: isFetching ? "default" : "pointer", display: "flex", alignItems: "center" }}>
-          <RefreshCw size={12} style={isFetching ? { animation: "spin 1s linear infinite" } : undefined} />
-        </button>
-      </div>
+        </QueueButton>
+        <RefreshButton loading={isFetching} onClick={() => refetch()} />
+      </QueueControlBar>
 
       <div style={{ flex: 1, overflow: "auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: COLS, padding: "6px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500, position: "sticky", top: 0, zIndex: 1, alignItems: "center" }}>
@@ -302,6 +386,16 @@ export function MapQueuePanel() {
       </div>
 
       <RunDetailDrawer runId={detailRunId} onClose={() => setDetailRunId(null)} />
+      {triggerOpen && (
+        <MapTriggerModal
+          users={users}
+          backendList={backendList}
+          defaultBackend={cfg?.map_backend ?? ""}
+          onClose={() => setTriggerOpen(false)}
+          onSubmit={(input) => triggerOneMut.mutateAsync(input)}
+          submitting={triggerOneMut.isPending}
+        />
+      )}
     </div>
   );
 }

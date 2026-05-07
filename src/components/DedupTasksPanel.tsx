@@ -6,10 +6,11 @@ import {
   fetchDedupAutoConfig, setDedupAutoConfig, fetchBackends,
 } from "../lib/api";
 import type { AgentBackends, DedupTaskRow, DedupTaskRun, DedupQueueRow } from "../types";
-import { fmtTime, runStatusColor, statusLabel } from "../lib/tableHelpers";
+import { fmtTime, statusLabel } from "../lib/tableHelpers";
 import { RunDetailDrawer } from "./RunDetailDrawer";
 import { SourceCardsDrawer } from "./SourceCardsDrawer";
 import { ArticleDrawer } from "./ArticleDrawer";
+import { InlineRunTable, QueueControlBar, QueueDivider, QueueSelect, QueueSpacer, QueueSummaryBar, QueueToggle, RefreshButton, StatusChips, type StatusOption } from "./AdminQueueControls";
 
 function TaskRunHistory({ taskId, onOpenRun }: { taskId: number; onOpenRun: (runId: number) => void }) {
   const { data: runs = [], isLoading } = useQuery<DedupTaskRun[]>({
@@ -18,28 +19,7 @@ function TaskRunHistory({ taskId, onOpenRun }: { taskId: number; onOpenRun: (run
     staleTime: 10_000,
   });
 
-  if (isLoading) return <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>加载中…</span>;
-  if (runs.length === 0) return <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>暂无运行记录</span>;
-
-  return (
-    <>
-      <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 70px 90px 100px", color: "var(--text-muted)", fontSize: "var(--fs-xs)", padding: "4px 0", borderBottom: "1px solid var(--bg-panel)" }}>
-        <span>Run ID</span><span>后端</span><span>状态</span><span>开始时间</span><span>完成时间</span>
-      </div>
-      {runs.map((r) => (
-        <div key={r.run_id} style={{ display: "grid", gridTemplateColumns: "60px 1fr 70px 90px 100px", padding: "5px 0", borderBottom: "1px solid var(--bg-panel)", alignItems: "center" }}>
-          <a onClick={() => onOpenRun(r.run_id)}
-            style={{ color: "var(--accent-blue)", fontSize: "var(--fs-sm)", cursor: "pointer", textDecoration: "none" }}>
-            #{r.run_id}
-          </a>
-          <span style={{ color: "var(--text-primary)", fontSize: "var(--fs-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.backend ?? "—"}</span>
-          <span style={{ color: runStatusColor(r.status), fontSize: "var(--fs-sm)" }}>{r.status}</span>
-          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>{fmtTime(r.started_at)}</span>
-          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>{fmtTime(r.completed_at)}</span>
-        </div>
-      ))}
-    </>
-  );
+  return <InlineRunTable rows={runs} loading={isLoading} onOpenRun={onOpenRun} />;
 }
 
 function TaskServingRows({ taskId }: { taskId: number }) {
@@ -137,10 +117,17 @@ function ExpandedRow({ task, onOpenRun }: { task: DedupTaskRow; onOpenRun: (runI
 }
 
 const COLS = "24px 110px 100px 90px 70px 120px 140px 105px 105px 70px";
+const STATUS_OPTIONS: StatusOption[] = [
+  { value: "pending", label: "待执行" },
+  { value: "queued", label: "已排队", tone: "blue" },
+  { value: "running", label: "运行中", tone: "gold" },
+  { value: "done", label: "完成", tone: "green" },
+  { value: "failed", label: "失败", tone: "red" },
+];
 
 export function DedupTasksPanel() {
   const qc = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [detailRunId, setDetailRunId] = useState<number | null>(null);
   const [drawerSig, setDrawerSig] = useState<string | null>(null);
@@ -149,8 +136,8 @@ export function DedupTasksPanel() {
   const [articleUrl, setArticleUrl] = useState<string | null>(null);
 
   const { data: tasks = [], refetch, isFetching } = useQuery<DedupTaskRow[]>({
-    queryKey: ["dedupTasks", statusFilter === "all" ? undefined : statusFilter],
-    queryFn: () => fetchDedupTasks({ status: statusFilter === "all" ? undefined : statusFilter }),
+    queryKey: ["dedupTasks"],
+    queryFn: () => fetchDedupTasks(),
     refetchInterval: 1000,
     staleTime: 500,
   });
@@ -191,12 +178,21 @@ export function DedupTasksPanel() {
     });
   };
 
-  const totalPending = tasks.filter((t) => t.status === "pending").length;
-  const totalQueued  = tasks.filter((t) => t.status === "queued").length;
-  const totalRunning = tasks.filter((t) => t.status === "running").length;
-  const totalDone    = tasks.filter((t) => t.status === "done").length;
-  const totalFailed  = tasks.filter((t) => t.status === "failed").length;
+  const filteredTasks = tasks.filter((t) => statusFilters.size === 0 || statusFilters.has(t.status));
+  const totalPending = filteredTasks.filter((t) => t.status === "pending").length;
+  const totalQueued  = filteredTasks.filter((t) => t.status === "queued").length;
+  const totalRunning = filteredTasks.filter((t) => t.status === "running").length;
+  const totalDone    = filteredTasks.filter((t) => t.status === "done").length;
+  const totalFailed  = filteredTasks.filter((t) => t.status === "failed").length;
   const backendList = backendsData ? Object.keys(backendsData.backends ?? {}) : [];
+  const toggleStatus = (status: string) => {
+    setStatusFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -204,82 +200,56 @@ export function DedupTasksPanel() {
       {/* Scheduler control bar (mirrors ArticleQueuePanel; controls execution
           of queued rows). Tab1 controls cluster generation; this controls
           how queued rows turn into Runs. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-base)", fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
-          title="开 = scheduler 拉 queued 行 spawn run；关 = 全停（队列里只标记不执行）">
-          <input type="checkbox"
-            checked={!!cfg?.auto_launch}
-            disabled={cfgMut.isPending}
-            onChange={(e) => cfgMut.mutate({ auto_launch: e.target.checked })} />
-          <span>调度 {cfg?.auto_launch ? <b style={{ color: "var(--accent-green)" }}>开</b> : <b style={{ color: "var(--accent-red)" }}>停</b>}</span>
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 4 }}
-          title={`并发上限（硬顶 ${cfg?.max_concurrency_hard_cap ?? 2}）`}>
-          <span>并发</span>
-          <select
-            value={cfg?.max_concurrency ?? 1}
-            disabled={cfgMut.isPending || !cfg}
-            onChange={(e) => cfgMut.mutate({ max_concurrency: Number(e.target.value) })}
-            style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 4px", fontSize: "var(--fs-xs)" }}>
-            {Array.from({ length: cfg?.max_concurrency_hard_cap ?? 2 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 4 }}
-          title="聚合队列专用后端；不影响文章队列">
-          <span>后端</span>
-          <select
-            value={cfg?.dedup_backend ?? ""}
-            disabled={cfgMut.isPending || !cfg}
-            onChange={(e) => cfgMut.mutate({ dedup_backend: e.target.value })}
-            style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 4px", fontSize: "var(--fs-xs)", maxWidth: 280 }}>
-            {cfg?.dedup_backend && !backendList.includes(cfg.dedup_backend) && (
-              <option value={cfg.dedup_backend}>{cfg.dedup_backend}</option>
-            )}
-            {backendList.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </label>
-      </div>
-
-      {/* Summary bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-base)", fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
-        <span>共 {tasks.length}</span>
-        <span style={{ color: "var(--border)" }}>|</span>
+      <QueueSummaryBar>
+        <span>共 {filteredTasks.length}</span>
+        <QueueDivider />
         {totalPending > 0 && <span>待执行 <b style={{ color: "var(--text-primary)" }}>{totalPending}</b></span>}
         {totalQueued  > 0 && <span style={{ color: "var(--accent-blue)" }}>已排队 <b>{totalQueued}</b></span>}
         {totalRunning > 0 && <span style={{ color: "var(--accent-gold)" }}>运行中 <b>{totalRunning}</b></span>}
         {totalDone    > 0 && <span style={{ color: "var(--accent-green)" }}>完成 <b>{totalDone}</b></span>}
         {totalFailed  > 0 && <span style={{ color: "var(--accent-red)" }}>失败 <b>{totalFailed}</b></span>}
-      </div>
+        <QueueSpacer />
+        <QueueToggle
+          label="调度"
+          checked={!!cfg?.auto_launch}
+          disabled={cfgMut.isPending}
+          onChange={(checked) => cfgMut.mutate({ auto_launch: checked })}
+          title="开 = scheduler 拉 queued 行 spawn run；关 = 全停（队列里只标记不执行）"
+        />
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}
+          title={`并发上限（硬顶 ${cfg?.max_concurrency_hard_cap ?? 2}）`}>
+          <span>并发</span>
+          <QueueSelect
+            value={cfg?.max_concurrency ?? 1}
+            disabled={cfgMut.isPending || !cfg}
+            onChange={(value) => cfgMut.mutate({ max_concurrency: Number(value) })}>
+            {Array.from({ length: cfg?.max_concurrency_hard_cap ?? 2 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </QueueSelect>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}
+          title="聚合队列专用后端；不影响文章队列">
+          <span>后端</span>
+          <QueueSelect
+            value={cfg?.dedup_backend ?? ""}
+            disabled={cfgMut.isPending || !cfg}
+            maxWidth={280}
+            onChange={(value) => cfgMut.mutate({ dedup_backend: value })}>
+            {cfg?.dedup_backend && !backendList.includes(cfg.dedup_backend) && (
+              <option value={cfg.dedup_backend}>{cfg.dedup_backend}</option>
+            )}
+            {backendList.map((b) => <option key={b} value={b}>{b}</option>)}
+          </QueueSelect>
+        </label>
+      </QueueSummaryBar>
 
       {/* Controls bar */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 12, padding: "8px 16px",
-        borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)",
-        flexWrap: "wrap", fontSize: "var(--fs-sm)",
-      }}>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ background: "var(--bg-panel)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 8px", fontSize: "var(--fs-xs)" }}>
-          <option value="all">全部状态</option>
-          <option value="pending">待执行</option>
-          <option value="queued">已排队</option>
-          <option value="running">运行中</option>
-          <option value="done">完成</option>
-          <option value="failed">失败</option>
-        </select>
-
-        <div style={{ flex: 1 }} />
-
-        <button onClick={() => refetch()} title="刷新" disabled={isFetching}
-          style={{
-            background: "var(--bg-panel)", border: "1px solid var(--border)",
-            color: "var(--text-primary)", borderRadius: 4, padding: "2px 6px",
-            cursor: isFetching ? "default" : "pointer", display: "flex", alignItems: "center",
-          }}>
-          <RefreshCw size={12} style={isFetching ? { animation: "spin 1s linear infinite" } : undefined} />
-        </button>
-      </div>
+      <QueueControlBar>
+        <StatusChips options={STATUS_OPTIONS} selected={statusFilters} onToggle={toggleStatus} onClear={() => setStatusFilters(new Set())} />
+        <QueueSpacer />
+        <RefreshButton loading={isFetching} onClick={() => refetch()} />
+      </QueueControlBar>
 
       {/* Table */}
       <div style={{ flex: 1, overflow: "auto" }}>
@@ -305,7 +275,7 @@ export function DedupTasksPanel() {
         </div>
 
         {/* Rows */}
-        {tasks.map((task) => {
+        {filteredTasks.map((task) => {
           const key = rowKey(task);
           const isOpen = expanded.has(key);
           const latestRun = task.latest_run;
@@ -408,7 +378,7 @@ export function DedupTasksPanel() {
           );
         })}
 
-        {tasks.length === 0 && (
+        {filteredTasks.length === 0 && (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>暂无数据</div>
         )}
       </div>

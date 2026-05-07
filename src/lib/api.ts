@@ -548,6 +548,10 @@ export interface MapAutoConfig {
   map_backend: string;
 }
 
+export interface MapEnqueueResult {
+  rows: Array<{ queue_id: number; user_id: number; card_date: string }>;
+}
+
 export async function fetchMapQueue(params: { user_id?: number; date?: string; status?: string } = {}): Promise<MapQueueRow[]> {
   const qs = new URLSearchParams();
   if (params.user_id !== undefined) qs.set("user_id", String(params.user_id));
@@ -557,7 +561,7 @@ export async function fetchMapQueue(params: { user_id?: number; date?: string; s
   return res.json();
 }
 
-export async function enqueueMapQueue(user_ids: number[], dates: string[]): Promise<{ rows: unknown[] }> {
+export async function enqueueMapQueue(user_ids: number[], dates: string[]): Promise<MapEnqueueResult> {
   const res = await apiFetch("/map/queue/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

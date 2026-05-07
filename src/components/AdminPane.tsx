@@ -51,16 +51,6 @@ export function AdminPane({
             文章队列
           </button>
           <button
-            onClick={() => onAdminViewChange("map")}
-            style={{
-              fontSize: '0.75rem', padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
-              background: adminView === "map" ? 'var(--accent-gold)' : 'var(--bg-panel)',
-              color: adminView === "map" ? '#1a1208' : 'var(--text-muted)',
-            }}
-          >
-            今日舆图
-          </button>
-          <button
             onClick={() => onAdminViewChange("aggregation")}
             style={{
               fontSize: '0.75rem', padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
@@ -69,6 +59,16 @@ export function AdminPane({
             }}
           >
             聚合队列
+          </button>
+          <button
+            onClick={() => onAdminViewChange("map")}
+            style={{
+              fontSize: '0.75rem', padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+              background: adminView === "map" ? 'var(--accent-gold)' : 'var(--bg-panel)',
+              color: adminView === "map" ? '#1a1208' : 'var(--text-muted)',
+            }}
+          >
+            今日舆图
           </button>
           {currentUser.role === "admin" && (
             <>
@@ -114,10 +114,10 @@ export function AdminPane({
           <AdminSubscriptionPanel />
         ) : adminView === "queue" ? (
           <ArticleQueuePanel />
-        ) : adminView === "map" ? (
-          <MapQueuePanel />
         ) : adminView === "aggregation" ? (
           <DedupAggregationSection />
+        ) : adminView === "map" ? (
+          <MapQueuePanel />
         ) : adminView === "invites" ? (
           <InviteManagementPanel />
         ) : adminView === "annotations" ? (
