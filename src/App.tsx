@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLayout } from "./hooks/useLayout";
 import { useInbox, useDiscarded, useIsFirstSync, useAnalyzingQueue } from "./hooks/useInbox";
 import { useAccounts, usePrimeAccountsCache } from "./hooks/useAccounts";
@@ -64,21 +64,34 @@ const queryClient = new QueryClient({
 });
 
 function UpdateBanner() {
-  const [ready, setReady] = useState(false);
+  const [state, setState] = useState<"idle" | "downloading" | "ready" | "relaunching" | "error">("idle");
+  const [targetVersion, setTargetVersion] = useState<string | null>(null);
+  const checkInFlightRef = useRef(false);
+  const readyRef = useRef(false);
 
   useEffect(() => {
     const doCheck = async () => {
+      if (checkInFlightRef.current || readyRef.current) return;
+      checkInFlightRef.current = true;
       try {
         const u = await check();
         console.log('[updater] check result:', u ? `update available: ${u.version}` : 'up to date');
         if (u) {
+          setTargetVersion(u.version);
+          setState("downloading");
           console.log('[updater] downloading in background...');
           await u.downloadAndInstall();
           console.log('[updater] download complete, ready to relaunch');
-          setReady(true);
+          readyRef.current = true;
+          setState("ready");
+        } else {
+          setState("idle");
         }
       } catch (e) {
         console.error('[updater] check/download failed:', e);
+        setState("error");
+      } finally {
+        checkInFlightRef.current = false;
       }
     };
     doCheck();
@@ -86,17 +99,38 @@ function UpdateBanner() {
     return () => clearInterval(timer);
   }, []);
 
-  if (!ready) return null;
+  if (state === "idle") return null;
+
+  const label =
+    state === "downloading" ? `正在下载 ${targetVersion ?? "更新"}...` :
+    state === "relaunching" ? "正在重启..." :
+    state === "error" ? "更新失败，稍后重试" :
+    `重启以更新到 ${targetVersion ?? "新版本"}`;
+
+  const disabled = state !== "ready";
 
   return (
-    <button onClick={() => relaunch()} style={{
+    <button
+      disabled={disabled}
+      onClick={async () => {
+        if (disabled) return;
+        setState("relaunching");
+        try {
+          await relaunch();
+        } catch (e) {
+          console.error('[updater] relaunch failed:', e);
+          setState("ready");
+        }
+      }}
+      style={{
       position: 'fixed', top: 12, right: 16, zIndex: 200,
       background: 'var(--accent-gold)', color: '#1a1208', border: 'none',
       borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
       fontSize: 'var(--fs-sm)', display: 'flex', alignItems: 'center', gap: 6,
       boxShadow: '0 2px 8px rgba(212,164,92,0.4)',
+      opacity: disabled ? 0.72 : 1,
     }}>
-      ↑ 重启以更新软件
+      ↑ {label}
     </button>
   );
 }
