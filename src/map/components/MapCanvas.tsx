@@ -9,7 +9,7 @@ import { computeLayout, MAP_CANVAS } from "../lib/layout";
 import { layoutFloatingCards, placeFloatingCard } from "../lib/geometry";
 import { validate } from "../lib/validate";
 import { isCardRead as deriveRead, useMapStore } from "../state/store";
-import type { ArticleContent, MapCard, MapDSL } from "../types";
+import type { MapCard, MapDSL } from "../types";
 import { MapSvg, type RouteFocus } from "./MapSvg";
 import { useFavorites } from "../../hooks/useFavorites";
 import { MapCartouche } from "./MapCartouche";
@@ -24,18 +24,12 @@ export type MapCanvasProps = {
   cards: MapCard[];
   /** Called when a settlement should be marked read (popover button or drawer close). */
   onMarkRead: (card_id: string) => void;
-  /** Card content fetcher (preview: mock map keyed by card_id; production: a card-id-aware adapter over useArticleContent). */
-  useArticleContent: (card_id: string | null) => {
-    data: ArticleContent | null;
-    isLoading: boolean;
-  };
 };
 
 export function MapCanvas({
   dsl,
   cards,
   onMarkRead,
-  useArticleContent,
 }: MapCanvasProps) {
   // Validate (throws on structural errors so failures are loud).
   validate(dsl, cards);
@@ -274,7 +268,6 @@ export function MapCanvas({
   const drawerCard = drawerCardId
     ? cards.find((c) => c.card_id === drawerCardId)
     : null;
-  const drawerArticle = useArticleContent(drawerCard?.card_id ?? null);
 
   // Wrap close-drawer to also propagate mark-read to caller.
   const handleCloseDrawer = () => {
@@ -370,7 +363,6 @@ export function MapCanvas({
       <MapPreviewDrawer
         open={drawerCardId != null}
         card={drawerCard ?? null}
-        articleContent={drawerArticle.data}
         onClose={handleCloseDrawer}
       />
     </div>

@@ -16,7 +16,7 @@ import {
   saveOverrides,
   type MapOverrides,
 } from "./state/overrides";
-import type { ArticleContent, MapCard, MapDSL, Domain, Topic } from "./types";
+import type { MapCard, MapDSL, Domain, Topic } from "./types";
 import type { TopicRef } from "../types";
 
 // D framework: single perspective `persona` (读者人格).
@@ -207,14 +207,10 @@ function MapTabContent({
   perspective,
   date,
   onMarkRead,
-  useArticleContent,
 }: {
   perspective: PerspectiveKey;
   date: string;
   onMarkRead: (id: string) => void;
-  useArticleContent: (
-    id: string | null,
-  ) => { data: ArticleContent | null; isLoading: boolean };
 }) {
   const dateCards = useMemo(
     () => taggedCards.filter((c) => c.article_date === date),
@@ -246,7 +242,6 @@ function MapTabContent({
         dsl={dsl}
         cards={cards}
         onMarkRead={onMarkRead}
-        useArticleContent={useArticleContent}
       />
     </div>
   );
@@ -304,14 +299,6 @@ export function MapPreviewApp() {
 
   const handleMarkRead = (_card_id: string) => {};
 
-  const useArticleContent = (
-    card_id: string | null,
-  ): { data: ArticleContent | null; isLoading: boolean } => {
-    if (!card_id) return { data: null, isLoading: false };
-    const content = tagCardContent[card_id];
-    return { data: content ?? null, isLoading: false };
-  };
-
   // "数据" tab data
   const allDsl = useMemo(() => deriveDsl(taggedCards, "persona"), []);
   const allCards = useMemo(
@@ -354,7 +341,6 @@ export function MapPreviewApp() {
           perspective={activeTab.perspective}
           date={activeTab.date}
           onMarkRead={handleMarkRead}
-          useArticleContent={useArticleContent}
         />
       )}
     </>

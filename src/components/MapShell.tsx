@@ -3,12 +3,10 @@ import { MapCanvas } from "../map/components/MapCanvas";
 import { MapTabBar, resolveTabDate, type DateTab } from "./MapTabBar";
 import { MapEmptyState } from "./MapEmptyState";
 import { useMapCards } from "../hooks/useMap";
-import { useArticleContent } from "../hooks/useArticles";
 import { useMarkCardReadSingle, useInbox } from "../hooks/useInbox";
 import { useMapStore } from "../map/state/store";
 import type { InboxItem } from "../types";
 import type { MapDSL } from "../map/types";
-import type { ArticleContent } from "../map/types";
 
 const READINESS_THRESHOLD = 0.8;
 
@@ -58,48 +56,6 @@ export function MapShell() {
 
   const dsl = useMemo(() => buildDsl(cards.data ?? []), [cards.data]);
 
-  // Index cards by card_id for the article-content adapter below.
-  const cardById = useMemo(() => {
-    const m = new Map<string, InboxItem>();
-    for (const c of cards.data ?? []) {
-      if (c.card_id) m.set(c.card_id, c);
-    }
-    return m;
-  }, [cards.data]);
-
-  // Adapter: MapCanvas expects useArticleContent(card_id), but our app hook
-  // takes article_id. Translate by looking up the card's article_id and
-  // reshape the response into the map ArticleContent type.
-  const useMapArticleContent = (cardId: string | null) => {
-    const card = cardId ? cardById.get(cardId) ?? null : null;
-    const articleId = card?.article_id ?? null;
-    const q = useArticleContent(articleId);
-    const data: ArticleContent | null = useMemo(() => {
-      if (!q.data || !card) return null;
-      const meta = (card as any).article_meta ?? {};
-      // useArticleContent returns ArticleContent from useArticles.ts which has
-      // rawMarkdown as the primary body field (raw article markdown).
-      const rawHtml = typeof (q.data as any).rawHtml === "string" ? (q.data as any).rawHtml : undefined;
-      const rawMarkdown =
-        typeof (q.data as any).rawMarkdown === "string"
-          ? (q.data as any).rawMarkdown
-          : typeof (q.data as any).markdown === "string"
-            ? (q.data as any).markdown
-            : undefined;
-      const body = rawMarkdown ?? rawHtml ?? "";
-      return {
-        id: card.card_id ?? card.article_id ?? "",
-        title: card.title ?? meta.title ?? "",
-        account: meta.account ?? "",
-        publish_time: meta.publish_time ?? "",
-        content_md: typeof body === "string" ? body : "",
-        rawHtml,
-        rawMarkdown,
-      };
-    }, [q.data, card]);
-    return { data, isLoading: q.isLoading };
-  };
-
   // Earliest selectable date for the picker = oldest card_date in inbox cache.
   const earliest = useMemo(() => {
     if (!inbox.data || inbox.data.length === 0) return undefined;
@@ -137,7 +93,6 @@ export function MapShell() {
         <MapCanvas
           dsl={dsl}
           cards={cards.data ?? []}
-          useArticleContent={useMapArticleContent}
           onMarkRead={(id: string) => markRead.mutate(id)}
         />
       )}
