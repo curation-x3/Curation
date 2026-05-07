@@ -12,7 +12,6 @@ import { isCardRead as deriveRead, useMapStore } from "../state/store";
 import type { MapCard, MapDSL } from "../types";
 import { MapSvg, type RouteFocus } from "./MapSvg";
 import { useFavorites } from "../../hooks/useFavorites";
-import { MapCartouche } from "./MapCartouche";
 import { MapCompass } from "./MapCompass";
 import { MapEntityList } from "./MapEntityList";
 import { MapFloatingCard } from "./MapFloatingCard";
@@ -316,7 +315,6 @@ export function MapCanvas({
         favoritedIds={favoritedIds}
       />
 
-      <MapCartouche date={formatDate(cards[0]?.card_date ?? null)} />
       <MapLegend />
       <MapCompass />
       <MapEntityList
@@ -367,13 +365,4 @@ export function MapCanvas({
       />
     </div>
   );
-}
-
-function formatDate(d: string | null): string {
-  if (!d) return "—";
-  // "2026-04-26" -> "2026 · IV · 26"
-  const months = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
-  const [y, m, dd] = d.split("-");
-  const mi = parseInt(m, 10) - 1;
-  return `${y} · ${months[mi] ?? m} · ${dd}`;
 }

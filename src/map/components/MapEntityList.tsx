@@ -30,10 +30,10 @@ export function MapEntityList({
     <div
       style={{
         position: "absolute",
-        top: 80,
+        top: 206,
         left: 28,
         width: 196,
-        maxHeight: "calc(100vh - 240px)",
+        maxHeight: "calc(100vh - 286px)",
         overflowY: "auto",
         background: "var(--map-vellum)",
         border: "1px solid var(--map-ink)",

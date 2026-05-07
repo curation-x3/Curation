@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MapCanvas } from "../map/components/MapCanvas";
-import { MapTabBar, resolveTabDate, type DateTab } from "./MapTabBar";
+import { MapCartouche } from "../map/components/MapCartouche";
+import { resolveTabDate, type DateTab } from "./MapTabBar";
 import { MapEmptyState } from "./MapEmptyState";
 import { useMapCards } from "../hooks/useMap";
 import { useMarkCardReadSingle, useInbox } from "../hooks/useInbox";
@@ -77,7 +78,12 @@ export function MapShell() {
 
   return (
     <div className="map-shell" data-map-theme="dark">
-      <MapTabBar value={tab} onChange={setTab} earliest={earliest} />
+      <MapCartouche
+        date={date}
+        tab={tab}
+        onTabChange={setTab}
+        earliest={earliest}
+      />
       {cards.isError ? (
         <div className="map-error">该日数据加载失败</div>
       ) : cards.isLoading ? (

@@ -15,20 +15,6 @@ interface Props {
 }
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
-const MONTH_LATIN = [
-  "IANVARIVS",
-  "FEBRVARIVS",
-  "MARTIVS",
-  "APRILIS",
-  "MAIVS",
-  "IVNIVS",
-  "IVLIVS",
-  "AVGVSTVS",
-  "SEPTEMBER",
-  "OCTOBER",
-  "NOVEMBER",
-  "DECEMBER",
-];
 
 function toIso(d: Date): string {
   const y = d.getFullYear();
@@ -40,23 +26,6 @@ function toIso(d: Date): string {
 function fromIso(s: string): Date {
   const [y, m, day] = s.split("-").map(Number);
   return new Date(y, m - 1, day);
-}
-
-function toRoman(num: number): string {
-  const map: [number, string][] = [
-    [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"],
-    [100, "C"], [90, "XC"], [50, "L"], [40, "XL"],
-    [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
-  ];
-  let n = num;
-  let out = "";
-  for (const [v, sym] of map) {
-    while (n >= v) {
-      out += sym;
-      n -= v;
-    }
-  }
-  return out;
 }
 
 export function MapDatePicker({ value, onChange, min, max, onClose }: Props) {
@@ -113,8 +82,8 @@ export function MapDatePicker({ value, onChange, min, max, onClose }: Props) {
     return "";
   };
 
-  const monthName = MONTH_LATIN[viewMonth.getMonth()];
-  const yearRoman = toRoman(viewMonth.getFullYear());
+  const monthName = `${viewMonth.getMonth() + 1}月`;
+  const yearLabel = `${viewMonth.getFullYear()}年`;
 
   const prev = () =>
     setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1));
@@ -139,7 +108,7 @@ export function MapDatePicker({ value, onChange, min, max, onClose }: Props) {
         </button>
         <div className="adp-title">
           <div className="adp-month">{monthName}</div>
-          <div className="adp-year">{yearRoman}</div>
+          <div className="adp-year">{yearLabel}</div>
         </div>
         <button
           type="button"
@@ -187,9 +156,7 @@ export function MapDatePicker({ value, onChange, min, max, onClose }: Props) {
       </div>
 
       <footer className="adp-footer">
-        <span className="adp-footer-mark">⚜</span>
-        <span className="adp-footer-text">historiae cartographicae</span>
-        <span className="adp-footer-mark">⚜</span>
+        <span className="adp-footer-text">选择历史日期</span>
       </footer>
     </div>
   );

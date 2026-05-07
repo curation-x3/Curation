@@ -2474,6 +2474,39 @@ body {
   display: inline-flex;
 }
 
+.map-cartouche-date-button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--map-ink-2);
+  background: transparent;
+  color: var(--map-ink-2);
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+.map-cartouche-date-button:hover:not(:disabled) {
+  color: var(--map-ink);
+  border-color: var(--map-ink);
+  background: var(--map-paper);
+}
+.map-cartouche-date-button.primary {
+  color: var(--map-ink);
+  background: rgba(232, 183, 104, 0.08);
+}
+.map-cartouche-date-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.map-cartouche-date-picker-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.map-cartouche-date-picker-anchor .map-datepicker {
+  top: -86px;
+  left: 150px;
+}
+
 /* ===== Atlas date picker — navigator's almanac page ===== */
 .map-datepicker {
   position: absolute;
@@ -2651,6 +2684,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
+  position: relative;
   background: var(--map-paper);
   color: var(--map-ink);
   overflow: hidden;
