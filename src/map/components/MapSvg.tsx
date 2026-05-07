@@ -12,6 +12,7 @@ import {
   pickShape,
   baseRadius,
   ringCount,
+  sourceCount,
   starPath,
   trianglePath,
 } from "../lib/settlement-style";
@@ -60,6 +61,10 @@ type Props = {
   favoritedIds?: Set<string>;
 };
 
+function routeRenderKey(route: RouteLayout): string {
+  return `${route.from_card_id}-${route.to_card_id}-${route.shared_entities.join("|")}`;
+}
+
 export function MapSvg({
   dsl,
   cards,
@@ -90,7 +95,7 @@ export function MapSvg({
     }
     for (const r of layout.routes) {
       if (r.shared_entities.includes(routeFocus.entity)) {
-        focusedRouteKeys.add(`${r.from_card_id}-${r.to_card_id}`);
+        focusedRouteKeys.add(routeRenderKey(r));
       }
     }
   }
@@ -345,21 +350,23 @@ export function MapSvg({
           routes are filtered out below. */}
       <g style={{ display: routesVisible ? "block" : "none" }}>
         {layout.routes
-          .map((r) => {
+          .map((r, idx) => {
           const visibleEntities = r.shared_entities.filter((e) => !hiddenEntities.has(e));
           if (visibleEntities.length === 0) return null;
           const routeForRender = visibleEntities.length === r.shared_entities.length
             ? r
             : { ...r, shared_entities: visibleEntities };
-          const key = `${r.from_card_id}-${r.to_card_id}`;
-          const isFocused = focusedRouteKeys.has(key);
+          const focusKey = routeRenderKey(r);
+          const key = `${focusKey}-${idx}`;
+          const isFocused = focusedRouteKeys.has(focusKey);
           // The triggering pair (originally hovered/clicked) gets the strongest
           // visual emphasis; sibling routes of the same entity get a softer
           // halo highlight.
           const isTrigger =
             routeFocus != null &&
             routeFocus.fromId === r.from_card_id &&
-            routeFocus.toId === r.to_card_id;
+            routeFocus.toId === r.to_card_id &&
+            r.shared_entities.includes(routeFocus.entity);
           // Each route's primary entity = the one shown as label. Use it as
           // the "entity to focus on" when hovered.
           const primaryEntity = visibleEntities[0] ?? "";
@@ -567,7 +574,7 @@ function Settlement({
   // Derive shape + radius from the card (fall back to settlement.radius if no card)
   const shape = card ? pickShape(card, isFavorited) : "circle-rust";
   const r = card ? baseRadius(card.reading_minutes) : settlement.radius;
-  const rings = card ? ringCount((card as any).source_count) : 0;
+  const rings = card ? ringCount(sourceCount(card)) : 0;
 
   // Priority: dimmed (entity not in focus) → focused → read-dim → normal
   const opacity = dimmed ? 0.15 : isFocused ? 1 : isRead ? 0.35 : 1;

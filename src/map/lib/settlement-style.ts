@@ -46,6 +46,13 @@ export function ringCount(sourceCount: number | undefined): number {
   return Math.min(4, Math.max(0, n - 1));
 }
 
+export function sourceCount(card: Pick<MapCard, "source_card_ids"> & { source_count?: number | null }): number {
+  if (Array.isArray(card.source_card_ids) && card.source_card_ids.length > 0) {
+    return card.source_card_ids.length;
+  }
+  return card.source_count ?? 1;
+}
+
 /** 5-pointed star, outer radius r, inner radius r * 0.4. */
 export function starPath(r: number): string {
   const points: string[] = [];

@@ -411,8 +411,8 @@ export function computeLayout(
   // minimum spanning tree over its cards: N cards → N-1 edges that still
   // make the cluster traversable, but without the redundant crisscross.
   //
-  // Same pair sharing multiple entities must still render as exactly one line.
-  // We merge those entities into RouteLayout.shared_entities below.
+  // Same pair sharing multiple entities may render multiple semantic lines.
+  // Duplicate-pair curves are offset so the lines do not overlap.
   const cardPos = new Map<string, { x: number; y: number; r: number }>();
   for (const c of continents) {
     for (const s of c.cards) {
@@ -427,10 +427,17 @@ export function computeLayout(
   }));
   const cardById = new Map(validCards.map((c) => [c.card_id!, c]));
   const routes: RouteLayout[] = [];
-  const routesByPair = new Map<string, RouteLayout>();
+  const pairUseCount = new Map<string, number>();
 
   function routePairKey(a: string, b: string): string {
     return a < b ? `${a}::${b}` : `${b}::${a}`;
+  }
+
+  function offsetDuplicateBow(baseBow: number, duplicateIndex: number): number {
+    if (duplicateIndex === 0) return baseBow;
+    const magnitude = 36 * Math.ceil(duplicateIndex / 2);
+    const direction = duplicateIndex % 2 === 1 ? 1 : -1;
+    return baseBow + direction * magnitude;
   }
 
   /** Sample N evenly-spaced points along a quadratic bezier. */
@@ -549,20 +556,15 @@ export function computeLayout(
         }
       }
       const pairKey = routePairKey(a.id, b.id);
-      const existing = routesByPair.get(pairKey);
-      if (existing) {
-        if (!existing.shared_entities.includes(entity)) {
-          existing.shared_entities.push(entity);
-        }
-        continue;
-      }
+      const duplicateIndex = pairUseCount.get(pairKey) ?? 0;
+      pairUseCount.set(pairKey, duplicateIndex + 1);
+      const routeBow = offsetDuplicateBow(bestBow, duplicateIndex);
       const route = {
         from_card_id: a.id,
         to_card_id: b.id,
-        path: curvedRoute(a.x, a.y, b.x, b.y, bestBow),
+        path: curvedRoute(a.x, a.y, b.x, b.y, routeBow),
         shared_entities: [entity],
       };
-      routesByPair.set(pairKey, route);
       routes.push(route);
     }
   }
