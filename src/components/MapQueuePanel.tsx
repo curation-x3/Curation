@@ -137,6 +137,7 @@ export function MapQueuePanel() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [detailRunId, setDetailRunId] = useState<number | null>(null);
   const [triggerOpen, setTriggerOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("queued_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -172,19 +173,31 @@ export function MapQueuePanel() {
     qc.invalidateQueries({ queryKey: ["mapQueue"] });
     qc.invalidateQueries({ queryKey: ["mapAutoConfig"] });
   };
+  const mutationError = (e: unknown) => setActionError(e instanceof Error ? e.message : "操作失败");
+  const mutationStarted = () => setActionError(null);
+  const mutationDone = () => {
+    setActionError(null);
+    invalidate();
+  };
 
   const cfgMut = useMutation({
     mutationFn: (patch: Partial<{ enabled: boolean; auto_launch: boolean; max_concurrency: number; map_backend: string }>) =>
       setMapAutoConfig(patch),
-    onSuccess: invalidate,
+    onMutate: mutationStarted,
+    onSuccess: mutationDone,
+    onError: mutationError,
   });
   const enqueueMut = useMutation({
     mutationFn: ({ userIds, dates }: { userIds: number[]; dates: string[] }) => enqueueMapQueue(userIds, dates),
-    onSuccess: invalidate,
+    onMutate: mutationStarted,
+    onSuccess: mutationDone,
+    onError: mutationError,
   });
   const dispatchMut = useMutation({
     mutationFn: (ids: number[]) => dispatchMapQueue(ids),
-    onSuccess: invalidate,
+    onMutate: mutationStarted,
+    onSuccess: mutationDone,
+    onError: mutationError,
   });
   const triggerOneMut = useMutation({
     mutationFn: async ({ userId, date, backend }: { userId: number; date: string; backend?: string }) => {
@@ -193,18 +206,24 @@ export function MapQueuePanel() {
       if (ids.length === 0) return { results: [] };
       return dispatchMapQueue(ids, backend);
     },
-    onSuccess: invalidate,
+    onMutate: mutationStarted,
+    onSuccess: mutationDone,
+    onError: mutationError,
   });
   const rerunMut = useMutation({
     mutationFn: async (id: number) => {
       await retryMapQueueRow(id);
       return dispatchMapQueue([id]);
     },
-    onSuccess: invalidate,
+    onMutate: mutationStarted,
+    onSuccess: mutationDone,
+    onError: mutationError,
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => deleteMapQueueRow(id),
-    onSuccess: invalidate,
+    onMutate: mutationStarted,
+    onSuccess: mutationDone,
+    onError: mutationError,
   });
 
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
@@ -308,6 +327,12 @@ export function MapQueuePanel() {
         </QueueButton>
         <RefreshButton loading={isFetching} onClick={() => refetch()} />
       </QueueControlBar>
+
+      {actionError && (
+        <div style={{ padding: "6px 16px", borderBottom: "1px solid var(--border)", color: "var(--accent-red)", fontSize: "var(--fs-xs)", background: "var(--bg-panel)" }}>
+          {actionError}
+        </div>
+      )}
 
       <div style={{ flex: 1, overflow: "auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: COLS, padding: "6px 16px", borderBottom: "1px solid var(--bg-panel)", background: "var(--bg-panel)", color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500, position: "sticky", top: 0, zIndex: 1, alignItems: "center" }}>

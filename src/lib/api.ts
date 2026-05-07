@@ -552,13 +552,50 @@ export interface MapEnqueueResult {
   rows: Array<{ queue_id: number; user_id: number; card_date: string }>;
 }
 
+function formatMapApiError(label: string, status: number, body: unknown): string {
+  const payload = body && typeof body === "object" && "detail" in body ? (body as { detail?: unknown }).detail : body;
+  const results = payload && typeof payload === "object" && "results" in payload
+    ? (payload as { results?: unknown[] }).results
+    : undefined;
+  const errors = (results ?? []).filter((r): r is { queue_id?: unknown; error: unknown } =>
+    !!r && typeof r === "object" && "error" in r,
+  );
+  if (errors.length > 0) {
+    return `${label}: ${errors.map((e) => `#${e.queue_id ?? "?"} ${String(e.error)}`).join("; ")}`;
+  }
+  if (typeof payload === "string") return `${label}: ${payload}`;
+  return `${label}: HTTP ${status}`;
+}
+
+async function readMapJson<T>(res: Response, label: string): Promise<T> {
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    // Keep the original HTTP status visible when the server returns non-JSON.
+  }
+  if (!res.ok) {
+    throw new Error(formatMapApiError(label, res.status, body));
+  }
+  return body as T;
+}
+
+function throwMapResultErrors(body: { results?: unknown[] }, label: string) {
+  const errors = (body.results ?? []).filter((r): r is { queue_id?: unknown; error: unknown } =>
+    !!r && typeof r === "object" && "error" in r,
+  );
+  if (errors.length > 0) {
+    throw new Error(`${label}: ${errors.map((e) => `#${e.queue_id ?? "?"} ${String(e.error)}`).join("; ")}`);
+  }
+}
+
 export async function fetchMapQueue(params: { user_id?: number; date?: string; status?: string } = {}): Promise<MapQueueRow[]> {
   const qs = new URLSearchParams();
   if (params.user_id !== undefined) qs.set("user_id", String(params.user_id));
   if (params.date) qs.set("date", params.date);
   if (params.status && params.status !== "all") qs.set("status", params.status);
   const res = await apiFetch(qs.toString() ? `/map/queue?${qs}` : "/map/queue");
-  return res.json();
+  return readMapJson<MapQueueRow[]>(res, "加载舆图队列失败");
 }
 
 export async function enqueueMapQueue(user_ids: number[], dates: string[]): Promise<MapEnqueueResult> {
@@ -567,7 +604,7 @@ export async function enqueueMapQueue(user_ids: number[], dates: string[]): Prom
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_ids, dates }),
   });
-  return res.json();
+  return readMapJson<MapEnqueueResult>(res, "舆图入队失败");
 }
 
 export async function dispatchMapQueue(queue_ids: number[], backend?: string): Promise<{ results: unknown[] }> {
@@ -576,27 +613,29 @@ export async function dispatchMapQueue(queue_ids: number[], backend?: string): P
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ queue_ids, backend }),
   });
-  return res.json();
+  const body = await readMapJson<{ results: unknown[] }>(res, "触发舆图失败");
+  throwMapResultErrors(body, "触发舆图失败");
+  return body;
 }
 
 export async function retryMapQueueRow(id: number): Promise<unknown> {
   const res = await apiFetch(`/map/queue/${id}/retry`, { method: "POST" });
-  return res.json();
+  return readMapJson<unknown>(res, "重置舆图队列失败");
 }
 
 export async function deleteMapQueueRow(id: number): Promise<unknown> {
   const res = await apiFetch(`/map/queue/${id}`, { method: "DELETE" });
-  return res.json();
+  return readMapJson<unknown>(res, "移除舆图队列失败");
 }
 
 export async function fetchMapQueueRuns(id: number): Promise<Run[]> {
   const res = await apiFetch(`/map/queue/${id}/runs`);
-  return res.json();
+  return readMapJson<Run[]>(res, "加载舆图运行失败");
 }
 
 export async function fetchMapAutoConfig(): Promise<MapAutoConfig> {
   const res = await apiFetch("/map/auto-config");
-  return res.json();
+  return readMapJson<MapAutoConfig>(res, "加载舆图配置失败");
 }
 
 export async function setMapAutoConfig(
@@ -607,7 +646,7 @@ export async function setMapAutoConfig(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  return res.json();
+  return readMapJson<MapAutoConfig>(res, "保存舆图配置失败");
 }
 
 export async function runMapAutoNow(target_date?: string): Promise<unknown> {
@@ -616,7 +655,7 @@ export async function runMapAutoNow(target_date?: string): Promise<unknown> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(target_date ? { target_date } : {}),
   });
-  return res.json();
+  return readMapJson<unknown>(res, "触发今日舆图失败");
 }
 
 /** Admin-only: fetch source cards for a dedup cluster by signature. Used to
