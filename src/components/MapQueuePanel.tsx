@@ -13,6 +13,7 @@ import {
   retryMapQueueRow,
   setMapAutoConfig,
   type MapAutoConfig,
+  type MapEnqueueResult,
   type MapQueueRow,
 } from "../lib/api";
 import type { AgentBackends, Run } from "../types";
@@ -48,6 +49,20 @@ function RowRuns({ rowId, onOpenRun }: { rowId: number; onOpenRun: (runId: numbe
   return <InlineRunTable rows={runs} loading={isLoading} onOpenRun={onOpenRun} />;
 }
 
+function dateRange(start: string, end: string): string[] {
+  if (!start || !end || start > end) return [];
+  const dates: string[] = [];
+  let cur = start;
+  while (cur <= end) {
+    dates.push(cur);
+    const [y, m, d] = cur.split("-").map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d));
+    next.setUTCDate(next.getUTCDate() + 1);
+    cur = next.toISOString().slice(0, 10);
+  }
+  return dates;
+}
+
 function MapTriggerModal({
   users,
   onClose,
@@ -56,59 +71,131 @@ function MapTriggerModal({
 }: {
   users: AdminUser[];
   onClose: () => void;
-  onSubmit: (input: { userId: number; date: string }) => Promise<unknown>;
+  onSubmit: (input: { userIds: number[]; dates: string[] }) => Promise<MapEnqueueResult>;
   submitting: boolean;
 }) {
   const activeUsers = users.filter((u) => u.is_active);
-  const [userId, setUserId] = useState<number | "">(activeUsers[0]?.id ?? "");
-  const [date, setDate] = useState("");
+  const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set());
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<MapEnqueueResult | null>(null);
+
+  const toggleUser = (id: number) => {
+    setSelectedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelectedUsers((prev) => (
+      activeUsers.length > 0 && prev.size === activeUsers.length
+        ? new Set()
+        : new Set(activeUsers.map((u) => u.id))
+    ));
+  };
 
   const submit = async () => {
     setError(null);
-    if (!userId) { setError("请选择用户"); return; }
-    if (!date) { setError("请选择日期"); return; }
+    if (selectedUsers.size === 0) { setError("请至少选择一个用户"); return; }
+    const dates = dateRange(startDate, endDate);
+    if (dates.length === 0) { setError("请选择有效的日期范围"); return; }
     try {
-      await onSubmit({ userId: Number(userId), date });
-      onClose();
+      const resp = await onSubmit({ userIds: Array.from(selectedUsers), dates });
+      setResult(resp);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "触发失败");
+      setError(e instanceof Error ? e.message : "请求失败");
     }
   };
 
+  const userById = new Map(activeUsers.map((u) => [u.id, u]));
+  const dates = dateRange(startDate, endDate);
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 8, padding: 24, width: 420, maxWidth: "90vw", display: "flex", flexDirection: "column", gap: 16, color: "var(--text-primary)", fontSize: "var(--fs-sm)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 8, padding: 24, width: 420, maxWidth: "90vw", maxHeight: "80vh", display: "flex", flexDirection: "column", gap: 16, color: "var(--text-primary)", fontSize: "var(--fs-sm)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontWeight: 600, fontSize: "var(--fs-base)" }}>单用户入队</span>
+          <span style={{ fontWeight: 600, fontSize: "var(--fs-base)" }}>预触发舆图</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2, display: "flex" }}>
             <X size={16} />
           </button>
         </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500 }}>用户</span>
-          <select value={userId} onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : "")}
-            style={{ background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "5px 8px", fontSize: "var(--fs-sm)" }}>
-            {activeUsers.length === 0 && <option value="">暂无活跃用户</option>}
-            {activeUsers.map((u) => <option key={u.id} value={u.id}>{u.username || u.email || `user #${u.id}`}</option>)}
-          </select>
-        </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500, marginBottom: 2 }}>用户</div>
+          <div style={{ border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden", maxHeight: 180, overflowY: "auto" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--border)", cursor: "pointer", background: "var(--bg-base)", fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              <input type="checkbox" checked={activeUsers.length > 0 && selectedUsers.size === activeUsers.length} onChange={toggleAll} style={{ accentColor: "var(--accent-gold)" }} />
+              全选 ({activeUsers.length})
+            </label>
+            {activeUsers.map((u) => (
+              <label key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--bg-panel)", cursor: "pointer", background: selectedUsers.has(u.id) ? "color-mix(in srgb, var(--accent-gold) 8%, transparent)" : undefined }}>
+                <input type="checkbox" checked={selectedUsers.has(u.id)} onChange={() => toggleUser(u.id)} style={{ accentColor: "var(--accent-gold)" }} />
+                <span style={{ flex: 1 }}>{u.username || u.email}</span>
+                <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>{u.email}</span>
+              </label>
+            ))}
+            {activeUsers.length === 0 && (
+              <div style={{ padding: "10px", color: "var(--text-faint)", fontSize: "var(--fs-xs)", textAlign: "center" }}>暂无活跃用户</div>
+            )}
+          </div>
+        </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500 }}>日期</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            style={{ background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: "var(--fs-sm)" }} />
-        </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500 }}>日期范围</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              style={{ flex: 1, background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: "var(--fs-xs)" }} />
+            <span style={{ color: "var(--text-muted)" }}>—</span>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+              style={{ flex: 1, background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: "var(--fs-xs)" }} />
+          </div>
+          {dates.length > 0 && (
+            <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>共 {dates.length} 天</span>
+          )}
+        </div>
 
         {error && <div style={{ color: "var(--accent-red)", fontSize: "var(--fs-xs)" }}>{error}</div>}
 
+        {result && (
+          <div style={{ border: "1px solid var(--border)", borderRadius: 4, background: "var(--bg-base)", padding: 10, display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflowY: "auto" }}>
+            <div style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              已入队 {result.rows.length} 组 user × 日期。
+            </div>
+            <table style={{ fontSize: "var(--fs-xs)", borderCollapse: "collapse" }}>
+              <thead style={{ color: "var(--text-faint)" }}>
+                <tr><th style={{ textAlign: "left", padding: "2px 6px" }}>用户</th><th style={{ textAlign: "left", padding: "2px 6px" }}>日期</th><th style={{ textAlign: "right", padding: "2px 6px" }}>Queue</th></tr>
+              </thead>
+              <tbody>
+                {result.rows.map((r) => {
+                  const u = userById.get(r.user_id);
+                  return (
+                    <tr key={`${r.user_id}-${r.card_date}`}>
+                      <td style={{ padding: "2px 6px" }}>{u?.username || u?.email || `#${r.user_id}`}</td>
+                      <td style={{ padding: "2px 6px", fontFamily: "monospace" }}>{r.card_date}</td>
+                      <td style={{ padding: "2px 6px", textAlign: "right", color: "var(--accent-blue)" }}>#{r.queue_id}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
-          <QueueButton onClick={onClose}>取消</QueueButton>
-          <button onClick={submit} disabled={submitting}
-            style={{ background: submitting ? "var(--bg-base)" : "var(--accent-gold)", border: "none", borderRadius: 4, color: submitting ? "var(--text-muted)" : "#fff", padding: "5px 16px", cursor: submitting ? "default" : "pointer", fontSize: "var(--fs-sm)", fontWeight: 500 }}>
-            {submitting ? "提交中..." : "入队"}
-          </button>
+          <QueueButton onClick={onClose}>{result ? "关闭" : "取消"}</QueueButton>
+          {!result && (
+            <button onClick={submit} disabled={submitting}
+              style={{ background: submitting ? "var(--bg-base)" : "var(--accent-gold)", border: "none", borderRadius: 4, color: submitting ? "var(--text-muted)" : "#fff", padding: "5px 16px", cursor: submitting ? "default" : "pointer", fontSize: "var(--fs-sm)", fontWeight: 500 }}>
+              {submitting ? "提交中..." : "触发"}
+            </button>
+          )}
+          {result && (
+            <QueueButton onClick={() => { setResult(null); setError(null); }}>再触发一次</QueueButton>
+          )}
         </div>
       </div>
     </div>
@@ -174,7 +261,7 @@ export function MapQueuePanel() {
     onSuccess: mutationDone,
     onError: mutationError,
   });
-  const enqueueMut = useMutation({
+  const triggerMut = useMutation({
     mutationFn: ({ userIds, dates }: { userIds: number[]; dates: string[] }) => enqueueMapQueue(userIds, dates),
     onMutate: mutationStarted,
     onSuccess: mutationDone,
@@ -182,14 +269,6 @@ export function MapQueuePanel() {
   });
   const dispatchMut = useMutation({
     mutationFn: (ids: number[]) => dispatchMapQueue(ids),
-    onMutate: mutationStarted,
-    onSuccess: mutationDone,
-    onError: mutationError,
-  });
-  const triggerOneMut = useMutation({
-    mutationFn: async ({ userId, date }: { userId: number; date: string }) => {
-      return enqueueMapQueue([userId], [date]);
-    },
     onMutate: mutationStarted,
     onSuccess: mutationDone,
     onError: mutationError,
@@ -251,7 +330,6 @@ export function MapQueuePanel() {
   }, {});
 
   const selectedIds = Array.from(selected).filter((id) => rows.some((r) => r.id === id));
-  const activeUsers = users.filter((u) => u.is_active);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -302,10 +380,7 @@ export function MapQueuePanel() {
         <DateFilter value={dateFilter} onChange={setDateFilter} />
 
         <QueueSpacer />
-        <QueueButton disabled={triggerOneMut.isPending} onClick={() => setTriggerOpen(true)}>+ 单用户入队</QueueButton>
-        <QueueButton disabled={!dateFilter || activeUsers.length === 0 || enqueueMut.isPending} onClick={() => enqueueMut.mutate({ userIds: activeUsers.map((u) => u.id), dates: [dateFilter] })}>
-          + 全用户入队
-        </QueueButton>
+        <QueueButton disabled={triggerMut.isPending} onClick={() => setTriggerOpen(true)}>+ 预触发</QueueButton>
         <QueueButton disabled={selectedIds.length === 0 || dispatchMut.isPending} onClick={() => dispatchMut.mutate(selectedIds)}>
           触发选中 {selectedIds.length || ""}
         </QueueButton>
@@ -399,8 +474,8 @@ export function MapQueuePanel() {
         <MapTriggerModal
           users={users}
           onClose={() => setTriggerOpen(false)}
-          onSubmit={(input) => triggerOneMut.mutateAsync(input)}
-          submitting={triggerOneMut.isPending}
+          onSubmit={(input) => triggerMut.mutateAsync(input)}
+          submitting={triggerMut.isPending}
         />
       )}
     </div>

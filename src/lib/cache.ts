@@ -30,7 +30,7 @@ export interface CachedCard {
   is_original: boolean | null;
   /** JSON-encoded array of canonical entity name strings, exactly as stored
    *  in the local SQLite TEXT column. Parse with `parseEntities()` below. */
-  entities: string | null;
+  entities: string | string[] | null;
   topic?: TopicRef | null;
 }
 
@@ -68,8 +68,11 @@ export interface CachedAccount {
  * Returns [] for null / empty / malformed input — never throws — so a single
  * bad row can't crash the inbox / drawer rendering.
  */
-export function parseEntities(raw: string | null | undefined): string[] {
+export function parseEntities(raw: string | string[] | null | undefined): string[] {
   if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.filter((e): e is string => typeof e === "string" && e.trim().length > 0);
+  }
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
