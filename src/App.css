@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
+@import "./map/styles/map-tokens.css";
 
 /* v1 variable overrides removed — tokens.css now provides legacy aliases
    mapped to v2 color tokens. */

@@ -64,7 +64,7 @@
    colors are gold (warm, ornamental — voyages, hot settlements) and
    bone (cool-warm, secondary annotation — trade routes, entity
    labels). Red is exiled. */
-[data-atlas-theme="dark"] {
+[data-map-theme="dark"] {
   --map-paper:    #14141d;   /* deep velvet midnight */
   --map-paper-2:  #1e1f2a;   /* continent fill — lifted */
   --map-vellum:   #262738;   /* popovers / cartouche backing */
