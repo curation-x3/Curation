@@ -3,6 +3,7 @@
 // `placeFloatingCard` from lib/geometry.ts.
 
 import type { MapCard, MapDSL } from "../types";
+import { sourceCount } from "../lib/settlement-style";
 
 type Props = {
   card: MapCard;
@@ -26,8 +27,7 @@ export function MapFloatingCard({
 }: Props) {
   const topic = dsl.topics.find((s) => s.id === card.topic?.id);
   const domain = dsl.domains.find((b) => b.id === topic?.domain_id);
-  // source_count is always 1 in v1; hot indicator not used.
-  const isHot = false;
+  const sources = sourceCount(card);
   const account = card.article_meta?.account ?? "";
 
   return (
@@ -113,7 +113,7 @@ export function MapFloatingCard({
         }}
       >
         <span>— {account || "—"}</span>
-        <span>{isHot ? "⚜ 多源汇" : "· 单源"}</span>
+        <span>{sources > 1 ? `多源汇聚 · ${sources} 张` : "· 单源"}</span>
       </div>
       <button
         onClick={(e) => {

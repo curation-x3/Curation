@@ -1,4 +1,4 @@
-// Atlas — Legend (Mapparum Conventiones) bottom-left.
+// Atlas — Legend bottom-left.
 
 import { useMapStore } from "../state/store";
 
@@ -34,7 +34,7 @@ export function MapLegend() {
           textTransform: "uppercase",
         }}
       >
-        Mapparum Conventiones
+        舆图图例
       </div>
       <Row
         glyph={
@@ -42,14 +42,14 @@ export function MapLegend() {
             <circle
               cx={11}
               cy={7}
-              r={6}
+              r={5}
               fill="var(--map-rust)"
               stroke="var(--map-ink)"
-              strokeWidth={1.4}
+              strokeWidth={1.2}
             />
           </svg>
         }
-        text="主城 / 多源汇聚"
+        text="单源卡片"
       />
       <Row
         glyph={
@@ -57,14 +57,30 @@ export function MapLegend() {
             <circle
               cx={11}
               cy={7}
-              r={3}
-              fill="var(--map-vellum)"
+              r={9}
+              fill="none"
+              stroke="var(--map-ink-2)"
+              strokeWidth={0.9}
+            />
+            <circle
+              cx={11}
+              cy={7}
+              r={6.5}
+              fill="none"
+              stroke="var(--map-ink-2)"
+              strokeWidth={0.9}
+            />
+            <circle
+              cx={11}
+              cy={7}
+              r={3.8}
+              fill="var(--map-rust)"
               stroke="var(--map-ink)"
-              strokeWidth={1.4}
+              strokeWidth={1}
             />
           </svg>
         }
-        text="村落 / 单源新闻"
+        text="聚合卡片"
       />
       <Row
         glyph={
@@ -72,21 +88,20 @@ export function MapLegend() {
             <circle
               cx={11}
               cy={7}
-              r={2.5}
-              fill="var(--map-paper)"
-              stroke="var(--map-ink-faint)"
-              strokeWidth={0.6}
-              opacity={0.5}
+              r={5}
+              fill="var(--map-rust)"
+              stroke="var(--map-ink)"
+              strokeWidth={0.8}
+              opacity={0.35}
             />
           </svg>
         }
-        text="褪色聚落 / 已读"
+        text="已读卡片"
       />
-      {/* Clickable row — toggles whether trade routes (shared-entity links)
-          are rendered. Strikethrough indicates hidden. */}
+      {/* Clickable row — toggles shared-entity links. */}
       <div
         onClick={toggleRoutes}
-        title={routesVisible ? "点击隐藏商路连线" : "点击显示商路连线"}
+        title={routesVisible ? "点击隐藏共享实体连线" : "点击显示共享实体连线"}
         style={{
           display: "flex",
           alignItems: "center",
@@ -122,7 +137,7 @@ export function MapLegend() {
             />
           </svg>
         </span>
-        <span>商路 / 共享实体 {routesVisible ? "▼" : "▷"}</span>
+        <span>共享实体连线 {routesVisible ? "▼" : "▷"}</span>
       </div>
     </div>
   );

@@ -619,7 +619,7 @@ function Settlement({
         </>
       )}
 
-      {/* Aggregate rings (dashed concentric circles, rendered before main shape) */}
+      {/* Aggregate rings (solid concentric circles, rendered before main shape) */}
       {Array.from({ length: rings }).map((_, i) => (
         <circle
           key={`ring-${i}`}
@@ -628,8 +628,8 @@ function Settlement({
           r={r + 3 + i * 3}
           fill="none"
           stroke="var(--map-ink-2)"
-          strokeWidth={1}
-          strokeDasharray="1 2"
+          strokeWidth={0.9}
+          opacity={0.86}
         />
       ))}
 
