@@ -88,8 +88,8 @@ function UpdateBanner() {
           setState("idle");
         }
       } catch (e) {
-        console.error('[updater] check/download failed:', e);
-        setState("error");
+        console.warn('[updater] check/download failed:', e);
+        setState("idle");
       } finally {
         checkInFlightRef.current = false;
       }
@@ -99,12 +99,10 @@ function UpdateBanner() {
     return () => clearInterval(timer);
   }, []);
 
-  if (state === "idle") return null;
+  if (state !== "ready" && state !== "relaunching") return null;
 
   const label =
-    state === "downloading" ? `正在下载 ${targetVersion ?? "更新"}...` :
     state === "relaunching" ? "正在重启..." :
-    state === "error" ? "更新失败，稍后重试" :
     `重启以更新到 ${targetVersion ?? "新版本"}`;
 
   const disabled = state !== "ready";

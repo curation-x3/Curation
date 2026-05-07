@@ -50,23 +50,18 @@ function RowRuns({ rowId, onOpenRun }: { rowId: number; onOpenRun: (runId: numbe
 
 function MapTriggerModal({
   users,
-  backendList,
-  defaultBackend,
   onClose,
   onSubmit,
   submitting,
 }: {
   users: AdminUser[];
-  backendList: string[];
-  defaultBackend: string;
   onClose: () => void;
-  onSubmit: (input: { userId: number; date: string; backend?: string }) => Promise<unknown>;
+  onSubmit: (input: { userId: number; date: string }) => Promise<unknown>;
   submitting: boolean;
 }) {
   const activeUsers = users.filter((u) => u.is_active);
   const [userId, setUserId] = useState<number | "">(activeUsers[0]?.id ?? "");
   const [date, setDate] = useState("");
-  const [backend, setBackend] = useState(defaultBackend);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -74,7 +69,7 @@ function MapTriggerModal({
     if (!userId) { setError("请选择用户"); return; }
     if (!date) { setError("请选择日期"); return; }
     try {
-      await onSubmit({ userId: Number(userId), date, backend: backend || undefined });
+      await onSubmit({ userId: Number(userId), date });
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "触发失败");
@@ -85,7 +80,7 @@ function MapTriggerModal({
     <div onClick={onClose} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 8, padding: 24, width: 420, maxWidth: "90vw", display: "flex", flexDirection: "column", gap: 16, color: "var(--text-primary)", fontSize: "var(--fs-sm)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontWeight: 600, fontSize: "var(--fs-base)" }}>触发今日舆图</span>
+          <span style={{ fontWeight: 600, fontSize: "var(--fs-base)" }}>单用户入队</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2, display: "flex" }}>
             <X size={16} />
           </button>
@@ -106,22 +101,13 @@ function MapTriggerModal({
             style={{ background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: "var(--fs-sm)" }} />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", fontWeight: 500 }}>后端</span>
-          <select value={backend} onChange={(e) => setBackend(e.target.value)}
-            style={{ background: "var(--bg-base)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 4, padding: "5px 8px", fontSize: "var(--fs-sm)" }}>
-            {defaultBackend && !backendList.includes(defaultBackend) && <option value={defaultBackend}>{defaultBackend}</option>}
-            {backendList.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </label>
-
         {error && <div style={{ color: "var(--accent-red)", fontSize: "var(--fs-xs)" }}>{error}</div>}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
           <QueueButton onClick={onClose}>取消</QueueButton>
           <button onClick={submit} disabled={submitting}
             style={{ background: submitting ? "var(--bg-base)" : "var(--accent-gold)", border: "none", borderRadius: 4, color: submitting ? "var(--text-muted)" : "#fff", padding: "5px 16px", cursor: submitting ? "default" : "pointer", fontSize: "var(--fs-sm)", fontWeight: 500 }}>
-            {submitting ? "提交中..." : "触发"}
+            {submitting ? "提交中..." : "入队"}
           </button>
         </div>
       </div>
@@ -201,11 +187,8 @@ export function MapQueuePanel() {
     onError: mutationError,
   });
   const triggerOneMut = useMutation({
-    mutationFn: async ({ userId, date, backend }: { userId: number; date: string; backend?: string }) => {
-      const created = await enqueueMapQueue([userId], [date]);
-      const ids = created.rows.map((row) => row.queue_id);
-      if (ids.length === 0) return { results: [] };
-      return dispatchMapQueue(ids, backend);
+    mutationFn: async ({ userId, date }: { userId: number; date: string }) => {
+      return enqueueMapQueue([userId], [date]);
     },
     onMutate: mutationStarted,
     onSuccess: mutationDone,
@@ -319,7 +302,7 @@ export function MapQueuePanel() {
         <DateFilter value={dateFilter} onChange={setDateFilter} />
 
         <QueueSpacer />
-        <QueueButton disabled={triggerOneMut.isPending} onClick={() => setTriggerOpen(true)}>+ 单用户触发</QueueButton>
+        <QueueButton disabled={triggerOneMut.isPending} onClick={() => setTriggerOpen(true)}>+ 单用户入队</QueueButton>
         <QueueButton disabled={!dateFilter || activeUsers.length === 0 || enqueueMut.isPending} onClick={() => enqueueMut.mutate({ userIds: activeUsers.map((u) => u.id), dates: [dateFilter] })}>
           + 全用户入队
         </QueueButton>
@@ -415,8 +398,6 @@ export function MapQueuePanel() {
       {triggerOpen && (
         <MapTriggerModal
           users={users}
-          backendList={backendList}
-          defaultBackend={cfg?.map_backend ?? ""}
           onClose={() => setTriggerOpen(false)}
           onSubmit={(input) => triggerOneMut.mutateAsync(input)}
           submitting={triggerOneMut.isPending}
