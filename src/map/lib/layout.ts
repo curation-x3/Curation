@@ -411,8 +411,8 @@ export function computeLayout(
   // minimum spanning tree over its cards: N cards → N-1 edges that still
   // make the cluster traversable, but without the redundant crisscross.
   //
-  // Same pair sharing multiple entities → one MST edge per entity (rare;
-  // they stack with different labels).
+  // Same pair sharing multiple entities must still render as exactly one line.
+  // We merge those entities into RouteLayout.shared_entities below.
   const cardPos = new Map<string, { x: number; y: number; r: number }>();
   for (const c of continents) {
     for (const s of c.cards) {
@@ -427,6 +427,11 @@ export function computeLayout(
   }));
   const cardById = new Map(validCards.map((c) => [c.card_id!, c]));
   const routes: RouteLayout[] = [];
+  const routesByPair = new Map<string, RouteLayout>();
+
+  function routePairKey(a: string, b: string): string {
+    return a < b ? `${a}::${b}` : `${b}::${a}`;
+  }
 
   /** Sample N evenly-spaced points along a quadratic bezier. */
   function sampleBezier(
@@ -543,12 +548,22 @@ export function computeLayout(
           bestBow = bow;
         }
       }
-      routes.push({
+      const pairKey = routePairKey(a.id, b.id);
+      const existing = routesByPair.get(pairKey);
+      if (existing) {
+        if (!existing.shared_entities.includes(entity)) {
+          existing.shared_entities.push(entity);
+        }
+        continue;
+      }
+      const route = {
         from_card_id: a.id,
         to_card_id: b.id,
         path: curvedRoute(a.x, a.y, b.x, b.y, bestBow),
         shared_entities: [entity],
-      });
+      };
+      routesByPair.set(pairKey, route);
+      routes.push(route);
     }
   }
 

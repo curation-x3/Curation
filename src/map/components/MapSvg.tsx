@@ -345,8 +345,12 @@ export function MapSvg({
           routes are filtered out below. */}
       <g style={{ display: routesVisible ? "block" : "none" }}>
         {layout.routes
-          .filter((r) => !hiddenEntities.has(r.shared_entities[0] ?? ""))
           .map((r) => {
+          const visibleEntities = r.shared_entities.filter((e) => !hiddenEntities.has(e));
+          if (visibleEntities.length === 0) return null;
+          const routeForRender = visibleEntities.length === r.shared_entities.length
+            ? r
+            : { ...r, shared_entities: visibleEntities };
           const key = `${r.from_card_id}-${r.to_card_id}`;
           const isFocused = focusedRouteKeys.has(key);
           // The triggering pair (originally hovered/clicked) gets the strongest
@@ -358,11 +362,11 @@ export function MapSvg({
             routeFocus.toId === r.to_card_id;
           // Each route's primary entity = the one shown as label. Use it as
           // the "entity to focus on" when hovered.
-          const primaryEntity = r.shared_entities[0] ?? "";
+          const primaryEntity = visibleEntities[0] ?? "";
           return (
             <TradeRoute
               key={key}
-              route={r}
+              route={routeForRender}
               onEnter={() => {
                 // While pinned: ignore hover so the pinned focus stays.
                 if (routeFocus?.pinned) return;
