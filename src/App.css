@@ -1466,6 +1466,40 @@ body {
   font-size: var(--fs-xs);
 }
 
+.ts-path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-path-value {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-path-value.empty {
+  color: var(--text-muted);
+}
+
+.ts-inline-action {
+  padding: 5px 12px;
+  font-size: var(--fs-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 /* ------- precision slider ------- */
 
 .ts-slider {
@@ -2578,6 +2612,70 @@ body {
   letter-spacing: 0.22em;
   color: var(--text-muted);
   text-transform: uppercase;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border-hairline);
+  background: var(--border-hairline);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: var(--sp-4);
+}
+
+.settings-tab {
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: none;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  text-align: left;
+  transition:
+    background var(--dur-instant) var(--ease-out),
+    color var(--dur-instant) var(--ease-out);
+}
+
+.settings-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.settings-tab.active {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-gold) 14%, var(--bg-raised));
+}
+
+.settings-tab-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.settings-tab-kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-tab.active .settings-tab-kicker {
+  color: var(--accent-gold);
+}
+
+.settings-tab-panel {
+  min-height: 320px;
 }
 
 /* Active filter chip at top of middle list pane */

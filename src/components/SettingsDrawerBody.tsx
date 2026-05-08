@@ -63,6 +63,15 @@ export const FONT_OPTIONS: { key: FontBody; label: string; glyph: string; glyphF
   },
 ];
 
+type SettingsTab = "appearance" | "agent" | "notes" | "account";
+
+const BASE_TABS: { key: SettingsTab; label: string; kicker: string; tauriOnly?: boolean }[] = [
+  { key: "appearance", label: "外观", kicker: "Display" },
+  { key: "agent", label: "Agent", kicker: "Runtime", tauriOnly: true },
+  { key: "notes", label: "笔记", kicker: "Vault", tauriOnly: true },
+  { key: "account", label: "账号", kicker: "Identity" },
+];
+
 function Section({ roman, title, children }: { roman: string; title: string; children: React.ReactNode }) {
   return (
     <section className="ts-section">
@@ -323,6 +332,13 @@ export function SettingsDrawerBody({
 }: Props) {
   const systemSize = draft.rootSizeOverride ?? autoSize;
   const isAuto = draft.rootSizeOverride === null;
+  const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const tabs = BASE_TABS.filter((tab) => !tab.tauriOnly || !__IS_WEB__);
+
+  useEffect(() => {
+    if (tabs.some((tab) => tab.key === activeTab)) return;
+    setActiveTab("appearance");
+  }, [activeTab, tabs]);
 
   return (
     <div className="drawer-body drawer-body-settings">
@@ -331,211 +347,213 @@ export function SettingsDrawerBody({
         <span className="drawer-settings-title-sans">设置</span>
       </div>
 
-      {/* Section I. 主题 */}
-      <Section roman="I" title="主题">
-        <div className="ts-themes">
-          {THEME_OPTIONS.map((opt) => {
-            const isActive = draft.theme === opt.key;
-            const resolved = opt.key === "auto" ? resolveTheme("auto") : opt.key;
-            return (
-              <button
-                key={opt.key}
-                className={`ts-theme ${isActive ? "active" : ""}`}
-                onClick={() => onChange({ theme: opt.key })}
-                data-resolved={resolved}
-              >
-                <span className="ts-theme-glyph" aria-hidden>{opt.glyph}</span>
-                <span className="ts-theme-label">{opt.label}</span>
-                <span className="ts-theme-hint">{opt.hint}</span>
-                {opt.key === "auto" && isActive && (
-                  <span className="ts-theme-resolved">→ {resolved === "light" ? "日" : "夜"}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Section>
-
-      {/* Section II. 阅读 */}
-      <Section roman="II" title="阅读">
-        <div className="ts-field">
-          <div className="ts-field-label">
-            <span>字号</span>
-            <span className="ts-field-hint">⌘ + / ⌘ − / ⌘ 0</span>
-          </div>
-          <PrecisionSlider
-            min={READER_SIZE_MIN}
-            max={READER_SIZE_MAX}
-            step={1}
-            value={draft.readerSize}
-            onChange={(v) => onChange({ readerSize: v })}
-            ariaLabel="阅读字号"
-            leftGlyph="A"
-            rightGlyph="A"
-            valueLabel={`${draft.readerSize} pt`}
-            ticks={[READER_SIZE_DEFAULT]}
-          />
-          {draft.readerSize !== READER_SIZE_DEFAULT && (
-            <button
-              className="ts-linklet"
-              onClick={() => onChange({ readerSize: READER_SIZE_DEFAULT })}
-            >
-              ↺ 回到 {READER_SIZE_DEFAULT} pt
-            </button>
-          )}
-        </div>
-
-        <div className="ts-field">
-          <div className="ts-field-label">
-            <span>栏宽</span>
-          </div>
-          <PrecisionSlider
-            min={READER_WIDTH_MIN}
-            max={READER_WIDTH_MAX}
-            step={READER_WIDTH_STEP}
-            value={draft.readerMaxWidth}
-            onChange={(v) => onChange({ readerMaxWidth: v })}
-            ariaLabel="阅读栏宽"
-            leftGlyph="▏"
-            rightGlyph="▎"
-            valueLabel={`${draft.readerMaxWidth} px`}
-            ticks={[READER_WIDTH_DEFAULT]}
-          />
-          <WidthRuler
-            value={draft.readerMaxWidth}
-            min={READER_WIDTH_MIN}
-            max={READER_WIDTH_MAX}
-          />
-        </div>
-      </Section>
-
-      {/* Section III. 字体 */}
-      <Section roman="III" title="字体">
-        <div className="ts-typefaces">
-          {FONT_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              className={`ts-typeface ${draft.fontBody === opt.key ? "active" : ""}`}
-              onClick={() => onChange({ fontBody: opt.key })}
-            >
-              <span
-                className="ts-typeface-glyph"
-                style={{ fontFamily: opt.glyphFamily }}
-                aria-hidden
-              >
-                Aa
-              </span>
-              <span className="ts-typeface-label">{opt.label}</span>
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      {/* Section IV. 系统 */}
-      <Section roman="IV" title="系统">
-        <div className="ts-field">
-          <div className="ts-field-label">
-            <span>界面字号</span>
-            {isAuto && <span className="ts-auto-tag">AUTO · {autoSize} pt</span>}
-          </div>
-          <PrecisionSlider
-            min={ROOT_SIZE_MIN}
-            max={ROOT_SIZE_MAX}
-            step={1}
-            value={systemSize}
-            onChange={(v) => onChange({ rootSizeOverride: v })}
-            ariaLabel="系统字号"
-            leftGlyph="a"
-            rightGlyph="A"
-            valueLabel={`${systemSize} pt`}
-            ticks={[autoSize]}
-          />
-          {!isAuto && (
-            <button
-              className="ts-linklet"
-              onClick={() => onChange({ rootSizeOverride: null })}
-            >
-              ↺ 跟随视口（{autoSize} pt）
-            </button>
-          )}
-        </div>
-      </Section>
-
-      {/* Section V. 笔记 (Tauri only) */}
-      <TauriOnly>
-        <Section roman="V" title="笔记">
-          <div className="ts-field">
-            <div className="ts-field-label">
-              <span>笔记路径</span>
-              <span className="ts-field-hint">保存卡片到本地笔记系统</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div
-                style={{
-                  flex: 1,
-                  background: "var(--bg-base)",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: 6,
-                  padding: "6px 10px",
-                  color: notesPath ? "var(--text-primary)" : "var(--text-muted)",
-                  fontSize: "var(--fs-sm)",
-                  fontFamily: "var(--font-mono)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {notesPath || "未设置"}
-              </div>
-              <button
-                className="ts-footer-btn primary"
-                style={{ padding: "5px 12px", fontSize: "var(--fs-sm)", display: "flex", alignItems: "center", gap: 4 }}
-                onClick={async () => {
-                  const selected = await openFolderPicker({
-                    title: "选择笔记文件夹",
-                    defaultPath: notesPath || undefined,
-                  });
-                  if (selected) {
-                    onNotesPathChange(selected);
-                  }
-                }}
-              >
-                <FolderOpen size={13} />
-                选择
-              </button>
-            </div>
-          </div>
-        </Section>
-      </TauriOnly>
-
-      {/* Section VI. Agent (Tauri only) */}
-      <TauriOnly>
-        <Section roman="VI" title="Agent">
-          <AgentEnvironmentPanel />
-          <AcpMaxAliveField />
-        </Section>
-      </TauriOnly>
-
-      {/* Section VII. 诊断 (Tauri only) */}
-      <TauriOnly>
-        <Section roman="VII" title="诊断">
-          <DiagnosticsExportField />
-        </Section>
-      </TauriOnly>
-
-      {/* Section VIII. 账号 */}
-      <Section roman="VIII" title="账号">
-        <div className="ts-account">
-          <div className="ts-account-row">
-            <span className="ts-account-label">已登录</span>
-            <span className="ts-account-email">{currentUserEmail}</span>
-          </div>
-          <button className="ts-signout" onClick={onLogout}>
-            <span>退出登录</span>
-            <ArrowUpRight size={13} />
+      <div className="settings-tabs" role="tablist" aria-label="设置分类">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            className={`settings-tab ${activeTab === tab.key ? "active" : ""}`}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            <span className="settings-tab-label">{tab.label}</span>
+            <span className="settings-tab-kicker">{tab.kicker}</span>
           </button>
-        </div>
-      </Section>
+        ))}
+      </div>
+
+      <div className="settings-tab-panel" role="tabpanel">
+        {activeTab === "appearance" && (
+          <>
+            <Section roman="I" title="主题">
+              <div className="ts-themes">
+                {THEME_OPTIONS.map((opt) => {
+                  const isActive = draft.theme === opt.key;
+                  const resolved = opt.key === "auto" ? resolveTheme("auto") : opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      className={`ts-theme ${isActive ? "active" : ""}`}
+                      onClick={() => onChange({ theme: opt.key })}
+                      data-resolved={resolved}
+                    >
+                      <span className="ts-theme-glyph" aria-hidden>{opt.glyph}</span>
+                      <span className="ts-theme-label">{opt.label}</span>
+                      <span className="ts-theme-hint">{opt.hint}</span>
+                      {opt.key === "auto" && isActive && (
+                        <span className="ts-theme-resolved">→ {resolved === "light" ? "日" : "夜"}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </Section>
+
+            <Section roman="II" title="阅读">
+              <div className="ts-field">
+                <div className="ts-field-label">
+                  <span>字号</span>
+                  <span className="ts-field-hint">⌘ + / ⌘ − / ⌘ 0</span>
+                </div>
+                <PrecisionSlider
+                  min={READER_SIZE_MIN}
+                  max={READER_SIZE_MAX}
+                  step={1}
+                  value={draft.readerSize}
+                  onChange={(v) => onChange({ readerSize: v })}
+                  ariaLabel="阅读字号"
+                  leftGlyph="A"
+                  rightGlyph="A"
+                  valueLabel={`${draft.readerSize} pt`}
+                  ticks={[READER_SIZE_DEFAULT]}
+                />
+                {draft.readerSize !== READER_SIZE_DEFAULT && (
+                  <button
+                    className="ts-linklet"
+                    onClick={() => onChange({ readerSize: READER_SIZE_DEFAULT })}
+                  >
+                    ↺ 回到 {READER_SIZE_DEFAULT} pt
+                  </button>
+                )}
+              </div>
+
+              <div className="ts-field">
+                <div className="ts-field-label">
+                  <span>栏宽</span>
+                </div>
+                <PrecisionSlider
+                  min={READER_WIDTH_MIN}
+                  max={READER_WIDTH_MAX}
+                  step={READER_WIDTH_STEP}
+                  value={draft.readerMaxWidth}
+                  onChange={(v) => onChange({ readerMaxWidth: v })}
+                  ariaLabel="阅读栏宽"
+                  leftGlyph="▏"
+                  rightGlyph="▎"
+                  valueLabel={`${draft.readerMaxWidth} px`}
+                  ticks={[READER_WIDTH_DEFAULT]}
+                />
+                <WidthRuler
+                  value={draft.readerMaxWidth}
+                  min={READER_WIDTH_MIN}
+                  max={READER_WIDTH_MAX}
+                />
+              </div>
+            </Section>
+
+            <Section roman="III" title="字体">
+              <div className="ts-typefaces">
+                {FONT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.key}
+                    className={`ts-typeface ${draft.fontBody === opt.key ? "active" : ""}`}
+                    onClick={() => onChange({ fontBody: opt.key })}
+                  >
+                    <span
+                      className="ts-typeface-glyph"
+                      style={{ fontFamily: opt.glyphFamily }}
+                      aria-hidden
+                    >
+                      Aa
+                    </span>
+                    <span className="ts-typeface-label">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </Section>
+
+            <Section roman="IV" title="系统">
+              <div className="ts-field">
+                <div className="ts-field-label">
+                  <span>界面字号</span>
+                  {isAuto && <span className="ts-auto-tag">AUTO · {autoSize} pt</span>}
+                </div>
+                <PrecisionSlider
+                  min={ROOT_SIZE_MIN}
+                  max={ROOT_SIZE_MAX}
+                  step={1}
+                  value={systemSize}
+                  onChange={(v) => onChange({ rootSizeOverride: v })}
+                  ariaLabel="系统字号"
+                  leftGlyph="a"
+                  rightGlyph="A"
+                  valueLabel={`${systemSize} pt`}
+                  ticks={[autoSize]}
+                />
+                {!isAuto && (
+                  <button
+                    className="ts-linklet"
+                    onClick={() => onChange({ rootSizeOverride: null })}
+                  >
+                    ↺ 跟随视口（{autoSize} pt）
+                  </button>
+                )}
+              </div>
+            </Section>
+          </>
+        )}
+
+        {activeTab === "agent" && (
+          <TauriOnly>
+            <Section roman="I" title="Agent">
+              <AgentEnvironmentPanel />
+              <AcpMaxAliveField />
+            </Section>
+            <Section roman="II" title="诊断">
+              <DiagnosticsExportField />
+            </Section>
+          </TauriOnly>
+        )}
+
+        {activeTab === "notes" && (
+          <TauriOnly>
+            <Section roman="I" title="笔记">
+              <div className="ts-field">
+                <div className="ts-field-label">
+                  <span>笔记路径</span>
+                  <span className="ts-field-hint">保存卡片到本地笔记系统</span>
+                </div>
+                <div className="ts-path-row">
+                  <div className={`ts-path-value ${notesPath ? "" : "empty"}`}>
+                    {notesPath || "未设置"}
+                  </div>
+                  <button
+                    className="ts-footer-btn primary ts-inline-action"
+                    onClick={async () => {
+                      const selected = await openFolderPicker({
+                        title: "选择笔记文件夹",
+                        defaultPath: notesPath || undefined,
+                      });
+                      if (selected) {
+                        onNotesPathChange(selected);
+                      }
+                    }}
+                  >
+                    <FolderOpen size={13} />
+                    选择
+                  </button>
+                </div>
+              </div>
+            </Section>
+          </TauriOnly>
+        )}
+
+        {activeTab === "account" && (
+          <Section roman="I" title="账号">
+            <div className="ts-account">
+              <div className="ts-account-row">
+                <span className="ts-account-label">已登录</span>
+                <span className="ts-account-email">{currentUserEmail}</span>
+              </div>
+              <button className="ts-signout" onClick={onLogout}>
+                <span>退出登录</span>
+                <ArrowUpRight size={13} />
+              </button>
+            </div>
+          </Section>
+        )}
+      </div>
 
       <div className="drawer-footer drawer-footer-settings">
         <button className="ts-footer-link" onClick={onReset}>恢复默认</button>
