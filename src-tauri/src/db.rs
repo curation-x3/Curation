@@ -109,6 +109,7 @@ pub struct AccountRow {
     pub sync_count: Option<i64>,
 }
 
+#[allow(dead_code)]
 pub struct SyncQueueItem {
     pub id: i64,
     pub action: String,
@@ -779,6 +780,7 @@ impl CacheDb {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get_article_content(&self, article_id: &str) -> Result<Option<String>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
@@ -1045,7 +1047,8 @@ impl CacheDb {
                                AND source_card_ids LIKE ?2",
                         )
                         .map_err(|e| e.to_string())?;
-                    let pattern = format!("%{}%", source_id.replace('%', "\\%").replace('_', "\\_"));
+                    let pattern =
+                        format!("%{}%", source_id.replace('%', "\\%").replace('_', "\\_"));
                     let old_rows = stmt
                         .query_map(rusqlite::params![card_id, pattern], |r| {
                             Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
@@ -1198,6 +1201,7 @@ impl CacheDb {
         Ok(count)
     }
 
+    #[allow(dead_code)]
     pub fn upsert_articles(&self, articles: &[serde_json::Value]) -> Result<usize, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut count = 0usize;
@@ -1248,7 +1252,11 @@ impl CacheDb {
             let Some(card_id) = card["card_id"].as_str() else {
                 continue;
             };
-            if !card.as_object().map(|o| o.contains_key("favorited_at")).unwrap_or(false) {
+            if !card
+                .as_object()
+                .map(|o| o.contains_key("favorited_at"))
+                .unwrap_or(false)
+            {
                 continue;
             }
             if let Some(favorited_at) = card["favorited_at"].as_str() {
@@ -1337,6 +1345,7 @@ impl CacheDb {
     }
 
     /// Return up to `limit` card_ids that have no content_md, ordered recent → older.
+    #[allow(dead_code)]
     pub fn get_cards_missing_content(&self, limit: i64) -> Result<Vec<String>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
@@ -1356,6 +1365,7 @@ impl CacheDb {
     }
 
     /// Write content_md for a card and update its FTS entry.
+    #[allow(dead_code)]
     pub fn update_card_content(
         &self,
         card_id: &str,

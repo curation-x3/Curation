@@ -1,6 +1,7 @@
 mod acp;
 mod chat_commands;
 mod commands;
+#[allow(dead_code)]
 mod crypto;
 mod db;
 mod sync;
@@ -11,9 +12,8 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl};
 
 fn server_process_url() -> String {
-    std::env::var("CURATION_SERVER_PROCESS_URL").unwrap_or_else(|_| {
-        "http://127.0.0.1:8889/process".to_string()
-    })
+    std::env::var("CURATION_SERVER_PROCESS_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:8889/process".to_string())
 }
 
 #[derive(Serialize, Deserialize)]
@@ -69,7 +69,9 @@ const INIT_SCRIPT: &str = r#"
 fn open_article(app: AppHandle, url: String) -> Result<(), String> {
     println!("[Curation] opening silent extractor: {}", url);
     let trimmed = url.trim();
-    let parsed: url::Url = trimmed.parse().map_err(|e: url::ParseError| e.to_string())?;
+    let parsed: url::Url = trimmed
+        .parse()
+        .map_err(|e: url::ParseError| e.to_string())?;
 
     // If exists, just navigate
     if let Some(sub) = app.webview_windows().get("article-viewer") {
@@ -88,7 +90,10 @@ fn open_article(app: AppHandle, url: String) -> Result<(), String> {
 /// Open a URL in a visible browser-like window. Each call reuses the same "wechat-viewer" window.
 #[tauri::command]
 fn open_url_window(app: AppHandle, url: String) -> Result<(), String> {
-    let parsed: url::Url = url.trim().parse().map_err(|e: url::ParseError| e.to_string())?;
+    let parsed: url::Url = url
+        .trim()
+        .parse()
+        .map_err(|e: url::ParseError| e.to_string())?;
     if let Some(w) = app.webview_windows().get("wechat-viewer") {
         w.navigate(parsed).map_err(|e| e.to_string())?;
         let _ = w.show();
@@ -125,7 +130,10 @@ async fn receive_article(
     html: String,
 ) -> Result<(), String> {
     let html_len = html.len();
-    println!("[Curation] Rust received article: {} ({} chars)", title, html_len);
+    println!(
+        "[Curation] Rust received article: {} ({} chars)",
+        title, html_len
+    );
 
     // Close the extractor window immediately
     if let Some(sub) = app.webview_windows().get("article-viewer") {
@@ -162,7 +170,8 @@ async fn receive_article(
             if status.is_success() {
                 let body: serde_json::Value = resp.json().await.unwrap_or_default();
                 if let Some(main) = app.get_webview_window("main") {
-                    main.emit("server-response", body).map_err(|e| e.to_string())?;
+                    main.emit("server-response", body)
+                        .map_err(|e| e.to_string())?;
                 }
             } else {
                 let text = resp.text().await.unwrap_or_default();
@@ -219,7 +228,11 @@ fn init_user_path() {
         match rx.recv_timeout(Duration::from_secs(2)) {
             Ok(Ok(output)) if output.status.success() => {
                 let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if s.is_empty() { None } else { Some(s) }
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
             }
             _ => None,
         }
@@ -229,11 +242,22 @@ fn init_user_path() {
         let mut out = Vec::new();
         if let Some(home) = std::env::var_os("HOME") {
             let h = std::path::Path::new(&home);
-            for sub in [".local/bin", ".cargo/bin", ".bun/bin", ".volta/bin", ".npm-global/bin"] {
+            for sub in [
+                ".local/bin",
+                ".cargo/bin",
+                ".bun/bin",
+                ".volta/bin",
+                ".npm-global/bin",
+            ] {
                 out.push(h.join(sub));
             }
         }
-        for p in ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", "/usr/local/sbin"] {
+        for p in [
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "/usr/local/sbin",
+        ] {
             out.push(PathBuf::from(p));
         }
         out
@@ -245,7 +269,7 @@ fn init_user_path() {
 
     let mut seen: HashSet<OsString> = HashSet::new();
     let mut merged: Vec<PathBuf> = Vec::new();
-    let mut push = |p: PathBuf, seen: &mut HashSet<OsString>, merged: &mut Vec<PathBuf>| {
+    let push = |p: PathBuf, seen: &mut HashSet<OsString>, merged: &mut Vec<PathBuf>| {
         let key = p.as_os_str().to_os_string();
         if seen.insert(key) {
             merged.push(p);
@@ -269,7 +293,11 @@ fn init_user_path() {
             eprintln!(
                 "[env] PATH initialized ({} entries, login-shell {})",
                 merged.len(),
-                if shell_path.is_some() { "OK" } else { "timeout/unavailable" },
+                if shell_path.is_some() {
+                    "OK"
+                } else {
+                    "timeout/unavailable"
+                },
             );
             std::env::set_var("PATH", joined);
         }
@@ -293,7 +321,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // --- Cache state ---
-            let data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             let db_path = data_dir.join("cache.db");
 
             let state = commands::AppState {

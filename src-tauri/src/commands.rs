@@ -26,11 +26,11 @@ where
 }
 
 #[tauri::command]
-pub fn init_db_with_secret(
-    state: State<'_, AppState>,
-    secret: String,
-) -> Result<(), String> {
-    println!("[cache] init_db_with_secret, db exists: {}", state.db_path.exists());
+pub fn init_db_with_secret(state: State<'_, AppState>, secret: String) -> Result<(), String> {
+    println!(
+        "[cache] init_db_with_secret, db exists: {}",
+        state.db_path.exists()
+    );
 
     let db = if state.db_path.exists() {
         match CacheDb::open(&state.db_path, &secret) {
@@ -39,7 +39,10 @@ pub fn init_db_with_secret(
                 db
             }
             Err(e) => {
-                println!("[cache] open failed ({}), recreating (one-time migration)", e);
+                println!(
+                    "[cache] open failed ({}), recreating (one-time migration)",
+                    e
+                );
                 let _ = std::fs::remove_file(&state.db_path);
                 CacheDb::create(&state.db_path, &secret)?
             }
@@ -150,9 +153,7 @@ pub fn set_card_content(
 }
 
 #[tauri::command]
-pub fn get_cached_accounts(
-    state: State<'_, AppState>,
-) -> Result<Vec<AccountRow>, String> {
+pub fn get_cached_accounts(state: State<'_, AppState>) -> Result<Vec<AccountRow>, String> {
     with_db(&state, |db| db.get_cached_accounts())
 }
 
@@ -281,19 +282,23 @@ pub fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
     std::fs::write(
         package_dir.join("manifest.json"),
         serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?,
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
     std::fs::write(
         package_dir.join("environment.txt"),
         crate::acp::environment_report_text(),
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
     std::fs::write(
         package_dir.join("acp_environment.json"),
         serde_json::to_string_pretty(&checks).map_err(|e| e.to_string())?,
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
     std::fs::write(
         package_dir.join("app_system.log"),
         collect_app_system_log().unwrap_or_else(|e| format!("failed to collect system log: {}", e)),
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(package_dir.to_string_lossy().to_string())
 }

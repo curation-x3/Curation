@@ -52,9 +52,7 @@ impl SyncClient {
         token: &str,
     ) -> Vec<(i64, Result<(), String>)> {
         match action {
-            "mark_read" | "mark_unread" => {
-                self.push_card_batch(base_url, action, run, token).await
-            }
+            "mark_read" | "mark_unread" => self.push_card_batch(base_url, action, run, token).await,
             "add_favorite" | "remove_favorite" => {
                 self.push_favorite_batch(base_url, action, run, token).await
             }
@@ -135,8 +133,7 @@ impl SyncClient {
                     item_ids.iter().map(|id| (*id, Ok(()))).collect()
                 } else {
                     // /cards/mark-unread returns {results: [{id, ok, error?}]}.
-                    let results_arr =
-                        json_body["results"].as_array().cloned().unwrap_or_default();
+                    let results_arr = json_body["results"].as_array().cloned().unwrap_or_default();
                     let mut by_cid: std::collections::HashMap<String, Result<(), String>> =
                         std::collections::HashMap::new();
                     for r in results_arr {
@@ -148,9 +145,7 @@ impl SyncClient {
                     card_ids
                         .iter()
                         .zip(item_ids.iter())
-                        .map(|(cid, iid)| {
-                            (*iid, by_cid.remove(cid).unwrap_or(Ok(())))
-                        })
+                        .map(|(cid, iid)| (*iid, by_cid.remove(cid).unwrap_or(Ok(()))))
                         .collect()
                 }
             }
@@ -163,7 +158,10 @@ impl SyncClient {
             }
             Err(e) => {
                 let msg = e.to_string();
-                item_ids.iter().map(|iid| (*iid, Err(msg.clone()))).collect()
+                item_ids
+                    .iter()
+                    .map(|iid| (*iid, Err(msg.clone())))
+                    .collect()
             }
         };
 
@@ -266,15 +264,11 @@ impl SyncClient {
                     Ok(v) => v,
                     Err(e) => {
                         let msg = e.to_string();
-                        return item_ids
-                            .iter()
-                            .map(|id| (*id, Err(msg.clone())))
-                            .collect();
+                        return item_ids.iter().map(|id| (*id, Err(msg.clone()))).collect();
                     }
                 };
                 // Results keyed by item_id string.
-                let results_arr =
-                    body["results"].as_array().cloned().unwrap_or_default();
+                let results_arr = body["results"].as_array().cloned().unwrap_or_default();
                 let mut by_fav_id: std::collections::HashMap<String, Result<(), String>> =
                     std::collections::HashMap::new();
                 for r in results_arr {
@@ -286,9 +280,7 @@ impl SyncClient {
                 fav_ids
                     .iter()
                     .zip(item_ids.iter())
-                    .map(|(fid, iid)| {
-                        (*iid, by_fav_id.remove(fid).unwrap_or(Ok(())))
-                    })
+                    .map(|(fid, iid)| (*iid, by_fav_id.remove(fid).unwrap_or(Ok(()))))
                     .collect()
             }
             Ok(r) => {
@@ -300,7 +292,10 @@ impl SyncClient {
             }
             Err(e) => {
                 let msg = e.to_string();
-                item_ids.iter().map(|iid| (*iid, Err(msg.clone()))).collect()
+                item_ids
+                    .iter()
+                    .map(|iid| (*iid, Err(msg.clone())))
+                    .collect()
             }
         };
 
@@ -352,8 +347,9 @@ impl SyncClient {
                 })
             };
 
-            let mut in_flight: std::collections::VecDeque<tokio::task::JoinHandle<Result<serde_json::Value, String>>> =
-                std::collections::VecDeque::new();
+            let mut in_flight: std::collections::VecDeque<
+                tokio::task::JoinHandle<Result<serde_json::Value, String>>,
+            > = std::collections::VecDeque::new();
             in_flight.push_back(spawn(None));
             in_flight.push_back(spawn(Some(PAGE_SIZE.to_string())));
             let mut next_cursor: i64 = PAGE_SIZE * 2;
@@ -443,10 +439,7 @@ async fn fetch_page_raw(
 }
 
 /// Apply a single page of pull results to the local DB. Returns changed keys.
-fn apply_pull_result(
-    db: &CacheDb,
-    pull: &PullResult,
-) -> Result<Vec<String>, String> {
+fn apply_pull_result(db: &CacheDb, pull: &PullResult) -> Result<Vec<String>, String> {
     let mut changed: HashSet<String> = HashSet::new();
 
     if !pull.cards.is_empty() {
