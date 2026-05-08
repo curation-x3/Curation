@@ -27,7 +27,7 @@ export function MapPreviewDrawer({ open, card, onClose }: Props) {
   if (!open || !card) return null;
 
   return (
-    <div className="drawer-overlay" onClick={onClose}>
+    <div className="drawer-overlay" data-map-fixed-ui onClick={onClose}>
       <aside className="drawer-panel map-reader-drawer" onClick={(e) => e.stopPropagation()}>
         <ReaderPane
           selectedItem={card}

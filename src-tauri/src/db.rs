@@ -70,6 +70,7 @@ pub struct CardRow {
     pub cover_url: Option<String>,
     pub digest: Option<String>,
     pub word_count: Option<i64>,
+    pub reading_minutes: Option<i64>,
     pub is_original: Option<i64>,
     /// JSON-encoded array of canonical entity name strings, e.g. `["Anthropic","Claude Mythos"]`.
     /// Stored as TEXT in SQLite; the frontend parses it back to `string[]`.
@@ -196,6 +197,7 @@ impl CacheDb {
                 cover_url TEXT,
                 digest TEXT,
                 word_count INTEGER,
+                reading_minutes INTEGER,
                 is_original INTEGER,
                 entities TEXT,
                 topic TEXT
@@ -322,6 +324,10 @@ impl CacheDb {
             (
                 "word_count",
                 "ALTER TABLE cards ADD COLUMN word_count INTEGER",
+            ),
+            (
+                "reading_minutes",
+                "ALTER TABLE cards ADD COLUMN reading_minutes INTEGER",
             ),
             (
                 "is_original",
@@ -643,7 +649,7 @@ impl CacheDb {
             "SELECT card_id, article_id, kind, source_card_ids, source_article_ids,
                     title, article_title, content_md, additional_content, description, routing,
                     template, template_reason, card_date, account, author, url, read_at, updated_at, publish_time,
-                    account_id, biz, cover_url, digest, word_count, is_original, entities, topic
+                    account_id, biz, cover_url, digest, word_count, reading_minutes, is_original, entities, topic
              FROM cards WHERE routing IS NOT NULL",
         );
         if let Some(_) = account {
@@ -684,9 +690,10 @@ impl CacheDb {
                     cover_url: row.get(22)?,
                     digest: row.get(23)?,
                     word_count: row.get(24)?,
-                    is_original: row.get(25)?,
-                    entities: row.get(26)?,
-                    topic: decode_json_value(row.get::<_, Option<String>>(27)?),
+                    reading_minutes: row.get(25)?,
+                    is_original: row.get(26)?,
+                    entities: row.get(27)?,
+                    topic: decode_json_value(row.get::<_, Option<String>>(28)?),
                 })
             })
             .map_err(|e| e.to_string())?
@@ -720,9 +727,10 @@ impl CacheDb {
                     cover_url: row.get(22)?,
                     digest: row.get(23)?,
                     word_count: row.get(24)?,
-                    is_original: row.get(25)?,
-                    entities: row.get(26)?,
-                    topic: decode_json_value(row.get::<_, Option<String>>(27)?),
+                    reading_minutes: row.get(25)?,
+                    is_original: row.get(26)?,
+                    entities: row.get(27)?,
+                    topic: decode_json_value(row.get::<_, Option<String>>(28)?),
                 })
             })
             .map_err(|e| e.to_string())?
@@ -1100,8 +1108,8 @@ impl CacheDb {
                  (card_id, article_id, kind, source_card_ids, source_article_ids,
                   title, article_title, content_md, additional_content, description, routing,
                   template, template_reason, card_date, account, author, url, read_at, updated_at, publish_time,
-                  account_id, biz, cover_url, digest, word_count, is_original, entities, topic)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28)
+                  account_id, biz, cover_url, digest, word_count, reading_minutes, is_original, entities, topic)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29)
                  ON CONFLICT(card_id) DO UPDATE SET
                    article_id      = excluded.article_id,
                    kind            = excluded.kind,
@@ -1127,6 +1135,7 @@ impl CacheDb {
                    cover_url       = excluded.cover_url,
                    digest          = excluded.digest,
                    word_count      = excluded.word_count,
+                   reading_minutes = excluded.reading_minutes,
                    is_original     = excluded.is_original,
                    entities        = excluded.entities,
                    topic           = excluded.topic",
@@ -1156,6 +1165,7 @@ impl CacheDb {
                     card["cover_url"].as_str(),
                     card["digest"].as_str(),
                     card["word_count"].as_i64(),
+                    card["reading_minutes"].as_i64(),
                     card["is_original"].as_bool().map(|b| if b { 1i64 } else { 0i64 }),
                     entities_json,
                     topic_json,

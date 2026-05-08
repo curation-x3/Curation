@@ -7,6 +7,7 @@ import rehypeHighlight from "rehype-highlight";
 import { fetchCardSources, fetchClusterSources } from "../lib/api";
 import { mdComponents, stripFrontmatter } from "../lib/markdown";
 import type { CardSource } from "../types";
+import { formatReadingSummary } from "../lib/readingMetrics";
 
 interface SourceCardsDrawerProps {
   /** Aggregated card mode (inbox): drawer fetches sources via /cards/{id}/sources */
@@ -124,6 +125,7 @@ export function SourceCardsDrawer({
               {s.article && (
                 <div style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", marginBottom: 12 }}>
                   {s.article.account ?? ""}{s.article.publish_time ? ` · ${s.article.publish_time.slice(0, 10)}` : ""}
+                  {formatReadingSummary(s.word_count, s.reading_minutes) ? ` · ${formatReadingSummary(s.word_count, s.reading_minutes)}` : ""}
                 </div>
               )}
               <div className="markdown-body" style={{ fontSize: "var(--fs-sm)", lineHeight: 1.6 }}>

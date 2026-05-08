@@ -4,13 +4,32 @@
 // The preview wrapper supplies mock data + a fake article-content lookup;
 // the production wrapper would supply the real ones.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { computeLayout, MAP_CANVAS } from "../lib/layout";
 import { layoutFloatingCards, placeFloatingCard } from "../lib/geometry";
+import {
+  applyZoomAt,
+  clampViewport,
+  DEFAULT_VIEWPORT,
+  panViewportBy,
+  wheelZoomFactor,
+  type ViewportPoint,
+  type ViewportTransform,
+} from "../lib/viewport";
 import { validate } from "../lib/validate";
 import { isCardRead as deriveRead, useMapStore } from "../state/store";
 import type { MapCard, MapDSL } from "../types";
 import { MapSvg, type RouteFocus } from "./MapSvg";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useFavorites } from "../../hooks/useFavorites";
 import { MapCompass } from "./MapCompass";
 import { MapEntityList } from "./MapEntityList";
@@ -23,6 +42,21 @@ export type MapCanvasProps = {
   cards: MapCard[];
   /** Called when a settlement should be marked read (popover button or drawer close). */
   onMarkRead: (card_id: string) => void;
+};
+
+type MapGestureEvent = Event & {
+  scale: number;
+  clientX: number;
+  clientY: number;
+};
+
+type PanState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  dragged: boolean;
 };
 
 export function MapCanvas({
@@ -47,6 +81,12 @@ export function MapCanvas({
   const sessionRead = useMapStore((s) => s.session_read_card_ids);
   const routesVisible = useMapStore((s) => s.routes_visible);
   const hiddenEntities = useMapStore((s) => s.hidden_entities);
+  const [viewport, setViewport] =
+    useState<ViewportTransform>(DEFAULT_VIEWPORT);
+  const gestureLastScaleRef = useRef(1);
+  const panStateRef = useRef<PanState | null>(null);
+  const suppressClickRef = useRef(false);
+  const [isPanning, setIsPanning] = useState(false);
 
   const { data: favorites } = useFavorites();
   const favoritedIds = useMemo(
@@ -72,6 +112,175 @@ export function MapCanvas({
     ro.observe(stageRef.current);
     return () => ro.disconnect();
   }, []);
+  useEffect(() => {
+    if (!stageSize.width || !stageSize.height) return;
+    setViewport((prev) => clampViewport(prev, stageSize));
+  }, [stageSize]);
+  useEffect(() => {
+    setViewport(DEFAULT_VIEWPORT);
+  }, [layout]);
+
+  const stagePointFromClient = useCallback((clientX: number, clientY: number) => {
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }, []);
+
+  useEffect(() => {
+    const node = stageRef.current;
+    if (!node || !stageSize.width || !stageSize.height) return;
+    const onWheel = (event: WheelEvent) => {
+      if (isFixedMapUiTarget(event.target)) return;
+      const anchor = stagePointFromClient(event.clientX, event.clientY);
+      if (!anchor) return;
+      event.preventDefault();
+      setViewport((prev) =>
+        applyZoomAt(prev, wheelZoomFactor(event), anchor, stageSize),
+      );
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [stagePointFromClient, stageSize]);
+
+
+  useEffect(() => {
+    const node = stageRef.current;
+    if (!node || !stageSize.width || !stageSize.height) return;
+    const onGestureStart = (event: Event) => {
+      if (isFixedMapUiTarget(event.target)) return;
+      event.preventDefault();
+      gestureLastScaleRef.current = 1;
+    };
+    const onGestureChange = (event: Event) => {
+      if (isFixedMapUiTarget(event.target)) return;
+      const gesture = event as MapGestureEvent;
+      const anchor = stagePointFromClient(gesture.clientX, gesture.clientY);
+      if (!anchor || !Number.isFinite(gesture.scale) || gesture.scale <= 0) {
+        return;
+      }
+      event.preventDefault();
+      const factor = gesture.scale / gestureLastScaleRef.current;
+      gestureLastScaleRef.current = gesture.scale;
+      setViewport((prev) => applyZoomAt(prev, factor, anchor, stageSize));
+    };
+    const onGestureEnd = () => {
+      gestureLastScaleRef.current = 1;
+    };
+    node.addEventListener("gesturestart", onGestureStart, { passive: false });
+    node.addEventListener("gesturechange", onGestureChange, { passive: false });
+    node.addEventListener("gestureend", onGestureEnd);
+    return () => {
+      node.removeEventListener("gesturestart", onGestureStart);
+      node.removeEventListener("gesturechange", onGestureChange);
+      node.removeEventListener("gestureend", onGestureEnd);
+    };
+  }, [stagePointFromClient, stageSize]);
+
+  const zoomAtStageCenter = useCallback(
+    (factor: number) => {
+      if (!stageSize.width || !stageSize.height) return;
+      const anchor = { x: stageSize.width / 2, y: stageSize.height / 2 };
+      setViewport((prev) => applyZoomAt(prev, factor, anchor, stageSize));
+    },
+    [stageSize],
+  );
+
+  const resetZoom = useCallback(() => {
+    setViewport(DEFAULT_VIEWPORT);
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (isFixedMapUiTarget(event.target)) return;
+      if (!event.isPrimary || event.button !== 0 || viewport.scale <= 1) return;
+      panStateRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        dragged: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setIsPanning(true);
+    },
+    [viewport.scale],
+  );
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const pan = panStateRef.current;
+      if (!pan || pan.pointerId !== event.pointerId) return;
+      const delta = {
+        x: event.clientX - pan.lastX,
+        y: event.clientY - pan.lastY,
+      };
+      pan.lastX = event.clientX;
+      pan.lastY = event.clientY;
+
+      const dragDistance =
+        Math.abs(event.clientX - pan.startX) +
+        Math.abs(event.clientY - pan.startY);
+      if (dragDistance > 4) pan.dragged = true;
+      if (delta.x === 0 && delta.y === 0) return;
+
+      event.preventDefault();
+      setViewport((prev) => panViewportBy(prev, delta, stageSize));
+    },
+    [stageSize],
+  );
+
+  const endPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const pan = panStateRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    if (pan.dragged) suppressClickRef.current = true;
+    panStateRef.current = null;
+    setIsPanning(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handleClickCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!suppressClickRef.current) return;
+      suppressClickRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+
+  const handleDoubleClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (isFixedMapUiTarget(event.target)) return;
+      if (isMapInteractiveTarget(event.target)) return;
+      if (!stageSize.width || !stageSize.height) return;
+      const anchor = stagePointFromClient(event.clientX, event.clientY);
+      if (!anchor) return;
+      event.preventDefault();
+      setViewport((prev) => applyZoomAt(prev, 1.6, anchor, stageSize));
+    },
+    [stagePointFromClient, stageSize],
+  );
+
+  const projectMapPointToStage = useCallback(
+    (mapX: number, mapY: number, mapRadius = 0): ViewportPoint | null => {
+      if (!stageSize.width || !stageSize.height) return null;
+      const cw = MAP_CANVAS.width;
+      const ch = MAP_CANVAS.height;
+      const scale = Math.min(stageSize.width / cw, stageSize.height / ch);
+      const renderedW = cw * scale;
+      const renderedH = ch * scale;
+      const offsetX = (stageSize.width - renderedW) / 2;
+      const offsetY = (stageSize.height - renderedH) / 2;
+      return {
+        x: viewport.x + (offsetX + mapX * scale + mapRadius * scale) * viewport.scale,
+        y: viewport.y + (offsetY + mapY * scale) * viewport.scale,
+      };
+    },
+    [stageSize, viewport],
+  );
 
   // Compute the popover anchor position in stage pixel coords, given a card.
   // SVG viewBox preserveAspectRatio="xMidYMid meet" means we project from
@@ -97,18 +306,11 @@ export function MapCanvas({
       }
       if (!found) return null;
 
-      const cw = MAP_CANVAS.width;
-      const ch = MAP_CANVAS.height;
-      const scale = Math.min(stageSize.width / cw, stageSize.height / ch);
-      const renderedW = cw * scale;
-      const renderedH = ch * scale;
-      const offsetX = (stageSize.width - renderedW) / 2;
-      const offsetY = (stageSize.height - renderedH) / 2;
-      const screenX = offsetX + foundX * scale + foundR * scale;
-      const screenY = offsetY + foundY * scale;
-      return placeFloatingCard(screenX, screenY, 280, 200, stageSize, 14);
+      const projected = projectMapPointToStage(foundX, foundY, foundR);
+      if (!projected) return null;
+      return placeFloatingCard(projected.x, projected.y, 280, 200, stageSize, 14);
     },
-    [layout, stageSize],
+    [layout, projectMapPointToStage, stageSize],
   );
 
   // Route-focus state (hover or pinned). When set, two endpoint popovers and
@@ -229,17 +431,9 @@ export function MapCanvas({
         if (found) break;
       }
       if (!found) return null;
-      const cw = MAP_CANVAS.width;
-      const ch = MAP_CANVAS.height;
-      const scale = Math.min(stageSize.width / cw, stageSize.height / ch);
-      const offsetX = (stageSize.width - cw * scale) / 2;
-      const offsetY = (stageSize.height - ch * scale) / 2;
-      return {
-        x: offsetX + foundX * scale + foundR * scale,
-        y: offsetY + foundY * scale,
-      };
+      return projectMapPointToStage(foundX, foundY, foundR);
     },
-    [layout, stageSize],
+    [layout, projectMapPointToStage, stageSize],
   );
 
   // Layout all focused-entity popovers at once so they don't overlap.
@@ -308,37 +502,70 @@ export function MapCanvas({
   };
 
   return (
-    <div ref={stageRef} style={{ position: "relative", width: "100%", height: "100%" }}>
-      <MapSvg
-        dsl={dsl}
-        cards={cards}
-        layout={layout}
-        isCardRead={isCardReadFn}
-        onSettlementHover={(id) => setHovered(id)}
-        onSettlementClick={(id) => openDrawer(id)}
-        routeFocus={routeFocus}
-        routesVisible={routesVisible}
-        hiddenEntities={hiddenEntities}
-        onRouteHover={(focus) => setRouteFocus(focus)}
-        onRouteClick={(focus) => {
-          setRouteFocus((prev) => {
-            // Same route clicked twice while pinned → unpin (clear focus).
-            if (
-              prev?.pinned &&
-              prev.fromId === focus.fromId &&
-              prev.toId === focus.toId
-            ) {
-              return null;
-            }
-            return focus; // focus.pinned = true (set by MapSvg)
-          });
+    <div
+      ref={stageRef}
+      data-map-stage
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endPan}
+      onPointerCancel={endPan}
+      onClickCapture={handleClickCapture}
+      onDoubleClick={handleDoubleClick}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        touchAction: "none",
+        cursor: viewport.scale > 1 ? (isPanning ? "grabbing" : "grab") : "default",
+      }}
+    >
+      <div
+        data-map-viewport
+        style={{
+          position: "absolute",
+          inset: 0,
+          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
+          transformOrigin: "0 0",
         }}
-        onCanvasBlankClick={() => setRouteFocus(null)}
-        favoritedIds={favoritedIds}
-      />
+      >
+        <MapSvg
+          dsl={dsl}
+          cards={cards}
+          layout={layout}
+          isCardRead={isCardReadFn}
+          onSettlementHover={(id) => setHovered(id)}
+          onSettlementClick={(id) => openDrawer(id)}
+          routeFocus={routeFocus}
+          routesVisible={routesVisible}
+          hiddenEntities={hiddenEntities}
+          onRouteHover={(focus) => setRouteFocus(focus)}
+          onRouteClick={(focus) => {
+            setRouteFocus((prev) => {
+              // Same route clicked twice while pinned → unpin (clear focus).
+              if (
+                prev?.pinned &&
+                prev.fromId === focus.fromId &&
+                prev.toId === focus.toId
+              ) {
+                return null;
+              }
+              return focus; // focus.pinned = true (set by MapSvg)
+            });
+          }}
+          onCanvasBlankClick={() => setRouteFocus(null)}
+          favoritedIds={favoritedIds}
+        />
+      </div>
 
       <MapLegend />
       <MapCompass />
+      <MapZoomControls
+        scale={viewport.scale}
+        onZoomIn={() => zoomAtStageCenter(1.2)}
+        onZoomOut={() => zoomAtStageCenter(1 / 1.2)}
+        onReset={resetZoom}
+      />
       <MapEntityList
         entities={entitiesIndex.map((e) => ({
           name: e.name,
@@ -391,3 +618,83 @@ export function MapCanvas({
     </div>
   );
 }
+
+function isFixedMapUiTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-map-fixed-ui]") != null;
+}
+
+function isMapInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-map-interactive]") != null;
+}
+
+function MapZoomControls({
+  scale,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+}: {
+  scale: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div
+      data-map-fixed-ui
+      style={{
+        position: "absolute",
+        right: 36,
+        bottom: 190,
+        zIndex: 6,
+        display: "grid",
+        gridTemplateColumns: "30px 30px",
+        gap: 4,
+        padding: 6,
+        background: "var(--map-vellum)",
+        border: "1px solid var(--map-ink)",
+        boxShadow: "var(--map-shadow-vellum)",
+        pointerEvents: "auto",
+        userSelect: "none",
+      }}
+    >
+      <button type="button" title="放大" onClick={onZoomIn} style={zoomButtonStyle}>
+        <Plus size={15} strokeWidth={1.8} />
+      </button>
+      <button type="button" title="缩小" onClick={onZoomOut} style={zoomButtonStyle}>
+        <Minus size={15} strokeWidth={1.8} />
+      </button>
+      <button
+        type="button"
+        title="重置缩放"
+        onClick={onReset}
+        style={{
+          ...zoomButtonStyle,
+          gridColumn: "1 / 3",
+          width: 64,
+          fontFamily: "var(--map-mono)",
+          fontSize: 9,
+          letterSpacing: "0.08em",
+          gap: 5,
+        }}
+      >
+        <RotateCcw size={11} strokeWidth={1.7} />
+        {Math.round(scale * 100)}%
+      </button>
+    </div>
+  );
+}
+
+const zoomButtonStyle: CSSProperties = {
+  width: 30,
+  height: 26,
+  border: "1px solid var(--map-ink-2)",
+  background: "var(--map-paper)",
+  color: "var(--map-ink)",
+  fontFamily: "var(--map-display)",
+  fontSize: 15,
+  lineHeight: "22px",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};

@@ -28,6 +28,7 @@ export interface CachedCard {
   cover_url: string | null;
   digest: string | null;
   word_count: number | null;
+  reading_minutes?: number | null;
   is_original: boolean | null;
   /** JSON-encoded array of canonical entity name strings, exactly as stored
    *  in the local SQLite TEXT column. Parse with `parseEntities()` below. */

@@ -28,6 +28,7 @@ export interface CachedCard {
   cover_url: string | null;
   digest: string | null;
   word_count: number | null;
+  reading_minutes?: number | null;
   is_original: boolean | null;
   /** JSON-encoded array of canonical entity name strings, exactly as stored
    *  in the local SQLite TEXT column. Parse with `parseEntities()` from
@@ -95,6 +96,8 @@ export async function loadFavoriteItems(): Promise<FavoriteItem[]> {
         created_at: fav.created_at,
         title: card?.title ?? null,
         description: card?.description ?? null,
+        word_count: card?.word_count ?? null,
+        reading_minutes: card?.reading_minutes ?? null,
         routing: (card?.routing as FavoriteItem["routing"]) ?? null,
         article_id: card?.article_id ?? null,
         article_title: card?.article_title ?? card?.title ?? null,

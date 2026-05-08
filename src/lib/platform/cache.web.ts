@@ -59,6 +59,8 @@ export async function loadFavoriteItems(): Promise<FavoriteItem[]> {
       created_at: f.created_at,
       title: c?.title ?? null,
       description: c?.description ?? null,
+      word_count: c?.word_count ?? null,
+      reading_minutes: c?.reading_minutes ?? null,
       routing: (c?.routing as FavoriteItem["routing"]) ?? null,
       article_id: c?.article_id ?? null,
       article_title: c?.article_title ?? null,
@@ -226,10 +228,13 @@ interface SyncBatch {
 export async function runSync(): Promise<string[]> {
   const since = await idb.getSyncState(LAST_SYNC_TS_KEY);
   const changed = new Set<string>();
+  let syncUntil: string | null = null;
+
   const fetchPage = async (cursor: number | null): Promise<SyncBatch> => {
     const params = new URLSearchParams();
     params.set("limit", String(PAGE_SIZE));
     if (since) params.set("since", since);
+    if (syncUntil) params.set("until", syncUntil);
     if (cursor != null) params.set("cursor", String(cursor));
     const res = await apiFetch(`/sync?${params.toString()}`);
     if (!res.ok) {
@@ -289,10 +294,6 @@ export async function runSync(): Promise<string[]> {
       pageChanged.add("favorites");
     }
 
-    if (data.sync_ts) {
-      await idb.setSyncState(LAST_SYNC_TS_KEY, data.sync_ts);
-    }
-
     const keys = Array.from(pageChanged);
     if (keys.length > 0) {
       window.dispatchEvent(new CustomEvent("sync-page-committed", {
@@ -306,26 +307,35 @@ export async function runSync(): Promise<string[]> {
     return keys;
   };
 
-  let inFlight: Promise<SyncBatch>[] = [fetchPage(null), fetchPage(PAGE_SIZE)];
-  let nextCursor = PAGE_SIZE * 2;
-  let stopScheduling = false;
+  let cursor: number | null = null;
+  let pageCount = 0;
 
-  while (inFlight.length > 0) {
-    const data = await inFlight.shift()!;
-    const hasMore = data.has_more === true;
-
-    if (hasMore && !stopScheduling) {
-      inFlight.push(fetchPage(nextCursor));
-      nextCursor += PAGE_SIZE;
-    } else if (!hasMore) {
-      stopScheduling = true;
+  do {
+    const data = await fetchPage(cursor);
+    if (!syncUntil) {
+      if (!data.sync_ts) {
+        throw new Error("/sync response missing sync_ts");
+      }
+      syncUntil = data.sync_ts;
     }
-
     await commitPage(data);
+    pageCount += 1;
 
-    if (stopScheduling && inFlight.length === 0) {
-      break;
+    const nextCursor = typeof data.cursor === "number" ? data.cursor : null;
+    if (data.has_more === true && nextCursor == null) {
+      throw new Error("/sync returned has_more without cursor");
     }
+    if (nextCursor != null && nextCursor === cursor) {
+      throw new Error(`/sync cursor did not advance: ${cursor}`);
+    }
+    cursor = data.has_more === true ? nextCursor : null;
+  } while (cursor != null);
+
+  if (pageCount > 1) {
+    console.log(`[sync] completed ${pageCount} pages`);
+  }
+  if (syncUntil) {
+    await idb.setSyncState(LAST_SYNC_TS_KEY, syncUntil);
   }
 
   return Array.from(changed);

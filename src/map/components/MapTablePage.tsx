@@ -22,6 +22,7 @@ import {
   type MapOverrides,
 } from "../state/overrides";
 import type { ArticleContent, MapCard, MapDSL } from "../types";
+import { formatReadingMinutes } from "../../lib/readingMetrics";
 
 type Props = {
   dsl: MapDSL;
@@ -257,7 +258,7 @@ export function MapTablePage({
               borderCollapse: "collapse",
               tableLayout: "fixed",
               width: "100%",
-              minWidth: 1804,
+              minWidth: 1978,
               fontSize: 11,
               color: "var(--map-ink-2)",
             }}
@@ -272,6 +273,8 @@ export function MapTablePage({
                 <Th width={90} group="atlas">src_cnt</Th>
                 <Th width={160} group="atlas">共享实体</Th>
                 <Th width={110} group="meta">公众号</Th>
+                <Th width={92} group="meta">字数</Th>
+                <Th width={82} group="meta">阅读</Th>
                 <Th width={102} group="meta">card_date</Th>
                 <Th width={140} group="meta">created_at</Th>
                 <Th width={88} group="meta">已读</Th>
@@ -363,13 +366,21 @@ export function MapTablePage({
                       </Td>
                       {/* 8. 公众号 */}
                       <Td>{c.article_meta?.account ?? "—"}</Td>
-                      {/* 9. card_date */}
+                      {/* 9. 字数 */}
+                      <Td mono muted>
+                        {typeof c.word_count === "number" && c.word_count > 0
+                          ? c.word_count
+                          : "—"}
+                      </Td>
+                      {/* 10. 阅读 */}
+                      <Td muted>{formatReadingMinutes(c.reading_minutes) || "—"}</Td>
+                      {/* 11. card_date */}
                       <Td mono muted>{c.card_date}</Td>
-                      {/* 10. created_at */}
+                      {/* 12. created_at */}
                       <Td mono muted>
                         {c.article_meta?.publish_time?.slice(0, 19).replace("T", " ") ?? "—"}
                       </Td>
-                      {/* 11. 已读 */}
+                      {/* 13. 已读 */}
                       <Td muted>
                         {c.read_at ? (
                           <span style={{ color: "var(--map-ink-faint)" }}>
@@ -379,7 +390,7 @@ export function MapTablePage({
                           <span style={{ color: "var(--map-rust)" }}>· 未读</span>
                         )}
                       </Td>
-                      {/* 12. link */}
+                      {/* 14. link */}
                       <Td>
                         {c.article_meta?.url ? (
                           <a
@@ -398,7 +409,7 @@ export function MapTablePage({
                           "—"
                         )}
                       </Td>
-                      {/* 13. 正文 */}
+                      {/* 15. 正文 */}
                       <Td>
                         {content ? (
                           <button
@@ -432,7 +443,7 @@ export function MapTablePage({
                     {expanded && content && (
                       <tr key={cardKey + "-md"}>
                         <td
-                          colSpan={13}
+                          colSpan={15}
                           style={{
                             padding: "16px 24px 22px",
                             background: "var(--map-paper)",

@@ -185,7 +185,9 @@ export interface InboxItem {
   entities: string[];
   /** Inline map taxonomy (denormalized from topic + domain). Nullable until tagging pipeline lands. */
   topic?: TopicRef | null;
-  /** Estimated reading minutes (server-computed, on-the-fly). Used to size atlas settlements. */
+  /** User-visible reading burden: card markdown, plus article markdown for original-content push cards. */
+  word_count?: number;
+  /** Estimated reading minutes from word_count. Used to size atlas settlements. */
   reading_minutes?: number;
   routing: Routing;
   /**
@@ -286,6 +288,8 @@ export interface FavoriteItem {
   created_at: string;
   title: string | null;
   description: string | null;
+  word_count?: number | null;
+  reading_minutes?: number | null;
   routing: Routing;
   article_id: string | null;
   article_title: string | null;
@@ -385,6 +389,8 @@ export interface CardSource {
   title: string;
   description: string | null;
   content: string | null;
+  word_count?: number | null;
+  reading_minutes?: number | null;
   source_article_ids: string[];
   article: {
     short_id: string;

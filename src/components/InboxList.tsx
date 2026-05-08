@@ -14,6 +14,7 @@ import {
   type CardStatus,
 } from "../lib/acp/cardStatusStore";
 import { isAggregateKind, routingPresentation } from "../lib/routingPresentation";
+import { formatReadingMinutes } from "../lib/readingMetrics";
 
 interface InboxListProps {
   items: InboxItem[] | undefined;
@@ -122,6 +123,7 @@ function InboxItemRow({
   const metaText = isAggregated && sourceCount > 0
     ? `聚合 ${sourceCount} 张相似卡片`
     : `${item.article_meta.account}${item.article_meta.publish_time ? ` · ${formatTime(item.article_meta.publish_time)}` : ""}`;
+  const readingTime = formatReadingMinutes(item.reading_minutes);
   return (
     <div
       className={`inbox-item ${isSelected ? "selected" : ""} ${visuallyRead ? "read" : ""}`}
@@ -143,6 +145,7 @@ function InboxItemRow({
       )}
       <div className="inbox-item-meta">
         {metaText}
+        {readingTime && <> · {readingTime}</>}
       </div>
     </div>
   );

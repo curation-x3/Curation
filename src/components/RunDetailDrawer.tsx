@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { fetchRun, fetchRunCards, fetchRunStream, fetchRunFiles, fetchRunFile } from "../lib/api";
 import type { Run, RunStreamLine } from "../types";
+import { formatReadingSummary } from "../lib/readingMetrics";
 
 function elapsed(run: Run): number | null {
   if (!run.started_at || !run.completed_at) return null;
@@ -60,6 +61,11 @@ function OverviewTab({ run }: { run: Run }) {
                   }}>{c.template}</span>
                 )}
                 <span style={{ color: "var(--text-primary)", fontSize: "var(--fs-sm)" }}>{c.title}</span>
+                {formatReadingSummary(c.word_count, c.reading_minutes) && (
+                  <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", marginLeft: "auto", whiteSpace: "nowrap" }}>
+                    {formatReadingSummary(c.word_count, c.reading_minutes)}
+                  </span>
+                )}
               </div>
               {c.description && (
                 <div style={{ color: "var(--text-secondary)", fontSize: "var(--fs-xs)", lineHeight: 1.5, marginBottom: 6 }}>

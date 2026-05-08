@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useAdminCards } from "../hooks/useFeedback";
 import { ArticlePreviewDrawer } from "./ArticlePreviewDrawer";
 import { routingPill } from "../lib/tableHelpers";
+import { formatReadingMinutes } from "../lib/readingMetrics";
 
 type Order = "recent" | "downvotes" | "annotations";
 
-const GRID_COLS = "minmax(280px,1fr) 110px 100px 70px 70px 70px";
+const GRID_COLS = "minmax(280px,1fr) 110px 84px 100px 70px 70px 70px";
 
 export function AdminAnnotationTab() {
   // Default: hide cards with no feedback (annotation).
@@ -110,6 +111,7 @@ export function AdminAnnotationTab() {
         >
           <span>卡片标题</span>
           <span style={{ textAlign: "center" }}>文章日期</span>
+          <span style={{ textAlign: "center" }}>阅读</span>
           <span style={{ textAlign: "center" }}>推送</span>
           <span style={{ textAlign: "center" }}>标注</span>
           <span style={{ textAlign: "center" }}>赞</span>
@@ -158,6 +160,15 @@ export function AdminAnnotationTab() {
                 }}
               >
                 {c.card_date ? c.card_date.slice(0, 10) : "—"}
+              </span>
+              <span
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "var(--fs-sm)",
+                  textAlign: "center",
+                }}
+              >
+                {formatReadingMinutes(c.reading_minutes) || "—"}
               </span>
               <span style={{ textAlign: "center" }}>{routingPill(c.routing)}</span>
               <span

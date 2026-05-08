@@ -30,6 +30,7 @@ export function MapEntityList({
 
   return (
     <div
+      data-map-fixed-ui
       style={{
         position: "absolute",
         top: 206,

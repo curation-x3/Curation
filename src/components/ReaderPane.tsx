@@ -24,6 +24,7 @@ import {
   getSoftChatRevealTarget,
   isNearReaderBottom,
 } from "../lib/readerScrollPolicy";
+import { formatReadingSummary } from "../lib/readingMetrics";
 import type { ShareCardImageData } from "../lib/shareCardImage";
 import type { InboxItem, DiscardedItem, Routing } from "../types";
 import { ORIGINAL_ALONGSIDE_ROUTINGS } from "../types";
@@ -186,6 +187,8 @@ function SourceBar({
   cardDate,
   cardMarkdown,
   entities,
+  wordCount,
+  readingMinutes,
 }: {
   title: string;
   meta: { title: string; account: string; author: string | null; publish_time: string | null; url: string };
@@ -199,6 +202,8 @@ function SourceBar({
   cardDate?: string | null;
   cardMarkdown?: string | null;
   entities?: string[];
+  wordCount?: number | null;
+  readingMinutes?: number | null;
 }) {
   const isAggregated = isAggregateKind(kind);
   const aggregateMeta = sourceCount && sourceCount > 0
@@ -215,6 +220,7 @@ function SourceBar({
         aggregateCount: isAggregated ? sourceCount : undefined,
       }
     : null;
+  const readingSummary = formatReadingSummary(wordCount, readingMinutes);
   return (
     <div className="reader-source-bar">
       {/* Line 1: original title + tag */}
@@ -242,6 +248,7 @@ function SourceBar({
               {meta.publish_time && <><span>·</span><span>{formatTime(meta.publish_time)}</span></>}
             </>
           )}
+          {readingSummary && <><span>·</span><span>{readingSummary}</span></>}
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           {cardId && (
@@ -754,6 +761,8 @@ ${notesSection}
         cardDate={item.card_date}
         cardMarkdown={cardContentData?.content ?? null}
         entities={item.entities ?? []}
+        wordCount={(item as InboxItem).word_count}
+        readingMinutes={(item as InboxItem).reading_minutes}
       />
       <div
         ref={scrollRef}

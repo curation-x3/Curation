@@ -206,6 +206,8 @@ export async function fetchRunCards(runId: number) {
     entities: string[];
     template: string | null;
     template_reason: string | null;
+    word_count: number | null;
+    reading_minutes: number | null;
   }>;
 }
 
@@ -252,6 +254,8 @@ export interface AdminItemRow {
   title: string;
   routing: string | null;
   card_date: string | null;
+  word_count: number | null;
+  reading_minutes: number | null;
   annotation_count: number;
   upvote_count: number;
   downvote_count: number;

@@ -586,6 +586,7 @@ function Settlement({
 
   return (
     <g
+      data-map-interactive
       transform={`translate(${settlement.x}, ${settlement.y})`}
       onMouseEnter={() => onHover(settlement.card_id, settlement.x, settlement.y)}
       onMouseLeave={() => onHover(null, 0, 0)}
@@ -779,6 +780,7 @@ function TradeRoute({
 
   return (
     <g
+      data-map-interactive
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onClick={(e) => {

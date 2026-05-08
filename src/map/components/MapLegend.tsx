@@ -7,6 +7,7 @@ export function MapLegend() {
   const toggleRoutes = useMapStore((s) => s.toggleRoutes);
   return (
     <div
+      data-map-fixed-ui
       style={{
         position: "absolute",
         bottom: 178,
@@ -97,6 +98,29 @@ export function MapLegend() {
           </svg>
         }
         text="已读卡片"
+      />
+      <Row
+        glyph={
+          <svg width={28} height={14} viewBox="0 0 28 14">
+            <circle
+              cx={7}
+              cy={7}
+              r={3.2}
+              fill="var(--map-rust)"
+              stroke="var(--map-ink)"
+              strokeWidth={0.9}
+            />
+            <circle
+              cx={20}
+              cy={7}
+              r={6.2}
+              fill="var(--map-rust)"
+              stroke="var(--map-ink)"
+              strokeWidth={0.9}
+            />
+          </svg>
+        }
+        text="圆点大小 = 阅读时长"
       />
       <Row
         glyph={

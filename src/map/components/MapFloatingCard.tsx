@@ -4,6 +4,7 @@
 
 import type { MapCard, MapDSL } from "../types";
 import { sourceCount } from "../lib/settlement-style";
+import { formatReadingSummary } from "../../lib/readingMetrics";
 
 type Props = {
   card: MapCard;
@@ -38,9 +39,11 @@ export function MapFloatingCard({
   const defaultSourceLabel = sources > 1
     ? `来源汇总 · ${sources} 张`
     : `— ${account || "—"}`;
+  const readingSummary = formatReadingSummary(card.word_count, card.reading_minutes);
 
   return (
     <div
+      data-map-fixed-ui
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={(e) => {
@@ -122,7 +125,9 @@ export function MapFloatingCard({
         }}
       >
         <span>{sourceLabel ?? defaultSourceLabel}</span>
-        <span>{sources > 1 ? `多源汇聚 · ${sources} 张` : "· 单源"}</span>
+        <span>
+          {readingSummary || (sources > 1 ? `多源汇聚 · ${sources} 张` : "· 单源")}
+        </span>
       </div>
       <button
         onClick={(e) => {

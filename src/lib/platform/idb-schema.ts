@@ -2,19 +2,13 @@
 // SQLite tables (src-tauri/src/db.rs) so the same /sync delta payload writes
 // into either backend without per-platform shaping.
 //
-// Bump DB_VERSION every time we change the shape of any object store
-// (column equivalent) OR need to wipe stale data after a server-side schema
-// change — same pattern as the desktop's `card_id_format_v2_ulid` marker.
-// The `upgrade` callback in idb.ts switches on `oldVersion` to apply the
-// right one-shot for each version transition.
+// IndexedDB's native version is reserved for actual object-store shape
+// changes. Cache invalidations and full-resync requests use
+// CACHE_DATA_VERSION inside sync_state instead, so a stale tab cannot block the
+// app on an IndexedDB versionchange just because we need to wipe local rows.
 import type { DBSchema } from "idb";
 import type { CachedCard, CachedFavorite, CachedAccount } from "../cache";
 
-// Web cache v3 intentionally uses a new IndexedDB database name instead of
-// another in-place upgrade. The previous cache could be blocked by an old tab
-// during large clear-and-resync migrations, leaving the inbox query pending on
-// first paint. A fresh DB opens immediately, then /sync repopulates it page by
-// page just like the desktop app.
 export const DB_NAME = "curation_cache_v3";
 // v2 (2026-05-04): server's /sync semantics changed from
 //   filter: card.updated_at > since
@@ -43,7 +37,10 @@ export const DB_NAME = "curation_cache_v3";
 // inside /sync card rows instead of legacy /favorites card rows. Clear the
 // local favorites store and reset the sync cursor so a full pull rebuilds
 // both card favorites and legacy article favorites from server truth.
-export const DB_VERSION = 8;
+// v9 (2026-05-08): /sync cards now carry card-level word_count and
+// reading_minutes. Reset card rows once so existing cached cards receive
+// the new display + Atlas sizing fields.
+export const CACHE_DATA_VERSION = 9;
 
 export interface ArticleContentRow {
   article_id: string;
