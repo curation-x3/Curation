@@ -572,6 +572,7 @@ export function MapCanvas({
           }}
           onCanvasBlankClick={() => setRouteFocus(null)}
           favoritedIds={favoritedIds}
+          viewportScale={viewport.scale}
         />
       </div>
 

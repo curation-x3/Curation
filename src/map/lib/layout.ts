@@ -14,6 +14,7 @@
 
 import { generateCoastline } from "./coastline";
 import { curvedRoute, hashSeed, mulberry32 } from "./geometry";
+import { baseRadius } from "./settlement-style";
 import type {
   MapCard,
   MapDSL,
@@ -122,10 +123,8 @@ const L1_PACK_INNER = 1 - L1_WOBBLE * (1 - L1_BUDGET); // ≈ 0.944
 // L1 = the smallest circle that fits its N L2s in a ring (using the same
 // outer-D max-r geometry as the L2 packer, but inverted).
 
-/** Each card-dot's effective on-screen radius (visual unit). */
-const DOT_R = 4.5;
 /** Min spacing between adjacent dot edges in a sunflower packing. */
-const DOT_GAP = 4.375; // 3.5 → 4.375 (+25%)
+const DOT_GAP = 5.5;
 /**
  * Sunflower packing efficiency — fraction of L2 inner area that's dots vs.
  * empty space between them. Empirical for golden-angle spirals: ~0.78.
@@ -143,25 +142,26 @@ const SUNFLOWER_EFFICIENCY = 0.78;
 const CANVAS_FILL_TARGET = 0.40;
 
 /**
- * Required L2 base radius to display K cards as dots, with safety margin
- * for L2's own wobble peak. Derived from sunflower area:
- *   K dots × π · (DOT_R + DOT_GAP/2)² / SUNFLOWER_EFFICIENCY
+ * Required L2 base radius to display cards as dots, with safety margin
+ * for L2's own wobble peak. Derived from the actual rendered dot radii:
+ *   Σ π · (dotRadius + DOT_GAP/2)² / SUNFLOWER_EFFICIENCY
  *
  * Floor is set just above one dot diameter — this is the minimum visible
  * "place" for K=1. Without this aggressive low floor, K=1, 2, 3 all clamp
  * to the same size and the visual stops conveying card density.
  */
-function requiredL2Radius(K: number): number {
-  const dotEff = DOT_R + DOT_GAP / 2;
-  const innerArea = (K * Math.PI * dotEff * dotEff) / SUNFLOWER_EFFICIENCY;
+function requiredL2RadiusForDots(dotRadii: number[]): number {
+  if (dotRadii.length === 0) return 0;
+  const maxDotR = Math.max(...dotRadii);
+  const innerArea = dotRadii.reduce((sum, dotR) => {
+    const dotEff = dotR + DOT_GAP / 2;
+    return sum + Math.PI * dotEff * dotEff;
+  }, 0) / SUNFLOWER_EFFICIENCY;
   const innerR = Math.sqrt(innerArea / Math.PI);
   // L2 base radius — divide by (1 - L2_WOBBLE) so wobble troughs still
   // contain the dot zone.
-  const baseR = innerR / (1 - L2_WOBBLE);
-  // Floor: enough room for one dot + small breathing margin. Smaller than
-  // before so K=1 looks visibly smaller than K=4 etc.
-  const floor = (DOT_R + DOT_GAP) / (1 - L2_WOBBLE);
-  return Math.max(floor, baseR);
+  const baseR = Math.max(innerR, maxDotR + DOT_GAP) / (1 - L2_WOBBLE);
+  return Math.max(baseR, (maxDotR + DOT_GAP) / (1 - L2_WOBBLE));
 }
 
 /**
@@ -199,9 +199,9 @@ function requiredL1Radius(l2Radii: number[]): number {
  * Required L1 radius for a sparse atoll (no L2 nesting, K cards placed
  * directly in the L1).
  */
-function requiredSparseL1Radius(K: number): number {
+function requiredSparseL1Radius(cards: MapCard[]): number {
   // Same as L2 sizing — sparse L1 is essentially a single L2-shaped region.
-  return Math.max(L1_MIN_R, requiredL2Radius(K));
+  return Math.max(L1_MIN_R, requiredL2RadiusForDots(cards.map(cardDotRadius)));
 }
 
 /** Rendering style constants — must mirror MapSvg.tsx render values. */
@@ -224,6 +224,10 @@ const labelBaselineGap = (font: { size: number; haloStroke: number }) =>
 
 const L1_LABEL_GAP = labelBaselineGap(L1_FONT); // ≈ 6 + 3.74 + 2.25 = 12
 const L2_LABEL_GAP = labelBaselineGap(L2_FONT); // ≈ 6 + 3.08 + 1.5  = 10.6
+
+function cardDotRadius(card: MapCard): number {
+  return baseRadius(card.reading_minutes);
+}
 
 /**
  * Voyage-path control options. Both endpoints are y-coords on the canvas
@@ -294,13 +298,12 @@ export function computeLayout(
     // Compute L2 radii from card counts (bottom-up).
     const l2Radii = new Map<string, number>();
     for (const sid of filledSids) {
-      const K = cardsBySid.get(sid)!.length;
-      l2Radii.set(sid, requiredL2Radius(K));
+      l2Radii.set(sid, requiredL2RadiusForDots(cardsBySid.get(sid)!.map(cardDotRadius)));
     }
     // Compute L1 radius from L2 radii (bottom-up).
     let l1Radius: number;
     if (sparse || filledSids.length === 0) {
-      l1Radius = requiredSparseL1Radius(Math.max(1, bdCards.length));
+      l1Radius = requiredSparseL1Radius(bdCards);
     } else {
       l1Radius = requiredL1Radius(filledSids.map((sid) => l2Radii.get(sid)!));
     }
@@ -894,56 +897,111 @@ function placeCardsInCircle(
 ): SettlementLayout[] {
   if (cards.length === 0) return [];
 
-  // Sort by card_id for stable deterministic order (source_count dropped — v1 always 1).
-  const sorted = [...cards].sort((a, b) =>
-    (a.card_id || "").localeCompare(b.card_id || ""),
-  );
+  // Sort by actual rendered radius first so large cards claim central,
+  // stable positions before smaller cards fill the remaining gaps.
+  const sorted = [...cards].sort((a, b) => {
+    const byRadius = cardDotRadius(b) - cardDotRadius(a);
+    return byRadius || (a.card_id || "").localeCompare(b.card_id || "");
+  });
 
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-  const out: SettlementLayout[] = [];
+  const topBoundary =
+    avoidTopFrac > 0 ? cy - rMax * (1 - avoidTopFrac) : -Infinity;
+  const boundaryPad = 2;
 
-  sorted.forEach((c, idx) => {
+  const points = sorted.map((c, idx) => {
     const seed = mulberry32(hashSeed(`pos-${c.card_id}`));
     const j = seed();
-    // Sunflower r: r ∝ sqrt(idx) — distributes dots evenly by area.
+    // Sunflower seed: deterministic, area-even, with the largest dots near
+    // the center. Collision relaxation below turns this into a legal packing.
     const t = (idx + 0.5) / sorted.length;
     let rFrac = Math.sqrt(t) * 0.95;
-    rFrac = 0.18 + rFrac * 0.7 + (j - 0.5) * 0.06;
+    rFrac = 0.08 + rFrac * 0.78 + (j - 0.5) * 0.08;
     const r = rMax * rFrac;
     const theta = idx * goldenAngle + (seed() - 0.5) * 0.4;
+    const dotR = cardDotRadius(c);
 
     let x = cx + r * Math.cos(theta);
     let y = cy + r * Math.sin(theta);
+    return {
+      card: c,
+      x,
+      y,
+      targetX: x,
+      targetY: y,
+      r: dotR,
+    };
+  });
 
-    // If reserving top band for label, push any dot in the top band downward.
+  const clampInside = (p: { x: number; y: number; r: number }) => {
     if (avoidTopFrac > 0) {
-      const topBoundary = cy - rMax * (1 - avoidTopFrac);
-      if (y < topBoundary) {
-        y = topBoundary + (topBoundary - y) * 0.5;
+      p.y = Math.max(p.y, topBoundary + p.r + DOT_GAP / 2);
+    }
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const d = Math.hypot(dx, dy);
+    const maxD = Math.max(0, rMax - p.r - boundaryPad);
+    if (d > maxD && d > 0.001) {
+      p.x = cx + (dx / d) * maxD;
+      p.y = cy + (dy / d) * maxD;
+    }
+    if (avoidTopFrac > 0 && p.y < topBoundary + p.r + DOT_GAP / 2) {
+      p.y = topBoundary + p.r + DOT_GAP / 2;
+    }
+  };
+
+  for (const p of points) clampInside(p);
+
+  // Deterministic collision relaxation. Repulsion strictly enforces dot-edge
+  // gaps; a tiny target pull keeps the final layout recognizably organic
+  // instead of collapsing into a rigid grid.
+  const ITER = 220;
+  for (let iter = 0; iter < ITER; iter++) {
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        const a = points[i];
+        const b = points[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const d = Math.hypot(dx, dy);
+        const minD = a.r + b.r + DOT_GAP;
+        if (d < minD) {
+          if (d < 0.001) {
+            const seed = mulberry32(hashSeed(`separate-${a.card.card_id}-${b.card.card_id}`));
+            const angle = seed() * Math.PI * 2;
+            const nudge = minD * 0.5;
+            a.x -= Math.cos(angle) * nudge;
+            a.y -= Math.sin(angle) * nudge;
+            b.x += Math.cos(angle) * nudge;
+            b.y += Math.sin(angle) * nudge;
+            continue;
+          }
+          const overlap = minD - d;
+          const nx = dx / d;
+          const ny = dy / d;
+          a.x -= nx * overlap * 0.56;
+          a.y -= ny * overlap * 0.56;
+          b.x += nx * overlap * 0.56;
+          b.y += ny * overlap * 0.56;
+        }
       }
     }
 
-    // source_count is always 1 in v1 (formerly derived from aggregate cards).
-    const hot = false;
-    // Visual radius driven by **reading_minutes** (server-computed) when available;
-    // falls back to a uniform default radius otherwise.
-    // Tuned for typical 1–15 min range; clamped to [2.7, 9] px.
-    const mins = c.reading_minutes ?? null;
-    const visualR = mins != null
-      ? Math.min(9, Math.max(2.7, 2.0 + mins * 0.5))
-      : 4.5;
+    for (const p of points) {
+      p.x += (p.targetX - p.x) * 0.012;
+      p.y += (p.targetY - p.y) * 0.012;
+      clampInside(p);
+    }
+  }
 
-    out.push({
-      card_id: c.card_id!,
-      topic_id: c.topic?.id ?? "",
-      x,
-      y,
-      radius: visualR,
-      hot,
-    });
-  });
-
-  return out;
+  return points.map((p) => ({
+    card_id: p.card.card_id!,
+    topic_id: p.card.topic?.id ?? "",
+    x: p.x,
+    y: p.y,
+    radius: p.r,
+    hot: false,
+  }));
 }
 
 /**

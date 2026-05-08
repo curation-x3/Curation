@@ -40,6 +40,13 @@ function card(card_id, entities) {
   };
 }
 
+function readingCard(card_id, reading_minutes) {
+  return {
+    ...card(card_id, []),
+    reading_minutes,
+  };
+}
+
 test("duplicate card-pair routes keep separate entity lines with non-overlapping paths", () => {
   const layout = computeLayout(
     dsl,
@@ -55,4 +62,32 @@ test("duplicate card-pair routes keep separate entity lines with non-overlapping
     [["Entity A"], ["Entity B"]],
   );
   assert.notEqual(layout.routes[0].path, layout.routes[1].path);
+});
+
+test("settlement layout uses visual radii to avoid dot overlap", () => {
+  const layout = computeLayout(
+    dsl,
+    [
+      readingCard("c1", 30),
+      readingCard("c2", 20),
+      readingCard("c3", 12),
+      readingCard("c4", 8),
+      readingCard("c5", 5),
+      readingCard("c6", 2),
+    ],
+  );
+
+  const settlements = layout.continents.flatMap((c) => c.cards);
+  assert.equal(settlements.length, 6);
+  for (let i = 0; i < settlements.length; i++) {
+    for (let j = i + 1; j < settlements.length; j++) {
+      const a = settlements[i];
+      const b = settlements[j];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      assert.ok(
+        d >= a.radius + b.radius + 2,
+        `${a.card_id} and ${b.card_id} overlap: ${d} < ${a.radius + b.radius + 2}`,
+      );
+    }
+  }
 });

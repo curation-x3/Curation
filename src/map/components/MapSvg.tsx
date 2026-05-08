@@ -1,6 +1,6 @@
 // Map — main SVG cartographic canvas.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   GRATICULE,
   SEA_LABELS,
@@ -59,6 +59,8 @@ type Props = {
   onCanvasBlankClick: () => void;
   /** Set of card_ids that the user has favorited. */
   favoritedIds?: Set<string>;
+  /** CSS zoom applied by the map viewport. Used to keep entity lines legible. */
+  viewportScale?: number;
 };
 
 function routeRenderKey(route: RouteLayout): string {
@@ -79,6 +81,7 @@ export function MapSvg({
   onRouteClick,
   onCanvasBlankClick,
   favoritedIds,
+  viewportScale = 1,
 }: Props) {
   const [hoveredBigDomain, setHoveredBigDomain] = useState<string | null>(null);
   const hasFocus = routeFocus != null || hoveredBigDomain != null;
@@ -404,9 +407,10 @@ export function MapSvg({
                 });
               }}
               highlighted={isFocused}
-              pinned={isFocused && routeFocus!.pinned}
+              pinned={isFocused && Boolean(routeFocus?.pinned)}
               isTrigger={isTrigger}
               dimmed={routeFocus != null && !isFocused}
+              viewportScale={viewportScale}
             />
           );
         })}
@@ -576,9 +580,10 @@ function Settlement({
   onHover: (card_id: string | null, x: number, y: number) => void;
   onClick: (card_id: string) => void;
 }) {
-  // Derive shape + radius from the card (fall back to settlement.radius if no card)
+  // Radius is computed during layout and rendered from the same value, so
+  // collision avoidance and visible dot size stay in lock-step.
   const shape = card ? pickShape(card, isFavorited) : "circle-rust";
-  const r = card ? baseRadius(card.reading_minutes) : settlement.radius;
+  const r = settlement.radius || (card ? baseRadius(card.reading_minutes) : 4.5);
   const rings = card ? ringCount(sourceCount(card)) : 0;
 
   // Priority: dimmed (entity not in focus) → focused → read-dim → normal
@@ -705,6 +710,7 @@ function TradeRoute({
   pinned,
   isTrigger,
   dimmed,
+  viewportScale,
 }: {
   route: RouteLayout;
   onEnter: () => void;
@@ -718,7 +724,10 @@ function TradeRoute({
   isTrigger: boolean;
   /** True when a different entity is in focus — quiet this route to background. */
   dimmed: boolean;
+  /** CSS zoom applied by the map viewport. */
+  viewportScale: number;
 }) {
+  const suppressNextLeaveRef = useRef(false);
   // Quadratic bezier midpoint for label placement.
   // Path format: "M ax,ay Q cx,cy bx,by"
   // At t=0.5: x = 0.25·ax + 0.5·cx + 0.25·bx (same for y)
@@ -777,14 +786,29 @@ function TradeRoute({
   const labelOpacity = dimmed ? 0.15 : pinned ? 1 : highlighted ? 1 : 0.8;
   const bgOpacity = dimmed ? 0.2 : pinned ? 1 : highlighted ? 0.95 : 0.75;
   const labelFontSize = (highlighted || pinned) && isTrigger ? 10 : 9;
+  const invScale = 1 / Math.max(0.25, viewportScale);
+  const scaledStrokeWidth = strokeWidth * invScale;
+  const scaledHitWidth = 6 * invScale;
+  const scaledDasharray = strokeDasharray
+    ? `${2 * invScale} ${4 * invScale}`
+    : undefined;
+  const scaledTextW = textW * invScale;
+  const scaledLabelFontSize = labelFontSize * invScale;
 
   return (
     <g
       data-map-interactive
       onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
+      onMouseLeave={() => {
+        if (suppressNextLeaveRef.current) {
+          suppressNextLeaveRef.current = false;
+          return;
+        }
+        onLeave();
+      }}
       onClick={(e) => {
         e.stopPropagation();
+        suppressNextLeaveRef.current = true;
         onClick();
       }}
       style={{ cursor: "pointer" }}
@@ -797,14 +821,14 @@ function TradeRoute({
         d={route.path}
         fill="none"
         stroke="transparent"
-        strokeWidth={5}
+        strokeWidth={scaledHitWidth}
       />
       <path
         d={route.path}
         fill="none"
         stroke="var(--map-crimson)"
-        strokeWidth={strokeWidth}
-        strokeDasharray={strokeDasharray}
+        strokeWidth={scaledStrokeWidth}
+        strokeDasharray={scaledDasharray}
         opacity={opacity}
         style={{ transition: "stroke-width 150ms, opacity 150ms" }}
       />
@@ -812,23 +836,23 @@ function TradeRoute({
         <g pointerEvents="none">
           {/* Vellum-tinted background pill for legibility against continents */}
           <rect
-            x={labelX - textW / 2}
-            y={labelY - 7}
-            width={textW}
-            height={13}
+            x={labelX - scaledTextW / 2}
+            y={labelY - 7 * invScale}
+            width={scaledTextW}
+            height={13 * invScale}
             fill="var(--map-vellum)"
             stroke={pinned ? "var(--map-crimson)" : "none"}
-            strokeWidth={pinned ? 0.6 : 0}
+            strokeWidth={pinned ? 0.6 * invScale : 0}
             opacity={bgOpacity}
-            rx={2}
+            rx={2 * invScale}
           />
           <text
             x={labelX}
-            y={labelY + 3}
+            y={labelY + 3 * invScale}
             textAnchor="middle"
             fontFamily="var(--map-serif)"
             fontStyle="italic"
-            fontSize={labelFontSize}
+            fontSize={scaledLabelFontSize}
             fontWeight={pinned ? 600 : 400}
             fill="var(--map-crimson)"
             opacity={labelOpacity}

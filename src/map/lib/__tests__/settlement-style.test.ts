@@ -35,12 +35,12 @@ describe("pickShape", () => {
 });
 
 describe("baseRadius", () => {
-  it("1 min ≈ 4.8", () => expect(baseRadius(1)).toBeCloseTo(4.8, 1));
-  it("5 min ≈ 7.0", () => expect(baseRadius(5)).toBeCloseTo(7.0, 1));
-  it("10 min ≈ 8.7", () => expect(baseRadius(10)).toBeCloseTo(8.7, 1));
-  it("caps at 11", () => expect(baseRadius(100)).toBe(11));
-  it("floors at 4", () => expect(baseRadius(0)).toBe(4));
-  it("undefined → treated as 1 min", () => expect(baseRadius(undefined)).toBeCloseTo(4.8, 1));
+  it("1 min ≈ 4.2", () => expect(baseRadius(1)).toBeCloseTo(4.2, 1));
+  it("5 min ≈ 6.9", () => expect(baseRadius(5)).toBeCloseTo(6.9, 1));
+  it("10 min ≈ 9.0", () => expect(baseRadius(10)).toBeCloseTo(9.0, 1));
+  it("caps at 13", () => expect(baseRadius(100)).toBe(13));
+  it("floors at 2", () => expect(baseRadius(0)).toBe(2));
+  it("undefined → treated as 1 min", () => expect(baseRadius(undefined)).toBeCloseTo(4.2, 1));
 });
 
 describe("ringCount", () => {

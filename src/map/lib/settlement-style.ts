@@ -29,11 +29,15 @@ export function pickShape(card: MapCard, isFavorited: boolean): SettlementShape 
 
 /**
  * Base radius in px from reading_minutes via sqrt curve.
- * Reference: 1 min → 4.8, 5 min → 7.0, 10 min → 8.7, 20+ min → 11 (cap).
+ *
+ * The map needs visibly distinct settlement sizes, not a subtle legend-only
+ * difference. Radius is still sublinear so long reads do not dominate the
+ * continent:
+ *   0 min → 2.0, 1 min → 4.2, 5 min → 6.9, 10 min → 9.0, 25+ min → 13.
  */
 export function baseRadius(readingMinutes: number | undefined): number {
   const m = Math.max(0, readingMinutes ?? 1);
-  return Math.min(11, Math.max(4, 3 + Math.sqrt(m) * 1.8));
+  return Math.min(13, Math.max(2, 2 + Math.sqrt(m) * 2.2));
 }
 
 /**
