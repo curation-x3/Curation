@@ -791,8 +791,8 @@ body {
 }
 
 .share-preview-modal {
-  width: min(720px, 92vw);
-  max-height: min(900px, 92vh);
+  width: min(820px, 94vw);
+  max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
@@ -846,10 +846,10 @@ body {
 
 .share-preview-body {
   flex: 1;
-  min-height: 360px;
+  min-height: min(520px, 60vh);
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 22px;
+  padding: 26px;
   background: var(--bg-color);
 }
 
@@ -874,7 +874,7 @@ body {
 
 .share-preview-image {
   display: block;
-  width: min(100%, 420px);
+  width: min(100%, 560px);
   height: auto;
   margin: 0 auto;
   border-radius: 8px;
@@ -885,11 +885,13 @@ body {
 .share-preview-actions {
   padding: 14px 20px 18px;
   display: flex;
+  gap: 10px;
   justify-content: flex-end;
   border-top: 1px solid var(--border-color);
   background: var(--bg-panel);
 }
 
+.share-preview-download,
 .share-preview-copy {
   min-width: 172px;
   display: inline-flex;
@@ -905,6 +907,18 @@ body {
   cursor: pointer;
 }
 
+.share-preview-download {
+  min-width: 118px;
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.share-preview-download:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.share-preview-download:disabled,
 .share-preview-copy:disabled {
   opacity: 0.6;
   cursor: wait;

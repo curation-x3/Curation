@@ -187,6 +187,7 @@ function SourceBar({
   cardDate,
   cardMarkdown,
   entities,
+  contextEntities,
   wordCount,
   readingMinutes,
 }: {
@@ -202,6 +203,7 @@ function SourceBar({
   cardDate?: string | null;
   cardMarkdown?: string | null;
   entities?: string[];
+  contextEntities?: string[];
   wordCount?: number | null;
   readingMinutes?: number | null;
 }) {
@@ -217,6 +219,7 @@ function SourceBar({
         routingLabel: routingPresentation(routing ?? "discard", { kind }).text,
         markdown: cardMarkdown,
         entities: entities ?? [],
+        contextEntities: contextEntities ?? [],
         aggregateCount: isAggregated ? sourceCount : undefined,
       }
     : null;
@@ -771,6 +774,7 @@ ${notesSection}
         cardDate={item.card_date}
         cardMarkdown={cardContentData?.content ?? null}
         entities={item.entities ?? []}
+        contextEntities={(item as InboxItem).context_entities ?? []}
         wordCount={(item as InboxItem).word_count}
         readingMinutes={(item as InboxItem).reading_minutes}
       />

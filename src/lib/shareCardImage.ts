@@ -7,6 +7,7 @@ export interface ShareCardImageData {
   routingLabel: string;
   markdown: string;
   entities: string[];
+  contextEntities?: string[];
   aggregateCount?: number;
 }
 
@@ -14,6 +15,7 @@ const IMAGE_WIDTH = 1080;
 const PADDING_X = 76;
 const PADDING_TOP = 78;
 const PADDING_BOTTOM = 72;
+const PANEL_INSET = 34;
 const GOLD = "#d7ad61";
 const CREAM = "#f5ecd7";
 const MUTED = "#a9a091";
@@ -21,28 +23,93 @@ const PANEL = "#242432";
 const BG = "#111218";
 const SLOGAN = "把每天的信息，整理成可复用的判断。";
 
-function cleanMarkdownText(markdown: string): string {
-  return stripFrontmatter(markdown)
+type TextBlock = {
+  kind: "heading" | "paragraph" | "bullet";
+  text: string;
+};
+
+type ChipVariant = "routing" | "core" | "context" | "aggregate";
+
+type Chip = {
+  label: string;
+  variant: ChipVariant;
+};
+
+type TextLayout = TextBlock & {
+  font: string;
+  color: string;
+  lineHeight: number;
+  topGap: number;
+  lines: string[];
+};
+
+function cleanInlineMarkdown(markdown: string): string {
+  return markdown
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
     .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/[*_`>#-]/g, "")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[*_`>]/g, "")
     .replace(/[ \t]+/g, " ")
     .trim();
 }
 
-export function summarizeCardMarkdown(markdown: string, title: string): string {
-  const clean = cleanMarkdownText(markdown);
-  const parts = clean
-    .split(/\n+/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .filter((p) => p !== title && !title.includes(p));
-  const joined = parts.join(" ");
-  if (joined.length <= 260) return joined;
-  return `${joined.slice(0, 260).replace(/[，。；、\s]+$/u, "")}…`;
+export function parseShareCardBlocks(markdown: string, title: string): TextBlock[] {
+  const blocks: TextBlock[] = [];
+  const paragraph: string[] = [];
+  let inFence = false;
+  let skippingLinks = false;
+
+  function flushParagraph() {
+    const text = cleanInlineMarkdown(paragraph.join(" "));
+    paragraph.length = 0;
+    if (text && text !== title && !title.includes(text)) {
+      blocks.push({ kind: "paragraph", text });
+    }
+  }
+
+  for (const rawLine of stripFrontmatter(markdown).replace(/\r\n/g, "\n").split("\n")) {
+    const line = rawLine.trim();
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      const headingText = cleanInlineMarkdown(heading[2]);
+      if (/^链接$|^References?$|^Sources?$/i.test(headingText)) {
+        skippingLinks = true;
+        continue;
+      }
+      skippingLinks = false;
+      if (heading[1].length > 1 && headingText && headingText !== title) {
+        blocks.push({ kind: "heading", text: headingText });
+      }
+      continue;
+    }
+
+    if (skippingLinks) continue;
+    if (!line) {
+      flushParagraph();
+      continue;
+    }
+
+    const bullet = line.match(/^[-*+]\s+(.+)$/);
+    if (bullet) {
+      flushParagraph();
+      const text = cleanInlineMarkdown(bullet[1]);
+      if (text) blocks.push({ kind: "bullet", text });
+      continue;
+    }
+
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  return blocks;
 }
 
 function setupCanvas(width: number, height: number) {
@@ -78,13 +145,39 @@ function wrapText(
 ): string[] {
   const lines: string[] = [];
   let line = "";
-  for (const char of text) {
-    const next = line + char;
+  let pendingSpace = "";
+  const tokens = text.match(/[A-Za-z0-9]+(?:[._:/+-][A-Za-z0-9]+)*|\s+|./gu) ?? [];
+
+  function pushLongToken(token: string) {
+    for (const char of token) {
+      const next = line + char;
+      if (line && ctx.measureText(next).width > maxWidth) {
+        lines.push(line);
+        line = char;
+      } else {
+        line = next;
+      }
+    }
+  }
+
+  for (const token of tokens) {
+    if (/^\s+$/u.test(token)) {
+      if (line) pendingSpace = " ";
+      continue;
+    }
+    const next = line + pendingSpace + token;
     if (line && ctx.measureText(next).width > maxWidth) {
       lines.push(line);
-      line = char;
+      line = "";
+      pendingSpace = "";
+      if (ctx.measureText(token).width > maxWidth) {
+        pushLongToken(token);
+      } else {
+        line = token;
+      }
     } else {
       line = next;
+      pendingSpace = "";
     }
   }
   if (line) lines.push(line);
@@ -98,66 +191,141 @@ function drawWrappedText(
   y: number,
   maxWidth: number,
   lineHeight: number,
-  maxLines?: number,
 ): number {
   const lines = wrapText(ctx, text, maxWidth);
-  const visible = typeof maxLines === "number" ? lines.slice(0, maxLines) : lines;
-  visible.forEach((line, index) => {
-    const value = maxLines && index === maxLines - 1 && lines.length > maxLines
-      ? `${line.replace(/[，。；、\s]+$/u, "")}…`
-      : line;
-    ctx.fillText(value, x, y + index * lineHeight);
+  lines.forEach((line, index) => {
+    ctx.fillText(line, x, y + index * lineHeight);
   });
-  return y + visible.length * lineHeight;
+  return y + lines.length * lineHeight;
+}
+
+function chipWidth(ctx: CanvasRenderingContext2D, label: string): number {
+  ctx.font = "28px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+  return Math.ceil(ctx.measureText(label).width) + 34;
 }
 
 function drawChip(
   ctx: CanvasRenderingContext2D,
-  label: string,
+  chip: Chip,
   x: number,
   y: number,
 ): number {
   ctx.font = "28px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
-  const width = Math.ceil(ctx.measureText(label).width) + 34;
+  const width = chipWidth(ctx, chip.label);
   roundedRect(ctx, x, y, width, 42, 7);
-  ctx.fillStyle = "rgba(215, 173, 97, 0.13)";
+  ctx.fillStyle = chip.variant === "context" ? "rgba(245, 236, 215, 0.03)" : "rgba(215, 173, 97, 0.13)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(215, 173, 97, 0.42)";
+  ctx.strokeStyle = chip.variant === "context" ? "rgba(245, 236, 215, 0.24)" : "rgba(215, 173, 97, 0.42)";
   ctx.stroke();
-  ctx.fillStyle = CREAM;
-  ctx.fillText(label, x + 17, y + 29);
+  ctx.fillStyle = chip.variant === "context" ? MUTED : CREAM;
+  ctx.fillText(chip.label, x + 17, y + 29);
   return width;
+}
+
+function makeTextLayout(
+  ctx: CanvasRenderingContext2D,
+  block: TextBlock,
+  contentWidth: number,
+): TextLayout {
+  const style = block.kind === "heading"
+    ? {
+        font: "700 32px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif",
+        color: GOLD,
+        lineHeight: 44,
+        topGap: 42,
+      }
+    : block.kind === "bullet"
+      ? {
+          font: "27px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif",
+          color: "#ddd4c2",
+          lineHeight: 40,
+          topGap: 16,
+        }
+      : {
+          font: "31px Georgia, 'Times New Roman', 'Songti SC', serif",
+          color: "#ded6c4",
+          lineHeight: 47,
+          topGap: 26,
+        };
+  ctx.font = style.font;
+  const textWidth = block.kind === "bullet" ? contentWidth - 30 : contentWidth;
+  return {
+    ...block,
+    ...style,
+    lines: wrapText(ctx, block.text, textWidth),
+  };
+}
+
+function measureChipRows(ctx: CanvasRenderingContext2D, chips: Chip[], contentWidth: number): number {
+  if (chips.length === 0) return 0;
+  let rows = 1;
+  let rowWidth = 0;
+  for (const chip of chips) {
+    const width = chipWidth(ctx, chip.label) + 12;
+    if (rowWidth > 0 && rowWidth + width > contentWidth) {
+      rows += 1;
+      rowWidth = width;
+    } else {
+      rowWidth += width;
+    }
+  }
+  return rows;
+}
+
+function drawBodyBlock(
+  ctx: CanvasRenderingContext2D,
+  block: TextLayout,
+  x: number,
+  y: number,
+  contentWidth: number,
+): number {
+  y += block.topGap;
+  ctx.fillStyle = block.color;
+  ctx.font = block.font;
+
+  if (block.kind === "bullet") {
+    ctx.fillStyle = "rgba(215, 173, 97, 0.78)";
+    ctx.beginPath();
+    ctx.arc(x + 7, y - 10, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = block.color;
+    block.lines.forEach((line, index) => {
+      ctx.fillText(line, x + 30, y + index * block.lineHeight);
+    });
+    return y + block.lines.length * block.lineHeight;
+  }
+
+  return drawWrappedText(ctx, block.text, x, y, contentWidth, block.lineHeight);
 }
 
 export async function renderShareCardImage(data: ShareCardImageData): Promise<Blob> {
   await document.fonts?.ready;
 
-  const summary = summarizeCardMarkdown(data.markdown, data.title);
-  const tags = [
-    data.routingLabel,
-    ...data.entities.slice(0, 5),
-    ...(data.aggregateCount && data.aggregateCount > 1 ? [`聚合 ${data.aggregateCount} 张`] : []),
-  ].filter(Boolean);
+  const chips: Chip[] = [
+    { label: data.routingLabel, variant: "routing" as const },
+    ...data.entities.slice(0, 6).map((label) => ({ label, variant: "core" as const })),
+    ...(data.contextEntities ?? []).slice(0, 4).map((label) => ({ label, variant: "context" as const })),
+    ...(data.aggregateCount && data.aggregateCount > 1
+      ? [{ label: `聚合 ${data.aggregateCount} 张`, variant: "aggregate" as const }]
+      : []),
+  ].filter((chip) => chip.label);
 
   const measure = setupCanvas(IMAGE_WIDTH, 1200).ctx;
   const contentWidth = IMAGE_WIDTH - PADDING_X * 2;
   measure.font = "700 54px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
   const titleLines = wrapText(measure, data.title, contentWidth);
-  measure.font = "34px Georgia, 'Times New Roman', serif";
-  const summaryLines = wrapText(measure, summary, contentWidth);
-
-  const chipRows = Math.ceil(tags.reduce((rows, tag) => {
-    const width = measure.measureText(tag).width + 48;
-    const last = rows[rows.length - 1] ?? 0;
-    if (last + width > contentWidth) rows.push(width + 12);
-    else rows[rows.length - 1] = last + width + 12;
-    return rows;
-  }, [0] as number[]).length);
-
+  const bodyLayouts = parseShareCardBlocks(data.markdown, data.title)
+    .map((block) => makeTextLayout(measure, block, contentWidth));
+  const chipRows = measureChipRows(measure, chips, contentWidth);
+  const bodyHeight = bodyLayouts.reduce(
+    (total, block) => total + block.topGap + Math.max(1, block.lines.length) * block.lineHeight,
+    0,
+  );
+  const footerHeight = 48 + 1 + 48 + 66;
   const height = Math.max(
-    900,
-    PADDING_TOP + 72 + titleLines.slice(0, 4).length * 68 + 34 +
-      Math.min(5, summaryLines.length) * 50 + 54 + chipRows * 56 + 164 + PADDING_BOTTOM,
+    1180,
+    PADDING_TOP + 72 + titleLines.length * 68 + 20 + 3 +
+      bodyHeight + 48 + chipRows * 56 + footerHeight + PADDING_BOTTOM,
   );
 
   const { canvas, ctx } = setupCanvas(IMAGE_WIDTH, height);
@@ -172,7 +340,7 @@ export async function renderShareCardImage(data: ShareCardImageData): Promise<Bl
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, IMAGE_WIDTH, height);
 
-  roundedRect(ctx, 34, 34, IMAGE_WIDTH - 68, height - 68, 26);
+  roundedRect(ctx, PANEL_INSET, PANEL_INSET, IMAGE_WIDTH - PANEL_INSET * 2, height - PANEL_INSET * 2, 26);
   ctx.fillStyle = PANEL;
   ctx.fill();
   ctx.strokeStyle = "rgba(230, 217, 178, 0.75)";
@@ -191,7 +359,7 @@ export async function renderShareCardImage(data: ShareCardImageData): Promise<Bl
   y += 72;
   ctx.fillStyle = CREAM;
   ctx.font = "700 54px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
-  y = drawWrappedText(ctx, data.title, PADDING_X, y, contentWidth, 68, 4);
+  y = drawWrappedText(ctx, data.title, PADDING_X, y, contentWidth, 68);
 
   y += 20;
   ctx.strokeStyle = "rgba(215, 173, 97, 0.62)";
@@ -201,21 +369,20 @@ export async function renderShareCardImage(data: ShareCardImageData): Promise<Bl
   ctx.lineTo(PADDING_X + 112, y);
   ctx.stroke();
 
-  y += 50;
-  ctx.fillStyle = "#ded6c4";
-  ctx.font = "34px Georgia, 'Times New Roman', 'Songti SC', serif";
-  y = drawWrappedText(ctx, summary, PADDING_X, y, contentWidth, 50, 5);
+  for (const block of bodyLayouts) {
+    y = drawBodyBlock(ctx, block, PADDING_X, y, contentWidth);
+  }
 
-  y += 38;
+  y += 48;
   let chipX = PADDING_X;
   let chipY = y;
-  for (const tag of tags) {
-    const chipWidth = Math.ceil(measure.measureText(tag).width) + 46;
-    if (chipX > PADDING_X && chipX + chipWidth > PADDING_X + contentWidth) {
+  for (const chip of chips) {
+    const measuredChipWidth = chipWidth(ctx, chip.label);
+    if (chipX > PADDING_X && chipX + measuredChipWidth > PADDING_X + contentWidth) {
       chipX = PADDING_X;
       chipY += 56;
     }
-    const actualWidth = drawChip(ctx, tag, chipX, chipY);
+    const actualWidth = drawChip(ctx, chip, chipX, chipY);
     chipX += actualWidth + 12;
   }
   y = chipY + 84;

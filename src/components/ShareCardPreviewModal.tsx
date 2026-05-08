@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Loader2, X } from "lucide-react";
+import { Copy, Download, Loader2, X } from "lucide-react";
 import {
   copyImageBlobToClipboard,
   renderShareCardImage,
@@ -15,6 +15,7 @@ export function ShareCardPreviewModal({ data, onClose }: ShareCardPreviewModalPr
   const [blob, setBlob] = useState<Blob | null>(null);
   const [status, setStatus] = useState<"rendering" | "ready" | "copying" | "copied" | "error">("rendering");
   const [error, setError] = useState<string | null>(null);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
 
@@ -23,6 +24,7 @@ export function ShareCardPreviewModal({ data, onClose }: ShareCardPreviewModalPr
     setStatus("rendering");
     setError(null);
     setBlob(null);
+    setDimensions(null);
     renderShareCardImage(data)
       .then((nextBlob) => {
         if (cancelled) return;
@@ -65,6 +67,16 @@ export function ShareCardPreviewModal({ data, onClose }: ShareCardPreviewModalPr
     }
   }
 
+  function handleDownload() {
+    if (!url) return;
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${data.date || "curation"}-${data.title.slice(0, 28).replace(/[\\/:*?"<>|]+/g, "")}.png`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
   return (
     <div className="share-preview-overlay" onMouseDown={onClose}>
       <section
@@ -77,7 +89,7 @@ export function ShareCardPreviewModal({ data, onClose }: ShareCardPreviewModalPr
         <div className="share-preview-header">
           <div>
             <div className="share-preview-kicker">分享长图</div>
-            <h3>生成预览</h3>
+            <h3>生成预览{dimensions ? ` · ${dimensions.width}×${dimensions.height}` : ""}</h3>
           </div>
           <button type="button" className="share-preview-close" onClick={onClose} title="关闭">
             <X size={16} />
@@ -92,7 +104,17 @@ export function ShareCardPreviewModal({ data, onClose }: ShareCardPreviewModalPr
             </div>
           )}
           {url && (
-            <img className="share-preview-image" src={url} alt="卡片分享长图预览" />
+            <img
+              className="share-preview-image"
+              src={url}
+              alt="卡片分享长图预览"
+              onLoad={(event) => {
+                setDimensions({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                });
+              }}
+            />
           )}
           {status === "error" && (
             <div className="share-preview-error">{error}</div>
@@ -100,6 +122,15 @@ export function ShareCardPreviewModal({ data, onClose }: ShareCardPreviewModalPr
         </div>
 
         <div className="share-preview-actions">
+          <button
+            type="button"
+            className="share-preview-download"
+            disabled={!blob}
+            onClick={handleDownload}
+          >
+            <Download size={15} />
+            下载 PNG
+          </button>
           <button
             type="button"
             className="share-preview-copy"
