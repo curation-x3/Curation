@@ -151,6 +151,19 @@ body {
   color: var(--text-primary);
 }
 
+.reader-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.reader-chat-anchor {
+  height: 1px;
+  overflow-anchor: none;
+}
+
 .reader-empty {
   flex: 1;
   display: flex;
@@ -709,8 +722,8 @@ body {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
-  z-index: 30;
-  min-width: 170px;
+  z-index: 80;
+  min-width: 190px;
   padding: 4px;
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
@@ -740,6 +753,161 @@ body {
 .reader-share-menu-item:disabled {
   cursor: not-allowed;
   color: var(--text-faint);
+}
+
+.reader-jump-latest {
+  position: absolute;
+  right: 18px;
+  bottom: 96px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(215, 173, 97, 0.42);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-panel) 84%, var(--accent-gold) 16%);
+  color: var(--text-primary);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
+  padding: 7px 12px;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.reader-jump-latest:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.share-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(5, 6, 10, 0.76);
+  backdrop-filter: blur(8px);
+}
+
+.share-preview-modal {
+  width: min(720px, 92vw);
+  max-height: min(900px, 92vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+  overflow: hidden;
+}
+
+.share-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-panel) 86%, var(--accent-gold) 14%);
+}
+
+.share-preview-kicker {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.18em;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.share-preview-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.08rem;
+}
+
+.share-preview-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.share-preview-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.share-preview-body {
+  flex: 1;
+  min-height: 360px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 22px;
+  background: var(--bg-color);
+}
+
+.share-preview-loading,
+.share-preview-error {
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.share-preview-loading svg,
+.share-preview-spinner {
+  animation: spin 1s linear infinite;
+}
+
+.share-preview-error {
+  color: var(--accent-red);
+}
+
+.share-preview-image {
+  display: block;
+  width: min(100%, 420px);
+  height: auto;
+  margin: 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.42);
+  background: #111218;
+}
+
+.share-preview-actions {
+  padding: 14px 20px 18px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-panel);
+}
+
+.share-preview-copy {
+  min-width: 172px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--accent-gold);
+  border-radius: 6px;
+  background: var(--accent-gold);
+  color: #1a1208;
+  padding: 9px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.share-preview-copy:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 /* ===== Article Drawer ===== */
@@ -785,6 +953,9 @@ body {
 .drawer-content {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
   padding: 32px 48px;
   max-width: var(--reader-max-width);
   margin: 0 auto;

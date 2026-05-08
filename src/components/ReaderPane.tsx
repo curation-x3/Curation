@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { BookOpen, Copy, Share2 } from "lucide-react";
+import { ArrowDown, BookOpen, Copy, Image, Share2 } from "lucide-react";
 import { stripFrontmatter, mdComponents } from "../lib/markdown";
 import { useCardContent } from "../hooks/useCards";
 import { useArticleContent } from "../hooks/useArticles";
@@ -16,8 +16,15 @@ import { ChatMessages } from "./ChatMessages";
 import { CardFrame } from "./CardFrame";
 import { AcpRunningDot } from "./AcpRunningDot";
 import { TauriOnly } from "./platform/TauriOnly";
+import { ShareCardPreviewModal } from "./ShareCardPreviewModal";
 import { useChat, useAgentDetection } from "../hooks/useChat";
 import { useCardStatusStore } from "../lib/acp/cardStatusStore";
+import {
+  getReaderScrollMetrics,
+  getSoftChatRevealTarget,
+  isNearReaderBottom,
+} from "../lib/readerScrollPolicy";
+import type { ShareCardImageData } from "../lib/shareCardImage";
 import type { InboxItem, DiscardedItem, Routing } from "../types";
 import { ORIGINAL_ALONGSIDE_ROUTINGS } from "../types";
 import { isAggregateKind, routingPresentation } from "../lib/routingPresentation";
@@ -67,9 +74,16 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-function ShareButton({ markdown }: { markdown?: string | null }) {
+function ShareButton({
+  markdown,
+  shareData,
+}: {
+  markdown?: string | null;
+  shareData: ShareCardImageData | null;
+}) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const canCopy = !!markdown?.trim();
 
@@ -118,6 +132,18 @@ function ShareButton({ markdown }: { markdown?: string | null }) {
           <button
             type="button"
             className="reader-share-menu-item"
+            disabled={!shareData}
+            onClick={() => {
+              setOpen(false);
+              setPreviewOpen(true);
+            }}
+          >
+            <Image size={13} />
+            生成分享长图
+          </button>
+          <button
+            type="button"
+            className="reader-share-menu-item"
             disabled={!canCopy}
             onClick={handleCopy}
           >
@@ -125,6 +151,12 @@ function ShareButton({ markdown }: { markdown?: string | null }) {
             复制卡片 Markdown
           </button>
         </div>
+      )}
+      {previewOpen && shareData && (
+        <ShareCardPreviewModal
+          data={shareData}
+          onClose={() => setPreviewOpen(false)}
+        />
       )}
     </div>
   );
@@ -153,6 +185,7 @@ function SourceBar({
   sourceCount,
   cardDate,
   cardMarkdown,
+  entities,
 }: {
   title: string;
   meta: { title: string; account: string; author: string | null; publish_time: string | null; url: string };
@@ -165,11 +198,23 @@ function SourceBar({
   sourceCount?: number;
   cardDate?: string | null;
   cardMarkdown?: string | null;
+  entities?: string[];
 }) {
   const isAggregated = isAggregateKind(kind);
   const aggregateMeta = sourceCount && sourceCount > 0
     ? `聚合 ${sourceCount} 张相似卡片${formatDate(cardDate ?? null) ? ` · ${formatDate(cardDate ?? null)}` : ""}`
     : `聚合相似卡片${formatDate(cardDate ?? null) ? ` · ${formatDate(cardDate ?? null)}` : ""}`;
+  const shareData: ShareCardImageData | null = cardMarkdown?.trim()
+    ? {
+        title,
+        source: isAggregated ? aggregateMeta : [meta.account, meta.author, formatTime(meta.publish_time)].filter(Boolean).join(" · "),
+        date: formatDate(cardDate ?? meta.publish_time ?? null),
+        routingLabel: routingPresentation(routing ?? "discard", { kind }).text,
+        markdown: cardMarkdown,
+        entities: entities ?? [],
+        aggregateCount: isAggregated ? sourceCount : undefined,
+      }
+    : null;
   return (
     <div className="reader-source-bar">
       {/* Line 1: original title + tag */}
@@ -201,7 +246,7 @@ function SourceBar({
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           {cardId && (
             <>
-              <ShareButton markdown={cardMarkdown} />
+              <ShareButton markdown={cardMarkdown} shareData={shareData} />
               <FavoriteButton itemType="card" itemId={cardId} />
             </>
           )}
@@ -375,9 +420,16 @@ export function ReaderPane({
   const markRead = useMarkCardReadSingle();
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chatStartRef = useRef<HTMLDivElement>(null);
+  const lastMessageCountRef = useRef(0);
+  const pendingSoftRevealRef = useRef(false);
+  const shouldFollowStreamRef = useRef(false);
+  const scrollRafRef = useRef<number | null>(null);
+  const programmaticScrollUntilRef = useRef(0);
   // Tracks ChatInput container height so floating UI (vote pill, admin
   // annotation flag) can sit just above it as the textarea grows.
   const [chatInputHeight, setChatInputHeight] = useState(80);
+  const [showJumpLatest, setShowJumpLatest] = useState(false);
 
   // Load card content + original article for system prompt.
   // ArticleId can come from either the inbox-selected card or a discarded item
@@ -394,25 +446,83 @@ export function ReaderPane({
   const chat = useChat(chatCardId, cacheReady);
   const chatActive = chat.messages.length > 0 || chat.isStreaming;
 
-  // Auto-scroll when new messages arrive (after AI finishes or user sends)
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [chat.messages.length, chat.isStreaming]);
+  const scheduleScrollTo = useCallback((top: number, behavior: ScrollBehavior = "smooth") => {
+    if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    scrollRafRef.current = requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      programmaticScrollUntilRef.current = Date.now() + 420;
+      el.scrollTo({ top, behavior });
+      scrollRafRef.current = null;
+    });
+  }, []);
 
-  // Smooth scroll during streaming — throttled via rAF
-  const rafRef = useRef<number | null>(null);
+  const scrollToLatest = useCallback((follow: boolean) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    shouldFollowStreamRef.current = follow;
+    setShowJumpLatest(false);
+    scheduleScrollTo(Math.max(0, el.scrollHeight - el.clientHeight), "smooth");
+  }, [scheduleScrollTo]);
+
+  const markManualScrollIntent = useCallback(() => {
+    if (Date.now() < programmaticScrollUntilRef.current) return;
+    shouldFollowStreamRef.current = false;
+    if (chat.isStreaming || chat.streamingContent) setShowJumpLatest(true);
+  }, [chat.isStreaming, chat.streamingContent]);
+
+  useEffect(() => {
+    lastMessageCountRef.current = 0;
+    pendingSoftRevealRef.current = false;
+    shouldFollowStreamRef.current = false;
+    setShowJumpLatest(false);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [chatCardId]);
+
+  useEffect(() => {
+    const previousCount = lastMessageCountRef.current;
+    lastMessageCountRef.current = chat.messages.length;
+    const lastMessage = chat.messages[chat.messages.length - 1];
+    if (!pendingSoftRevealRef.current || chat.messages.length <= previousCount || lastMessage?.role !== "user") {
+      return;
+    }
+    pendingSoftRevealRef.current = false;
+    const el = scrollRef.current;
+    const chatStart = chatStartRef.current;
+    if (!el || !chatStart) return;
+    const metrics = getReaderScrollMetrics(el);
+    const chatTop = chatStart.offsetTop;
+    const target = getSoftChatRevealTarget(metrics, chatTop, chatInputHeight);
+    if (Math.abs(target - metrics.scrollTop) > 4) {
+      scheduleScrollTo(target, "smooth");
+    }
+  }, [chat.messages, chatInputHeight, scheduleScrollTo]);
+
   useEffect(() => {
     if (!chat.isStreaming || !chat.streamingContent) return;
-    if (rafRef.current) return; // already scheduled
-    rafRef.current = requestAnimationFrame(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-      rafRef.current = null;
-    });
-  }, [chat.streamingContent, chat.isStreaming]);
+    const el = scrollRef.current;
+    if (!el) return;
+    if (!shouldFollowStreamRef.current) {
+      setShowJumpLatest(true);
+      return;
+    }
+    const metrics = getReaderScrollMetrics(el);
+    if (!isNearReaderBottom(metrics, 340)) {
+      shouldFollowStreamRef.current = false;
+      setShowJumpLatest(true);
+      return;
+    }
+    setShowJumpLatest(false);
+    scheduleScrollTo(Math.max(0, el.scrollHeight - el.clientHeight), "smooth");
+  }, [chat.streamingContent, chat.isStreaming, scheduleScrollTo]);
+
+  useEffect(() => {
+    if (!chat.isStreaming) {
+      shouldFollowStreamRef.current = false;
+      setShowJumpLatest(false);
+    }
+  }, [chat.isStreaming]);
 
   const buildSystemPrompt = useCallback(() => {
     const notesPath = localStorage.getItem("notesPath") ?? "";
@@ -526,21 +636,30 @@ ${notesSection}
 请简练回复，使用中文和 markdown。`;
   }, [selectedItem, selectedDiscardedItem, cardContentData, promptArticleData]);
 
+  const beginChatTurn = useCallback(() => {
+    const el = scrollRef.current;
+    shouldFollowStreamRef.current = el ? isNearReaderBottom(getReaderScrollMetrics(el), 260) : false;
+    pendingSoftRevealRef.current = true;
+    setShowJumpLatest(false);
+  }, []);
+
   const handleSend = useCallback(
     (text: string) => {
       if (!selectedAgentId) return;
+      beginChatTurn();
       chat.sendMessage(text, selectedAgentId, buildSystemPrompt());
     },
-    [selectedAgentId, chat.sendMessage, buildSystemPrompt],
+    [selectedAgentId, beginChatTurn, chat.sendMessage, buildSystemPrompt],
   );
 
   const handleSaveToNotes = useCallback(() => {
     if (!selectedAgentId) return;
+    beginChatTurn();
     const notePrompt = selectedItem
       ? `请将当前卡片内容保存到我的笔记中。卡片内容已在上下文中，直接使用即可。`
       : `请将我们刚才的对话要点保存到我的笔记中。`;
     chat.sendMessage(notePrompt, selectedAgentId, buildSystemPrompt());
-  }, [selectedAgentId, selectedItem, chat.sendMessage, buildSystemPrompt]);
+  }, [selectedAgentId, selectedItem, beginChatTurn, chat.sendMessage, buildSystemPrompt]);
 
   const handleClear = useCallback(() => {
     if (!selectedAgentId) return;
@@ -634,8 +753,15 @@ ${notesSection}
         sourceCount={(item as InboxItem).source_card_ids?.length ?? 0}
         cardDate={item.card_date}
         cardMarkdown={cardContentData?.content ?? null}
+        entities={item.entities ?? []}
       />
-      <div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
+      <div
+        ref={scrollRef}
+        className="reader-scroll"
+        onWheelCapture={markManualScrollIntent}
+        onTouchMoveCapture={markManualScrollIntent}
+        onPointerDownCapture={markManualScrollIntent}
+      >
         <div className="reader-content animate-in" style={{ paddingBottom: 140 }}>
           {/* Card content (markdown). For "show original alongside" routings
               (reading_guide / post_read / legacy original_push), label as
@@ -669,6 +795,7 @@ ${notesSection}
             </CardFrame>
           )}
 
+          <div ref={chatStartRef} className="reader-chat-anchor" />
           <ChatMessages
             messages={chat.messages}
             streamingContent={chat.streamingContent}
@@ -678,6 +805,17 @@ ${notesSection}
           />
         </div>
       </div>
+      {showJumpLatest && (
+        <button
+          type="button"
+          className="reader-jump-latest"
+          style={{ bottom: chatInputHeight + 12 }}
+          onClick={() => scrollToLatest(true)}
+        >
+          <ArrowDown size={14} />
+          跳到最新回复
+        </button>
+      )}
       <TauriOnly>
         <ChatInput
           agents={agents}
