@@ -600,6 +600,31 @@ impl CacheDb {
             .ok();
         }
 
+        // 2026-05-08: card favorites moved to card_deliveries.favorited_at
+        // and arrive inline on /sync card rows. Drop stale local card
+        // favorites written via the old legacy table path, then force a full
+        // pull so server truth repopulates them. Article favorites remain in
+        // the favorites table and are left intact.
+        const CARD_FAVORITES_SYNC_MARKER: &str = "card_favorites_sync_v1";
+        let card_favorites_done: bool = conn
+            .query_row(
+                "SELECT 1 FROM sync_state WHERE key = ?1",
+                [CARD_FAVORITES_SYNC_MARKER],
+                |r| r.get::<_, i64>(0),
+            )
+            .is_ok();
+        if !card_favorites_done {
+            let _ = conn.execute_batch(
+                "DELETE FROM favorites WHERE item_type = 'card';
+                 DELETE FROM sync_state WHERE key = 'last_sync_ts';",
+            );
+            conn.execute(
+                "INSERT OR REPLACE INTO sync_state (key, value) VALUES (?1, '1')",
+                [CARD_FAVORITES_SYNC_MARKER],
+            )
+            .ok();
+        }
+
         Ok(())
     }
 
@@ -1214,6 +1239,35 @@ impl CacheDb {
             }
         }
         Ok(())
+    }
+
+    pub fn apply_card_favorites_sync(&self, cards: &[serde_json::Value]) -> Result<bool, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut changed = false;
+        for card in cards {
+            let Some(card_id) = card["card_id"].as_str() else {
+                continue;
+            };
+            if !card.as_object().map(|o| o.contains_key("favorited_at")).unwrap_or(false) {
+                continue;
+            }
+            if let Some(favorited_at) = card["favorited_at"].as_str() {
+                conn.execute(
+                    "INSERT OR REPLACE INTO favorites (item_type, item_id, created_at, synced)
+                     VALUES ('card', ?1, ?2, 1)",
+                    rusqlite::params![card_id, favorited_at],
+                )
+                .map_err(|e| e.to_string())?;
+            } else {
+                conn.execute(
+                    "DELETE FROM favorites WHERE item_type = 'card' AND item_id = ?1",
+                    rusqlite::params![card_id],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            changed = true;
+        }
+        Ok(changed)
     }
 
     pub fn get_sync_ts(&self) -> Result<Option<String>, String> {

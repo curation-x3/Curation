@@ -77,6 +77,10 @@ function getDb(): Promise<IDBPDatabase<CurationCacheSchema>> {
           try { tx.objectStore("wechat_articles").clear(); } catch { /* store may not exist */ }
           try { tx.objectStore("sync_state").delete("last_sync_ts"); } catch { /* store may not exist */ }
         }
+        if (oldVersion < 8) {
+          try { tx.objectStore("favorites").clear(); } catch { /* store may not exist */ }
+          try { tx.objectStore("sync_state").delete("last_sync_ts"); } catch { /* store may not exist */ }
+        }
       },
     });
   }

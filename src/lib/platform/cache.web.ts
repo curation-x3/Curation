@@ -167,6 +167,26 @@ export async function toggleFavoriteLocal(
   isFavorited: boolean,
 ): Promise<void> {
   // `isFavorited` is the CURRENT state — toggling means flipping it.
+  if (itemType === "card") {
+    const res = await apiFetch(`/cards/${encodeURIComponent(itemId)}/favorite`, {
+      method: isFavorited ? "DELETE" : "POST",
+    });
+    if (!res.ok) throw new Error(`toggle_favorite failed: ${res.status}`);
+    if (isFavorited) {
+      await idb.deleteFavorite("card", itemId);
+    } else {
+      await idb.writeFavoriteDelta([
+        {
+          item_type: "card",
+          item_id: itemId,
+          created_at: new Date().toISOString(),
+          synced: 1,
+        },
+      ]);
+    }
+    return;
+  }
+
   const endpoint = isFavorited ? `/favorites/batch-delete` : `/favorites/batch`;
   const res = await apiFetch(endpoint, {
     method: "POST",
@@ -225,6 +245,27 @@ export async function runSync(): Promise<string[]> {
       await idb.writeCardDelta(data.cards);
       changed.add("cards");
       pageChanged.add("cards");
+
+      // Card favorites live in card_deliveries.favorited_at on the server.
+      // Mirror that inline state into the local favorites store so Favorites,
+      // ReaderPane, search, and Atlas all read one local shape.
+      for (const card of data.cards) {
+        if (!card.card_id || !("favorited_at" in card)) continue;
+        if (card.favorited_at) {
+          await idb.writeFavoriteDelta([
+            {
+              item_type: "card",
+              item_id: card.card_id,
+              created_at: card.favorited_at,
+              synced: 1,
+            },
+          ]);
+        } else {
+          await idb.deleteFavorite("card", card.card_id);
+        }
+      }
+      changed.add("favorites");
+      pageChanged.add("favorites");
     }
 
     if (data.favorites && data.favorites.length > 0) {

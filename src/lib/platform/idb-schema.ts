@@ -39,7 +39,11 @@ export const DB_NAME = "curation_cache_v3";
 // body reads are local and no longer lazy-loaded per card.
 // v7 (2026-05-07): /sync now carries inline Atlas topic refs. Rebuild card
 // rows so the map can build its taxonomy from local cache.
-export const DB_VERSION = 7;
+// v8 (2026-05-08): card favorites are sourced from card_deliveries.favorited_at
+// inside /sync card rows instead of legacy /favorites card rows. Clear the
+// local favorites store and reset the sync cursor so a full pull rebuilds
+// both card favorites and legacy article favorites from server truth.
+export const DB_VERSION = 8;
 
 export interface ArticleContentRow {
   article_id: string;

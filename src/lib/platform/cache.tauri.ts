@@ -20,6 +20,7 @@ export interface CachedCard {
   author: string | null;
   url: string | null;
   read_at: string | null;
+  favorited_at?: string | null;
   updated_at: string;
   publish_time: string | null;
   account_id: number | null;

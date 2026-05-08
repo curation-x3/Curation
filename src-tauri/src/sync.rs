@@ -174,10 +174,15 @@ impl SyncClient {
         out
     }
 
-    /// Batch-push favorites add/remove actions.
+    /// Push favorites add/remove actions.
     ///
-    /// `add_favorite`    → POST /favorites/batch        (returns `{results: [{id: item_id, ok, error?}]}`)
-    /// `remove_favorite` → POST /favorites/batch-delete (same shape)
+    /// Card favorites are first-class delivery state:
+    /// `add_favorite`    + card → POST   /cards/{card_id}/favorite
+    /// `remove_favorite` + card → DELETE /cards/{card_id}/favorite
+    ///
+    /// Article favorites remain on the legacy batch endpoints:
+    /// `add_favorite`    + article → POST /favorites/batch
+    /// `remove_favorite` + article → POST /favorites/batch-delete
     async fn push_favorite_batch(
         &self,
         base_url: &str,
@@ -197,12 +202,37 @@ impl SyncClient {
                 Ok(v) => {
                     let item_type = v["item_type"].as_str().unwrap_or_default().to_string();
                     let item_id = v["item_id"].as_str().unwrap_or_default().to_string();
-                    fav_ids.push(item_id.clone());
-                    items_body.push(serde_json::json!({
-                        "item_type": item_type,
-                        "item_id": item_id,
-                    }));
-                    item_ids.push(item.id);
+                    if item_type == "card" {
+                        let path = format!("/cards/{}/favorite", item_id);
+                        let url = format!("{}{}", base_url, path);
+                        let builder = if action == "add_favorite" {
+                            self.client.post(&url)
+                        } else {
+                            self.client.delete(&url)
+                        };
+                        let resp = builder.bearer_auth(token).send().await;
+                        match resp {
+                            Ok(r) if r.status().is_success() => {
+                                pre_errors.push((item.id, Ok(())));
+                            }
+                            Ok(r) => {
+                                pre_errors.push((
+                                    item.id,
+                                    Err(format!("card favorite {} status {}", path, r.status())),
+                                ));
+                            }
+                            Err(e) => {
+                                pre_errors.push((item.id, Err(e.to_string())));
+                            }
+                        }
+                    } else {
+                        fav_ids.push(item_id.clone());
+                        items_body.push(serde_json::json!({
+                            "item_type": item_type,
+                            "item_id": item_id,
+                        }));
+                        item_ids.push(item.id);
+                    }
                 }
                 Err(e) => {
                     pre_errors.push((item.id, Err(e.to_string())));
@@ -422,6 +452,9 @@ fn apply_pull_result(
     if !pull.cards.is_empty() {
         db.upsert_cards(&pull.cards)?;
         changed.insert("cards".to_string());
+        if db.apply_card_favorites_sync(&pull.cards)? {
+            changed.insert("favorites".to_string());
+        }
     }
     if !pull.favorites.is_empty() {
         db.apply_favorites_sync(&pull.favorites)?;
