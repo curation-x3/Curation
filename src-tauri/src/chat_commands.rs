@@ -68,7 +68,27 @@ pub async fn send_chat_message(
     message: String,
     system_prompt: String,
 ) -> Result<String, String> {
-    // 1. Look up card binding + detect first turn (no prior messages) before inserting.
+    eprintln!(
+        "[chat] send_chat_message session={} agent_id={} message_chars={} system_prompt_chars={}",
+        session_id,
+        agent_id,
+        message.chars().count(),
+        system_prompt.chars().count()
+    );
+
+    // 1. Resolve and prepare agent before inserting the user message. If the
+    // local ACP adapter cannot be installed/started, the chat history stays clean.
+    let agents = crate::acp::detect_agents();
+    let agent_cfg = agents
+        .into_iter()
+        .find(|a| a.id == agent_id)
+        .ok_or_else(|| format!("Unknown agent_id: {}", agent_id))?;
+    let agent_for_preflight = agent_cfg.clone();
+    tokio::task::spawn_blocking(move || crate::acp::prepare_agent(&agent_for_preflight))
+        .await
+        .map_err(|e| format!("ACP preflight task failed: {}", e))??;
+
+    // 2. Look up card binding + detect first turn (no prior messages) before inserting.
     let (card_id, is_first_turn) = {
         let guard = state.db.lock().map_err(|e| e.to_string())?;
         let db = guard.as_ref().ok_or("database not initialized")?;
@@ -77,19 +97,12 @@ pub async fn send_chat_message(
         (card, prior.is_empty())
     };
 
-    // 2. Save user message
+    // 3. Save user message
     {
         let guard = state.db.lock().map_err(|e| e.to_string())?;
         let db = guard.as_ref().ok_or("database not initialized")?;
         db.insert_chat_message(&session_id, "user", &message)?;
     }
-
-    // 3. Resolve agent config
-    let agents = crate::acp::detect_agents();
-    let agent_cfg = agents
-        .into_iter()
-        .find(|a| a.id == agent_id)
-        .ok_or_else(|| format!("Unknown agent_id: {}", agent_id))?;
 
     // 4. Send prompt — prepend system prompt for first turn
     let prompt = if is_first_turn && !system_prompt.is_empty() {
@@ -130,12 +143,11 @@ pub async fn list_acp_runtime(
 }
 
 #[tauri::command]
-pub async fn set_acp_max_alive(
-    state: State<'_, AppState>,
-    n: usize,
-) -> Result<(), String> {
+pub async fn set_acp_max_alive(state: State<'_, AppState>, n: usize) -> Result<(), String> {
     state.acp_manager.set_max_alive(n);
-    with_db(&state, |db| db.set_setting("acp.max_alive_sessions", &n.to_string()))?;
+    with_db(&state, |db| {
+        db.set_setting("acp.max_alive_sessions", &n.to_string())
+    })?;
     Ok(())
 }
 
@@ -143,10 +155,7 @@ pub async fn set_acp_max_alive(
 pub fn get_acp_max_alive(state: State<'_, AppState>) -> Result<usize, String> {
     with_db(&state, |db| {
         let v = db.get_setting("acp.max_alive_sessions")?;
-        let n: usize = v
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(3)
-            .clamp(1, 5);
+        let n: usize = v.and_then(|s| s.parse().ok()).unwrap_or(3).clamp(1, 5);
         Ok(n)
     })
 }

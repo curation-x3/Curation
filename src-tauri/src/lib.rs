@@ -361,6 +361,8 @@ pub fn run() {
             commands::get_cached_discoverable_accounts,
             commands::save_cached_discoverable_accounts,
             commands::run_sync,
+            commands::check_acp_environment,
+            commands::export_diagnostics,
             chat_commands::detect_available_agents,
             chat_commands::create_chat_session,
             chat_commands::get_session_for_card,

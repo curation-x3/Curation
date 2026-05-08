@@ -1314,6 +1314,158 @@ body {
   color: var(--accent-gold);
 }
 
+.ts-icon-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color var(--dur-instant) var(--ease-out), color var(--dur-instant) var(--ease-out);
+}
+
+.ts-icon-btn:hover:not(:disabled) {
+  color: var(--accent-gold);
+  border-color: var(--accent-gold-dim);
+}
+
+.ts-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.spinning {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ts-agent-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-3);
+}
+
+.ts-agent-card {
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-md);
+  background: var(--bg-raised);
+  padding: var(--sp-3);
+}
+
+.ts-agent-card.ready {
+  border-color: color-mix(in srgb, var(--accent-green, #5aa86a) 45%, var(--border-hairline));
+}
+
+.ts-agent-card.blocked {
+  border-color: color-mix(in srgb, var(--accent-red) 45%, var(--border-hairline));
+}
+
+.ts-agent-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+
+.ts-agent-card-head span:last-child {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.ts-agent-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ts-agent-line {
+  display: grid;
+  grid-template-columns: 10px 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+}
+
+.ts-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--text-faint);
+}
+
+.ts-status-dot.ok {
+  background: var(--accent-green, #5aa86a);
+  box-shadow: 0 0 8px rgba(90, 168, 106, 0.38);
+}
+
+.ts-status-dot.bad {
+  background: var(--accent-red);
+  box-shadow: 0 0 8px rgba(218, 92, 92, 0.35);
+}
+
+.ts-agent-line-label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.ts-agent-line-detail {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-diagnostic-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.ts-diagnostic-row .ts-footer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: var(--fs-sm);
+}
+
+.ts-diagnostic-path {
+  padding: 6px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-sm);
+  background: var(--bg-base);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-diagnostic-error {
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 45%, var(--border-hairline));
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+  color: var(--accent-red);
+  font-size: var(--fs-xs);
+}
+
 /* ------- precision slider ------- */
 
 .ts-slider {

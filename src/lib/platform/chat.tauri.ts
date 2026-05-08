@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AgentConfig, ChatSession, ChatMessage } from "../chat";
+import type { AgentConfig, AgentEnvironmentCheck, ChatSession, ChatMessage } from "../chat";
 
 export const IS_CHAT_AVAILABLE = true;
 
@@ -69,4 +69,12 @@ export function setAcpMaxAlive(n: number): Promise<void> {
 
 export function getAcpMaxAlive(): Promise<number> {
   return invoke("get_acp_max_alive");
+}
+
+export function checkAcpEnvironment(): Promise<AgentEnvironmentCheck[]> {
+  return invoke("check_acp_environment");
+}
+
+export function exportDiagnostics(): Promise<string> {
+  return invoke("export_diagnostics");
 }

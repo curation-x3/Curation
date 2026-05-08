@@ -7,6 +7,31 @@ export interface AgentConfig {
   detected: boolean;
 }
 
+export interface CommandCheck {
+  command: string;
+  available: boolean;
+  path: string | null;
+  version: string | null;
+  error: string | null;
+}
+
+export interface AdapterCheck {
+  package: string | null;
+  binary: string | null;
+  ready: boolean;
+  checked: boolean;
+  error: string | null;
+}
+
+export interface AgentEnvironmentCheck {
+  name: string;
+  id: string;
+  detected: boolean;
+  cli: CommandCheck;
+  launcher: CommandCheck;
+  adapter: AdapterCheck;
+}
+
 export interface ChatSession {
   session_id: string;
   card_id: string | null;
@@ -41,5 +66,7 @@ export {
   listAcpRuntime,
   setAcpMaxAlive,
   getAcpMaxAlive,
+  checkAcpEnvironment,
+  exportDiagnostics,
 } from "./platform/chat";
 export type { RuntimeSnapshot, AcpRuntimeEvent } from "./platform/chat";

@@ -1,6 +1,8 @@
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, State};
+use std::time::Instant;
+use tauri::{Emitter, Manager, State};
 
 use crate::db::{AccountRow, CacheDb, CardRow, FavoriteRow, SearchResult};
 use crate::sync::SyncClient;
@@ -248,4 +250,111 @@ pub async fn run_sync(
         .await?;
 
     Ok(changed)
+}
+
+#[tauri::command]
+pub fn check_acp_environment() -> Result<Vec<crate::acp::AgentEnvironmentCheck>, String> {
+    Ok(crate::acp::check_agent_environments())
+}
+
+#[tauri::command]
+pub fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("failed to resolve app data dir: {}", e))?;
+    let diagnostics_root = app_data_dir.join("diagnostics");
+    std::fs::create_dir_all(&diagnostics_root).map_err(|e| e.to_string())?;
+
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let package_dir = diagnostics_root.join(format!("curation-diagnostics-{}", stamp));
+    std::fs::create_dir_all(&package_dir).map_err(|e| e.to_string())?;
+
+    let checks = crate::acp::check_agent_environments();
+    let manifest = serde_json::json!({
+        "generated_at": chrono::Local::now().to_rfc3339(),
+        "app_version": app.package_info().version.to_string(),
+        "app_data_dir": app_data_dir.to_string_lossy(),
+        "diagnostic_dir": package_dir.to_string_lossy(),
+    });
+
+    std::fs::write(
+        package_dir.join("manifest.json"),
+        serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?,
+    ).map_err(|e| e.to_string())?;
+    std::fs::write(
+        package_dir.join("environment.txt"),
+        crate::acp::environment_report_text(),
+    ).map_err(|e| e.to_string())?;
+    std::fs::write(
+        package_dir.join("acp_environment.json"),
+        serde_json::to_string_pretty(&checks).map_err(|e| e.to_string())?,
+    ).map_err(|e| e.to_string())?;
+    std::fs::write(
+        package_dir.join("app_system.log"),
+        collect_app_system_log().unwrap_or_else(|e| format!("failed to collect system log: {}", e)),
+    ).map_err(|e| e.to_string())?;
+
+    Ok(package_dir.to_string_lossy().to_string())
+}
+
+fn collect_app_system_log() -> Result<String, String> {
+    if !cfg!(target_os = "macos") {
+        return Ok("system log collection is only available on macOS".to_string());
+    }
+    capture_command(
+        "log",
+        &[
+            "show",
+            "--style",
+            "compact",
+            "--last",
+            "2h",
+            "--predicate",
+            r#"process == "Curation""#,
+        ],
+        12_000,
+    )
+}
+
+fn capture_command(command: &str, args: &[&str], timeout_ms: u64) -> Result<String, String> {
+    let mut child = Command::new(command)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                let output = child.wait_with_output().map_err(|e| e.to_string())?;
+                let mut text = String::new();
+                text.push_str(&String::from_utf8_lossy(&output.stdout));
+                text.push_str(&String::from_utf8_lossy(&output.stderr));
+                let text = text.trim().chars().take(120_000).collect::<String>();
+                if output.status.success() {
+                    return Ok(text);
+                }
+                return Err(if text.is_empty() {
+                    format!("command exited with {}", output.status)
+                } else {
+                    text
+                });
+            }
+            Ok(None) => {
+                if start.elapsed().as_millis() > timeout_ms as u128 {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("timed out after {}ms", timeout_ms));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Err(e) => {
+                let _ = child.kill();
+                return Err(e.to_string());
+            }
+        }
+    }
 }

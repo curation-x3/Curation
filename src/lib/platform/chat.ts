@@ -15,4 +15,6 @@ export const cancelChatStream = impl.cancelChatStream;
 export const listAcpRuntime = impl.listAcpRuntime;
 export const setAcpMaxAlive = impl.setAcpMaxAlive;
 export const getAcpMaxAlive = impl.getAcpMaxAlive;
+export const checkAcpEnvironment = impl.checkAcpEnvironment;
+export const exportDiagnostics = impl.exportDiagnostics;
 export type { RuntimeSnapshot, AcpRuntimeEvent } from "./chat.tauri";

@@ -1,4 +1,4 @@
-import type { AgentConfig, ChatSession, ChatMessage } from "../chat";
+import type { AgentConfig, AgentEnvironmentCheck, ChatSession, ChatMessage } from "../chat";
 
 export const IS_CHAT_AVAILABLE = false;
 
@@ -72,4 +72,12 @@ export function setAcpMaxAlive(_n: number): Promise<void> {
 
 export function getAcpMaxAlive(): Promise<number> {
   return Promise.resolve(3);
+}
+
+export function checkAcpEnvironment(): Promise<AgentEnvironmentCheck[]> {
+  return Promise.resolve([]);
+}
+
+export function exportDiagnostics(): Promise<string> {
+  return unavailable("exportDiagnostics");
 }
