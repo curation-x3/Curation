@@ -1,3 +1,4 @@
+import "./lib/diagnostics/consoleCapture";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AuthProvider } from "./lib/authStore";

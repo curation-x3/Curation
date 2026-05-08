@@ -259,7 +259,11 @@ pub fn check_acp_environment() -> Result<Vec<crate::acp::AgentEnvironmentCheck>,
 }
 
 #[tauri::command]
-pub fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
+pub fn export_diagnostics(
+    app: tauri::AppHandle,
+    frontend_logs_text: Option<String>,
+    frontend_logs_json: Option<String>,
+) -> Result<String, String> {
     let app_data_dir = app
         .path()
         .app_data_dir()
@@ -271,7 +275,7 @@ pub fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
     let package_dir = diagnostics_root.join(format!("curation-diagnostics-{}", stamp));
     std::fs::create_dir_all(&package_dir).map_err(|e| e.to_string())?;
 
-    let checks = crate::acp::check_agent_environments();
+    let checks = crate::acp::check_agent_environments_quick();
     let manifest = serde_json::json!({
         "generated_at": chrono::Local::now().to_rfc3339(),
         "app_version": app.package_info().version.to_string(),
@@ -292,6 +296,16 @@ pub fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
     std::fs::write(
         package_dir.join("acp_environment.json"),
         serde_json::to_string_pretty(&checks).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    std::fs::write(
+        package_dir.join("frontend_console.log"),
+        frontend_logs_text.unwrap_or_else(|| "frontend console log was not provided".to_string()),
+    )
+    .map_err(|e| e.to_string())?;
+    std::fs::write(
+        package_dir.join("frontend_console.json"),
+        frontend_logs_json.unwrap_or_else(|| "[]".to_string()),
     )
     .map_err(|e| e.to_string())?;
     std::fs::write(
@@ -318,7 +332,7 @@ fn collect_app_system_log() -> Result<String, String> {
             "--predicate",
             r#"process == "Curation""#,
         ],
-        12_000,
+        2_500,
     )
 }
 

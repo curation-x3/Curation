@@ -75,6 +75,14 @@ export function checkAcpEnvironment(): Promise<AgentEnvironmentCheck[]> {
   return invoke("check_acp_environment");
 }
 
-export function exportDiagnostics(): Promise<string> {
-  return invoke("export_diagnostics");
+export interface FrontendDiagnosticsPayload {
+  text: string;
+  json: string;
+}
+
+export function exportDiagnostics(frontendLogs?: FrontendDiagnosticsPayload): Promise<string> {
+  return invoke("export_diagnostics", {
+    frontendLogsText: frontendLogs?.text ?? null,
+    frontendLogsJson: frontendLogs?.json ?? null,
+  });
 }

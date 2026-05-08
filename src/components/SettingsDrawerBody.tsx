@@ -1,15 +1,6 @@
-import { useState, useEffect } from "react";
-import { ArrowUpRight, FolderOpen, RefreshCw, FileDown } from "lucide-react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { openFolderPicker } from "../lib/platform/dialog";
+import { lazy, Suspense, useState, useEffect } from "react";
+import { ArrowUpRight, FolderOpen } from "lucide-react";
 import { TauriOnly } from "./platform/TauriOnly";
-import {
-  checkAcpEnvironment,
-  exportDiagnostics,
-  getAcpMaxAlive,
-  setAcpMaxAlive,
-  type AgentEnvironmentCheck,
-} from "../lib/chat";
 import type { AppearanceSettings, FontBody, ThemeMode } from "../lib/appearance";
 import {
   READER_SIZE_DEFAULT,
@@ -71,6 +62,10 @@ const BASE_TABS: { key: SettingsTab; label: string; kicker: string; tauriOnly?: 
   { key: "notes", label: "笔记", kicker: "Vault", tauriOnly: true },
   { key: "account", label: "账号", kicker: "Identity" },
 ];
+
+const SettingsAgentTab = lazy(() =>
+  import("./SettingsAgentTab").then((module) => ({ default: module.SettingsAgentTab })),
+);
 
 function Section({ roman, title, children }: { roman: string; title: string; children: React.ReactNode }) {
   return (
@@ -143,178 +138,6 @@ function WidthRuler({ value, min, max }: { value: number; min: number; max: numb
   return (
     <div className="ts-ruler" aria-hidden>
       <span className="ts-ruler-bar" style={{ width: `${pct}%` }} />
-    </div>
-  );
-}
-
-function AcpMaxAliveField() {
-  const [value, setValue] = useState<number>(3);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    getAcpMaxAlive()
-      .then((n) => {
-        setValue(n);
-        setLoaded(true);
-      })
-      .catch(() => setLoaded(true));
-  }, []);
-
-  const update = async (next: number) => {
-    const clamped = Math.max(1, Math.min(5, next));
-    setValue(clamped);
-    try {
-      await setAcpMaxAlive(clamped);
-    } catch {
-      // revert on failure
-      const current = await getAcpMaxAlive().catch(() => value);
-      setValue(current);
-    }
-  };
-
-  return (
-    <div className="ts-field">
-      <div className="ts-field-label">
-        <span>最多并行会话</span>
-        <span className="ts-field-hint">1–5，超出后自动回收已结束的空闲会话</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <button
-          className="ts-footer-btn"
-          style={{ padding: "4px 10px", fontSize: "var(--fs-sm)" }}
-          onClick={() => update(value - 1)}
-          disabled={!loaded || value <= 1}
-        >
-          −
-        </button>
-        <span style={{ minWidth: 32, textAlign: "center", fontFamily: "var(--font-mono)" }}>
-          {value}
-        </span>
-        <button
-          className="ts-footer-btn"
-          style={{ padding: "4px 10px", fontSize: "var(--fs-sm)" }}
-          onClick={() => update(value + 1)}
-          disabled={!loaded || value >= 5}
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function statusLabel(ok: boolean) {
-  return ok ? "Ready" : "Missing";
-}
-
-function AgentEnvironmentPanel() {
-  const [checks, setChecks] = useState<AgentEnvironmentCheck[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setChecks(await checkAcpEnvironment());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  return (
-    <div className="ts-field">
-      <div className="ts-field-label">
-        <span>本机 Agent 环境</span>
-        <button className="ts-icon-btn" onClick={refresh} disabled={loading} title="重新检查">
-          <RefreshCw size={13} className={loading ? "spinning" : ""} />
-        </button>
-      </div>
-      {error && <div className="ts-diagnostic-error">{error}</div>}
-      <div className="ts-agent-grid">
-        {checks.map((check) => (
-          <div key={check.id} className={`ts-agent-card ${check.detected ? "ready" : "blocked"}`}>
-            <div className="ts-agent-card-head">
-              <span>{check.name}</span>
-              <span>{statusLabel(check.detected)}</span>
-            </div>
-            <div className="ts-agent-lines">
-              <EnvLine label="CLI" ok={check.cli.available} detail={check.cli.version || check.cli.error || check.cli.path} />
-              <EnvLine label="Launcher" ok={check.launcher.available} detail={check.launcher.version || check.launcher.error || check.launcher.path} />
-              <EnvLine
-                label="Adapter"
-                ok={check.adapter.ready}
-                detail={
-                  check.adapter.checked
-                    ? check.adapter.error || check.adapter.package || "ready"
-                    : "native"
-                }
-              />
-            </div>
-          </div>
-        ))}
-        {!loading && checks.length === 0 && (
-          <div className="ts-diagnostic-error">当前环境未返回 Agent 检查结果</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EnvLine({ label, ok, detail }: { label: string; ok: boolean; detail?: string | null }) {
-  return (
-    <div className="ts-agent-line">
-      <span className={`ts-status-dot ${ok ? "ok" : "bad"}`} />
-      <span className="ts-agent-line-label">{label}</span>
-      <span className="ts-agent-line-detail">{detail || (ok ? "ready" : "missing")}</span>
-    </div>
-  );
-}
-
-function DiagnosticsExportField() {
-  const [exporting, setExporting] = useState(false);
-  const [path, setPath] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const runExport = async () => {
-    setExporting(true);
-    setError(null);
-    try {
-      const nextPath = await exportDiagnostics();
-      setPath(nextPath);
-      await revealItemInDir(nextPath).catch(() => {});
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  return (
-    <div className="ts-field">
-      <div className="ts-field-label">
-        <span>诊断包</span>
-        <span className="ts-field-hint">环境、Agent 检查、运行信息</span>
-      </div>
-      <div className="ts-diagnostic-row">
-        <button className="ts-footer-btn primary" onClick={runExport} disabled={exporting}>
-          <FileDown size={13} />
-          {exporting ? "导出中" : "导出诊断包"}
-        </button>
-        {path && (
-          <button className="ts-footer-btn" onClick={() => revealItemInDir(path)}>
-            在 Finder 中显示
-          </button>
-        )}
-      </div>
-      {path && <div className="ts-diagnostic-path">{path}</div>}
-      {error && <div className="ts-diagnostic-error">{error}</div>}
     </div>
   );
 }
@@ -496,13 +319,9 @@ export function SettingsDrawerBody({
 
         {activeTab === "agent" && (
           <TauriOnly>
-            <Section roman="I" title="Agent">
-              <AgentEnvironmentPanel />
-              <AcpMaxAliveField />
-            </Section>
-            <Section roman="II" title="诊断">
-              <DiagnosticsExportField />
-            </Section>
+            <Suspense fallback={<div className="ts-field">加载中…</div>}>
+              <SettingsAgentTab Section={Section} />
+            </Suspense>
           </TauriOnly>
         )}
 
@@ -521,6 +340,7 @@ export function SettingsDrawerBody({
                   <button
                     className="ts-footer-btn primary ts-inline-action"
                     onClick={async () => {
+                      const { openFolderPicker } = await import("../lib/platform/dialog");
                       const selected = await openFolderPicker({
                         title: "选择笔记文件夹",
                         defaultPath: notesPath || undefined,

@@ -69,4 +69,4 @@ export {
   checkAcpEnvironment,
   exportDiagnostics,
 } from "./platform/chat";
-export type { RuntimeSnapshot, AcpRuntimeEvent } from "./platform/chat";
+export type { RuntimeSnapshot, AcpRuntimeEvent, FrontendDiagnosticsPayload } from "./platform/chat";

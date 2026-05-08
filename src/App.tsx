@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLayout } from "./hooks/useLayout";
 import { useInbox, useDiscarded, useIsFirstSync, useAnalyzingQueue } from "./hooks/useInbox";
 import { useAccounts, usePrimeAccountsCache } from "./hooks/useAccounts";
@@ -31,11 +31,16 @@ import { API_BASE, WS_BASE } from './lib/api';
 import { authingClient } from './lib/authing';
 import { useAppearance } from "./hooks/useAppearance";
 import { useFontShortcuts } from "./hooks/useFontShortcuts";
-import { SettingsDrawerBody } from "./components/SettingsDrawerBody";
 import { startAcpListener } from "./lib/acp/listener";
 import { useCardStatusStore, isInboxUnread } from "./lib/acp/cardStatusStore";
 import { getAcpMaxAlive, setAcpMaxAlive } from "./lib/chat";
 import "./App.css";
+
+const SettingsDrawerBody = lazy(() =>
+  import("./components/SettingsDrawerBody").then((module) => ({
+    default: module.SettingsDrawerBody,
+  })),
+);
 
 // Boot info
 getVersion()
@@ -539,17 +544,19 @@ function AppMain({ currentUser, onLogout }: {
           />
         )}
         {drawerState === "settings" && (
-          <SettingsDrawerBody
-            draft={appearance.draft}
-            autoSize={appearance.autoSize}
-            currentUserEmail={currentUser.email}
-            notesPath={notesPath}
-            appVersion={appVersion}
-            onNotesPathChange={handleNotesPathChange}
-            onChange={appearance.setDraft}
-            onReset={appearance.resetDefaults}
-            onLogout={onLogout}
-          />
+          <Suspense fallback={<div className="drawer-body drawer-body-settings" />}>
+            <SettingsDrawerBody
+              draft={appearance.draft}
+              autoSize={appearance.autoSize}
+              currentUserEmail={currentUser.email}
+              notesPath={notesPath}
+              appVersion={appVersion}
+              onNotesPathChange={handleNotesPathChange}
+              onChange={appearance.setDraft}
+              onReset={appearance.resetDefaults}
+              onLogout={onLogout}
+            />
+          </Suspense>
         )}
       </SidebarDrawer>
 

@@ -323,6 +323,62 @@ pub fn check_agent_environments() -> Vec<AgentEnvironmentCheck> {
         .collect()
 }
 
+pub fn check_agent_environments_quick() -> Vec<AgentEnvironmentCheck> {
+    detect_agents()
+        .into_iter()
+        .map(|agent| {
+            let cli_command = match agent.id.as_str() {
+                "claude-acp" => "claude",
+                "codex-acp" => "codex",
+                "gemini-acp" => "gemini",
+                _ => &agent.command,
+            };
+            let cli_path = command_path(cli_command);
+            let launcher_path = command_path(&agent.command);
+            let cli = CommandCheck {
+                command: cli_command.to_string(),
+                available: cli_path.is_some(),
+                path: cli_path,
+                version: None,
+                error: None,
+            };
+            let launcher = CommandCheck {
+                command: agent.command.clone(),
+                available: launcher_path.is_some(),
+                path: launcher_path,
+                version: None,
+                error: None,
+            };
+            let adapter = if let Some((package, binary)) = npx_adapter_package_binary(&agent) {
+                AdapterCheck {
+                    package: Some(package),
+                    binary: Some(binary),
+                    ready: true,
+                    checked: false,
+                    error: Some("skipped in diagnostics quick mode".to_string()),
+                }
+            } else {
+                AdapterCheck {
+                    package: None,
+                    binary: None,
+                    ready: true,
+                    checked: false,
+                    error: None,
+                }
+            };
+            let detected = cli.available && launcher.available;
+            AgentEnvironmentCheck {
+                name: agent.name,
+                id: agent.id,
+                detected,
+                cli,
+                launcher,
+                adapter,
+            }
+        })
+        .collect()
+}
+
 /// Prepare the local ACP launcher before any chat message is persisted or sent.
 ///
 /// For npx-based adapters this performs a non-interactive npm exec that

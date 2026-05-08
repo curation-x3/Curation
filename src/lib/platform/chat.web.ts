@@ -78,6 +78,11 @@ export function checkAcpEnvironment(): Promise<AgentEnvironmentCheck[]> {
   return Promise.resolve([]);
 }
 
-export function exportDiagnostics(): Promise<string> {
+export interface FrontendDiagnosticsPayload {
+  text: string;
+  json: string;
+}
+
+export function exportDiagnostics(_frontendLogs?: FrontendDiagnosticsPayload): Promise<string> {
   return unavailable("exportDiagnostics");
 }
