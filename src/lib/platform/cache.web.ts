@@ -215,7 +215,8 @@ export async function toggleFavoriteLocal(
 // ---------------------------------------------------------------------------
 
 const LAST_SYNC_TS_KEY = "last_sync_ts";
-const PAGE_SIZE = 50;
+const FIRST_PAGE_SIZE = 50;
+const FOLLOWUP_PAGE_SIZE = 200;
 
 interface SyncBatch {
   cards?: CachedCard[];
@@ -232,7 +233,7 @@ export async function runSync(): Promise<string[]> {
 
   const fetchPage = async (cursor: number | null): Promise<SyncBatch> => {
     const params = new URLSearchParams();
-    params.set("limit", String(PAGE_SIZE));
+    params.set("limit", String(cursor == null ? FIRST_PAGE_SIZE : FOLLOWUP_PAGE_SIZE));
     if (since) params.set("since", since);
     if (syncUntil) params.set("until", syncUntil);
     if (cursor != null) params.set("cursor", String(cursor));

@@ -54,6 +54,7 @@ export function useInbox(biz?: string | null, unreadOnly?: boolean, enabled = tr
     },
     staleTime: 0,
     refetchInterval: false,
+    initialData: [],
     enabled,
   });
 }
@@ -61,14 +62,16 @@ export function useInbox(biz?: string | null, unreadOnly?: boolean, enabled = tr
 // Server-only for now: discarded items are excluded from /sync (see spec Q2).
 // Localizing requires adding a discarded_items table + sync plumbing — low priority
 // since this view is rarely opened and not part of the hot path.
-export function useDiscarded() {
+export function useDiscarded(enabled = true) {
   return useQuery<DiscardedItem[]>({
     queryKey: ["discarded"],
     queryFn: async () => {
       const data = await fetchDiscarded();
       return data.items ?? [];
     },
+    initialData: [],
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 }
 

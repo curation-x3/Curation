@@ -257,7 +257,7 @@ function AppMain({ currentUser, onLogout }: {
     if (selectedView !== "inbox" || selectedBiz == null) return allInboxItems;
     return allInboxItems.filter((i) => i.article_meta.biz === selectedBiz);
   }, [allInboxItems, selectedView, selectedBiz]);
-  const { data: discardedItems, isLoading: isLoadingDiscarded } = useDiscarded();
+  const { data: discardedItems, isLoading: isLoadingDiscarded } = useDiscarded(selectedView === "discarded");
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
 
