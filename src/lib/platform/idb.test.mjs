@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 
 const idb = await import("./idb.ts");
 const {
+  setCacheUserScope,
   readCards,
   writeCardDelta,
   updateCardRow,
@@ -55,6 +56,9 @@ function card(card_id, overrides = {}) {
 }
 
 beforeEach(async () => {
+  if (typeof setCacheUserScope === "function") {
+    setCacheUserScope(null);
+  }
   await clearAll();
 });
 
@@ -207,6 +211,30 @@ test("sync_state: round-trip + null on miss", async () => {
   assert.equal(await getSyncState("missing"), null);
   await setSyncState("last_sync_ts", "2026-05-04T10:00:00Z");
   assert.equal(await getSyncState("last_sync_ts"), "2026-05-04T10:00:00Z");
+});
+
+test("cache scope: cards and sync cursor are isolated per user", async () => {
+  assert.equal(typeof setCacheUserScope, "function");
+
+  setCacheUserScope("user-a");
+  await clearAll();
+  await writeCardDelta([card("card-a")]);
+  await setSyncState("last_sync_ts", "2026-05-08T01:00:00Z");
+
+  setCacheUserScope("user-b");
+  await clearAll();
+  assert.deepEqual(await readCards({}), []);
+  assert.equal(await getSyncState("last_sync_ts"), null);
+  await writeCardDelta([card("card-b")]);
+  await setSyncState("last_sync_ts", "2026-05-08T02:00:00Z");
+
+  setCacheUserScope("user-a");
+  assert.deepEqual((await readCards({})).map((row) => row.card_id), ["card-a"]);
+  assert.equal(await getSyncState("last_sync_ts"), "2026-05-08T01:00:00Z");
+
+  setCacheUserScope("user-b");
+  assert.deepEqual((await readCards({})).map((row) => row.card_id), ["card-b"]);
+  assert.equal(await getSyncState("last_sync_ts"), "2026-05-08T02:00:00Z");
 });
 
 test("clearAll: wipes every store", async () => {

@@ -88,6 +88,7 @@ export {
   initDbWithSecret,
   setCacheAuthToken,
   setApiBase,
+  setCacheUserScope,
   getInboxCards,
   getFavorites,
   loadFavoriteItems,

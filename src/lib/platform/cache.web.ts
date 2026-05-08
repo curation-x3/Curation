@@ -10,8 +10,51 @@ import type { CachedCard, CachedFavorite, SearchResult, CachedAccount } from "..
 import type { FavoriteItem } from "../../types";
 import { apiFetch } from "../api";
 import * as idb from "./idb";
+import { resolveSyncSince } from "./sync-policy";
+
+const SYNC_PAGE_EVENT = "sync-page-committed";
+
+let syncBroadcast: BroadcastChannel | null = null;
+let syncBroadcastName: string | null = null;
+
+function syncChannelName(): string {
+  return `curation-cache:${idb.getCacheUserScopeKey()}`;
+}
+
+function ensureSyncBroadcast(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === "undefined") return null;
+  const name = syncChannelName();
+  if (syncBroadcast && syncBroadcastName === name) return syncBroadcast;
+
+  syncBroadcast?.close();
+  syncBroadcastName = name;
+  syncBroadcast = new BroadcastChannel(name);
+  syncBroadcast.onmessage = (event) => {
+    const msg = event.data;
+    if (msg?.type !== SYNC_PAGE_EVENT || typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent(SYNC_PAGE_EVENT, { detail: msg.detail }));
+  };
+  return syncBroadcast;
+}
+
+function emitSyncPageCommitted(detail: {
+  changedKeys: string[];
+  cards: number;
+  favorites: number;
+}): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(SYNC_PAGE_EVENT, { detail }));
+  }
+  ensureSyncBroadcast()?.postMessage({ type: SYNC_PAGE_EVENT, detail });
+}
 
 export function initDbWithSecret(_secret: string): Promise<void> {
+  return Promise.resolve();
+}
+
+export function setCacheUserScope(scope: string | null): Promise<void> {
+  idb.setCacheUserScope(scope);
+  ensureSyncBroadcast();
   return Promise.resolve();
 }
 
@@ -215,6 +258,7 @@ export async function toggleFavoriteLocal(
 // ---------------------------------------------------------------------------
 
 const LAST_SYNC_TS_KEY = "last_sync_ts";
+const BOOTSTRAP_COMPLETE_KEY = "sync_bootstrap_complete";
 const FIRST_PAGE_SIZE = 50;
 const FOLLOWUP_PAGE_SIZE = 200;
 
@@ -227,9 +271,87 @@ interface SyncBatch {
 }
 
 export async function runSync(): Promise<string[]> {
-  const since = await idb.getSyncState(LAST_SYNC_TS_KEY);
+  return withSyncLock(runSyncUnlocked);
+}
+
+interface LockManagerLike {
+  request<T>(
+    name: string,
+    options: { mode: "exclusive" },
+    callback: () => Promise<T>,
+  ): Promise<T>;
+}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withLocalStorageLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  if (typeof localStorage === "undefined") return fn();
+
+  const key = `curation:${name}:lock`;
+  const token = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const ttlMs = 30_000;
+  const waitUntil = Date.now() + 10_000;
+
+  while (Date.now() < waitUntil) {
+    const now = Date.now();
+    const raw = localStorage.getItem(key);
+    let locked = false;
+    if (raw) {
+      try {
+        locked = JSON.parse(raw).expiresAt > now;
+      } catch {
+        locked = false;
+      }
+    }
+
+    if (!locked) {
+      localStorage.setItem(key, JSON.stringify({ token, expiresAt: now + ttlMs }));
+      try {
+        if (JSON.parse(localStorage.getItem(key) ?? "{}").token === token) {
+          return await fn();
+        }
+      } finally {
+        const latest = localStorage.getItem(key);
+        if (latest) {
+          try {
+            if (JSON.parse(latest).token === token) localStorage.removeItem(key);
+          } catch {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    }
+
+    await delay(120);
+  }
+
+  console.warn("[sync] lock wait timed out; proceeding without exclusive localStorage lock");
+  return fn();
+}
+
+async function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
+  const name = `curation-sync:${idb.getCacheUserScopeKey()}`;
+  const lockManager = typeof navigator !== "undefined"
+    ? (navigator as Navigator & { locks?: LockManagerLike }).locks
+    : undefined;
+  if (lockManager?.request) {
+    return lockManager.request(name, { mode: "exclusive" }, fn);
+  }
+  return withLocalStorageLock(name, fn);
+}
+
+async function runSyncUnlocked(): Promise<string[]> {
+  const lastSyncTs = await idb.getSyncState(LAST_SYNC_TS_KEY);
+  const localVisibleCardCount = await idb.countVisibleCards();
+  const bootstrapComplete = (await idb.getSyncState(BOOTSTRAP_COMPLETE_KEY)) === "1";
+  const since = resolveSyncSince({
+    lastSyncTs,
+    localVisibleCardCount,
+    bootstrapComplete,
+  });
   const changed = new Set<string>();
   let syncUntil: string | null = null;
+  let cardsReceived = 0;
 
   const fetchPage = async (cursor: number | null): Promise<SyncBatch> => {
     const params = new URLSearchParams();
@@ -248,6 +370,7 @@ export async function runSync(): Promise<string[]> {
     const pageChanged = new Set<string>();
 
     if (data.cards && data.cards.length > 0) {
+      cardsReceived += data.cards.length;
       await idb.writeCardDelta(data.cards);
       changed.add("cards");
       pageChanged.add("cards");
@@ -297,13 +420,11 @@ export async function runSync(): Promise<string[]> {
 
     const keys = Array.from(pageChanged);
     if (keys.length > 0) {
-      window.dispatchEvent(new CustomEvent("sync-page-committed", {
-        detail: {
-          changedKeys: keys,
-          cards: data.cards?.length ?? 0,
-          favorites: data.favorites?.length ?? 0,
-        },
-      }));
+      emitSyncPageCommitted({
+        changedKeys: keys,
+        cards: data.cards?.length ?? 0,
+        favorites: data.favorites?.length ?? 0,
+      });
     }
     return keys;
   };
@@ -337,6 +458,11 @@ export async function runSync(): Promise<string[]> {
   }
   if (syncUntil) {
     await idb.setSyncState(LAST_SYNC_TS_KEY, syncUntil);
+    if (since == null && cardsReceived === 0) {
+      await idb.setSyncState(BOOTSTRAP_COMPLETE_KEY, "1");
+    } else if (cardsReceived > 0) {
+      await idb.deleteSyncState(BOOTSTRAP_COMPLETE_KEY);
+    }
   }
 
   return Array.from(changed);

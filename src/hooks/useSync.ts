@@ -1,24 +1,35 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { listen } from "../lib/platform/sync-event";
-import { runSync, initDbWithSecret, setCacheAuthToken, setApiBase } from "../lib/cache";
+import { runSync, initDbWithSecret, setCacheAuthToken, setApiBase, setCacheUserScope } from "../lib/cache";
 import { getWsBase, getAuthToken, getApiBase, fetchCacheSecret } from "../lib/api";
 
 export function useInitCache(isLoggedIn: boolean, userId: string | null) {
   const initialized = useRef(false);
+  const initializedFor = useRef<string | null>(null);
   const [cacheReady, setCacheReady] = useState(false);
 
   useEffect(() => {
-    if (!isLoggedIn || !userId || initialized.current) return;
+    if (!isLoggedIn || !userId) {
+      initialized.current = false;
+      initializedFor.current = null;
+      setCacheReady(false);
+      return;
+    }
+    if (initialized.current && initializedFor.current === userId) return;
+
+    let cancelled = false;
+    setCacheReady(false);
 
     async function init() {
       const token = getAuthToken();
       if (!token) return;
 
       if (__IS_WEB__) {
-        // Web build has no local cache; skip secret fetch + DB init entirely.
+        await setCacheUserScope(userId);
         initialized.current = true;
-        setCacheReady(true);
+        initializedFor.current = userId;
+        if (!cancelled) setCacheReady(true);
         return;
       }
 
@@ -36,10 +47,14 @@ export function useInitCache(isLoggedIn: boolean, userId: string | null) {
       await initDbWithSecret(secret);
       await setCacheAuthToken(token);
       initialized.current = true;
-      setCacheReady(true);
+      initializedFor.current = userId;
+      if (!cancelled) setCacheReady(true);
     }
 
     init().catch(console.error);
+    return () => {
+      cancelled = true;
+    };
   }, [isLoggedIn, userId]);
 
   return { initialized, cacheReady };

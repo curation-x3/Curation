@@ -10,15 +10,17 @@ import { openDB, type IDBPDatabase } from "idb";
 import type { CachedCard, CachedFavorite, CachedAccount } from "../cache";
 import {
   CACHE_DATA_VERSION,
-  DB_NAME,
+  DB_NAME as BASE_DB_NAME,
   type ArticleContentRow,
   type CurationCacheSchema,
 } from "./idb-schema";
 
 let _dbPromise: Promise<IDBPDatabase<CurationCacheSchema>> | null = null;
 let _migrationPromise: Promise<void> | null = null;
+let _cacheUserScope: string | null = null;
 
 const DATA_VERSION_KEY = "cache_data_version";
+const BOOTSTRAP_COMPLETE_KEY = "sync_bootstrap_complete";
 const CACHE_STORES = [
   "cards",
   "wechat_articles",
@@ -26,6 +28,35 @@ const CACHE_STORES = [
   "favorites",
   "sync_state",
 ] as const;
+
+function normalizeScope(scope: string | null | undefined): string | null {
+  const trimmed = scope?.trim();
+  if (!trimmed) return null;
+  const safe = trimmed.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 96);
+  return safe.length > 0 ? safe : null;
+}
+
+function activeDbName(): string {
+  return _cacheUserScope ? `${BASE_DB_NAME}__u_${_cacheUserScope}` : BASE_DB_NAME;
+}
+
+export function getCacheUserScopeKey(): string {
+  return _cacheUserScope ?? "default";
+}
+
+export function setCacheUserScope(scope: string | null | undefined): void {
+  const nextScope = normalizeScope(scope);
+  if (nextScope === _cacheUserScope) return;
+
+  const previousDb = _dbPromise;
+  _cacheUserScope = nextScope;
+  _dbPromise = null;
+  _migrationPromise = null;
+
+  previousDb
+    ?.then((db) => db.close())
+    .catch(() => {});
+}
 
 function closeForVersionChange(
   db: IDBPDatabase<CurationCacheSchema>,
@@ -43,7 +74,8 @@ function closeForVersionChange(
 
 function openCacheDb(): Promise<IDBPDatabase<CurationCacheSchema>> {
   if (!_dbPromise) {
-    const dbPromise = openDB<CurationCacheSchema>(DB_NAME, undefined, {
+    const dbName = activeDbName();
+    const dbPromise = openDB<CurationCacheSchema>(dbName, undefined, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           const cards = db.createObjectStore("cards", { keyPath: "card_id" });
@@ -120,7 +152,10 @@ async function runDataMigrations(
   const clearStore = (
     name: "cards" | "wechat_articles" | "wechat_subscriptions" | "favorites",
   ) => tx.objectStore(name).clear();
-  const resetSyncCursor = () => tx.objectStore("sync_state").delete("last_sync_ts");
+  const resetSyncCursor = () => {
+    tx.objectStore("sync_state").delete("last_sync_ts");
+    tx.objectStore("sync_state").delete(BOOTSTRAP_COMPLETE_KEY);
+  };
 
   if (fromVersion < 2) {
     clearStore("cards");
@@ -213,6 +248,10 @@ export async function readCards(opts: {
       return true;
     })
     .sort((a, b) => (b.card_date ?? "").localeCompare(a.card_date ?? ""));
+}
+
+export async function countVisibleCards(): Promise<number> {
+  return (await readCards({})).length;
 }
 
 export async function writeCardDelta(rows: CachedCard[]): Promise<void> {
@@ -348,6 +387,11 @@ export async function getSyncState(key: string): Promise<string | null> {
 export async function setSyncState(key: string, value: string): Promise<void> {
   const db = await getDb();
   await db.put("sync_state", { key, value });
+}
+
+export async function deleteSyncState(key: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("sync_state", key);
 }
 
 // ---------------------------------------------------------------------------

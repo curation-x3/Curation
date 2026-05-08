@@ -66,6 +66,10 @@ export function setApiBase(apiBase: string): Promise<void> {
   return invoke("set_api_base", { apiBase });
 }
 
+export function setCacheUserScope(_scope: string | null): Promise<void> {
+  return Promise.resolve();
+}
+
 export function getInboxCards(account?: string | null, unreadOnly?: boolean): Promise<CachedCard[]> {
   return invoke("get_inbox_cards", { account: account ?? undefined, unreadOnly });
 }

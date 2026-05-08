@@ -9,6 +9,7 @@ export type { CachedCard, CachedFavorite, SearchResult, CachedAccount } from "..
 export const initDbWithSecret = impl.initDbWithSecret;
 export const setCacheAuthToken = impl.setCacheAuthToken;
 export const setApiBase = impl.setApiBase;
+export const setCacheUserScope = impl.setCacheUserScope;
 export const getInboxCards = impl.getInboxCards;
 export const getFavorites = impl.getFavorites;
 export const loadFavoriteItems = impl.loadFavoriteItems;
