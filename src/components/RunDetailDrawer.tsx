@@ -22,6 +22,24 @@ function logLevelColor(type: string) {
   return "var(--accent-blue)";
 }
 
+function EntityChips({ core, context }: { core?: string[]; context?: string[] }) {
+  const c = core ?? [];
+  const ctx = context ?? [];
+  if (c.length === 0 && ctx.length === 0) return null;
+  const chip = (e: string, kind: "core" | "context") => (
+    <span key={`${kind}:${e}`} style={{
+      display: "inline-block", padding: "1px 6px", fontSize: "var(--fs-xs)",
+      color: kind === "core" ? "var(--accent-gold-hi)" : "var(--text-secondary)",
+      background: kind === "core" ? "rgba(201, 162, 92, 0.12)" : "transparent",
+      border: kind === "core" ? "1px solid rgba(201, 162, 92, 0.45)" : "1px solid var(--border)",
+      borderRadius: 3, whiteSpace: "nowrap",
+    }}>
+      {e}
+    </span>
+  );
+  return <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{c.map((e) => chip(e, "core"))}{ctx.map((e) => chip(e, "context"))}</div>;
+}
+
 function OverviewTab({ run }: { run: Run }) {
   // Cards come from /runs/{id}/cards (article_cards table). Replaces the
   // legacy manifest.json artifact read — every field we render is now in
@@ -73,23 +91,11 @@ function OverviewTab({ run }: { run: Run }) {
                 </div>
               )}
               {c.template_reason && (
-                <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", lineHeight: 1.5, marginBottom: c.entities?.length ? 6 : 0, fontStyle: "italic" }}>
+                <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)", lineHeight: 1.5, marginBottom: ((c.entities?.length ?? 0) + (c.context_entities?.length ?? 0)) ? 6 : 0, fontStyle: "italic" }}>
                   模板理由：{c.template_reason}
                 </div>
               )}
-              {c.entities && c.entities.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {c.entities.map((e) => (
-                    <span key={e} style={{
-                      display: "inline-block", padding: "1px 6px", fontSize: "var(--fs-xs)",
-                      color: "var(--text-secondary)", background: "var(--bg-elev)",
-                      border: "1px solid var(--border)", borderRadius: 3, whiteSpace: "nowrap",
-                    }}>
-                      {e}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <EntityChips core={c.entities} context={c.context_entities} />
             </div>
           ))}
         </>

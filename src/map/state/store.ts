@@ -12,6 +12,7 @@ type MapState = {
   drawer_card_id: string | null;
   session_read_card_ids: Set<string>;
   routes_visible: boolean;
+  entity_scope: "core" | "all";
   /** Entities the user has explicitly hidden — their routes/lines are not
    *  rendered. Settlement halos still apply when other entities are focused. */
   hidden_entities: Set<string>;
@@ -21,6 +22,7 @@ type MapState = {
   closeDrawer: () => void;
   markCardRead: (card_id: string) => void;
   toggleRoutes: () => void;
+  setEntityScope: (scope: "core" | "all") => void;
   toggleEntityHidden: (entity: string) => void;
 };
 
@@ -29,6 +31,7 @@ export const useMapStore = create<MapState>((set) => ({
   drawer_card_id: null,
   session_read_card_ids: new Set<string>(),
   routes_visible: true,
+  entity_scope: "core",
   hidden_entities: new Set<string>(),
 
   setHoveredCard: (id) => set({ hovered_card_id: id }),
@@ -60,6 +63,9 @@ export const useMapStore = create<MapState>((set) => ({
     }),
 
   toggleRoutes: () => set((s) => ({ routes_visible: !s.routes_visible })),
+
+  setEntityScope: (scope) =>
+    set({ entity_scope: scope, hidden_entities: new Set<string>() }),
 
   toggleEntityHidden: (entity) =>
     set((s) => {

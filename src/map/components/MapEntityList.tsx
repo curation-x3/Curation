@@ -24,6 +24,8 @@ export function MapEntityList({
   const routesVisible = useMapStore((s) => s.routes_visible);
   const hiddenEntities = useMapStore((s) => s.hidden_entities);
   const toggleHidden = useMapStore((s) => s.toggleEntityHidden);
+  const entityScope = useMapStore((s) => s.entity_scope);
+  const setEntityScope = useMapStore((s) => s.setEntityScope);
   const [collapsed, setCollapsed] = useState(false);
 
   if (entities.length === 0 || !routesVisible) return null;
@@ -81,6 +83,46 @@ export function MapEntityList({
           {collapsed ? "▷" : "▼"}
         </span>
       </div>
+      {!collapsed && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 4,
+            padding: "6px 8px",
+            borderBottom: "1px solid var(--map-ink-2)",
+          }}
+        >
+          {([
+            ["core", "核心"],
+            ["all", "全部"],
+          ] as const).map(([scope, label]) => {
+            const active = entityScope === scope;
+            return (
+              <button
+                key={scope}
+                type="button"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  setEntityScope(scope);
+                }}
+                title={scope === "core" ? "共享实体只使用核心实体" : "共享实体使用核心实体 + 附属实体"}
+                style={{
+                  height: 22,
+                  border: `1px solid ${active ? "var(--map-crimson)" : "var(--map-ink-2)"}`,
+                  background: active ? "var(--map-crimson)" : "transparent",
+                  color: active ? "var(--map-vellum)" : "var(--map-ink-2)",
+                  fontFamily: "var(--map-serif)",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {!collapsed && (
         <ul
           style={{

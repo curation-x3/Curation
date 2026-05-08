@@ -204,6 +204,7 @@ export async function fetchRunCards(runId: number) {
     title: string | null;
     description: string | null;
     entities: string[];
+    context_entities: string[];
     template: string | null;
     template_reason: string | null;
     word_count: number | null;

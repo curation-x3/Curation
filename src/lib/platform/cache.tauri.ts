@@ -34,6 +34,8 @@ export interface CachedCard {
    *  in the local SQLite TEXT column. Parse with `parseEntities()` from
    *  `lib/cache.ts` (returns [] for null / malformed input). */
   entities: string | null;
+  /** JSON-encoded array of supporting entity name strings. */
+  context_entities?: string | null;
   topic?: TopicRef | null;
 }
 

@@ -122,21 +122,33 @@ export function ArticleDrawer({
         </div>
 
         {/* Card metadata: description + entity chips (only in inbox-card mode) */}
-        {item && (item.description || (item.entities && item.entities.length > 0)) && (
+        {item && (item.description || (item.entities && item.entities.length > 0) || (item.context_entities && item.context_entities.length > 0)) && (
           <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--bg-base)" }}>
             {item.description && (
-              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.55, marginBottom: item.entities?.length ? 8 : 0 }}>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.55, marginBottom: ((item.entities?.length ?? 0) + (item.context_entities?.length ?? 0)) ? 8 : 0 }}>
                 {item.description}
               </div>
             )}
-            {item.entities && item.entities.length > 0 && (
+            {((item.entities?.length ?? 0) + (item.context_entities?.length ?? 0)) > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {item.entities.map((e) => (
+                {(item.entities ?? []).map((e) => (
                   <span
-                    key={e}
+                    key={`core:${e}`}
                     style={{
                       display: "inline-block", padding: "2px 8px", fontSize: "0.72rem", lineHeight: 1.4,
-                      color: "var(--text-secondary)", background: "var(--bg-elev)",
+                      color: "var(--accent-gold)", background: "rgba(201, 162, 92, 0.13)",
+                      border: "1px solid rgba(201, 162, 92, 0.44)", borderRadius: 4, whiteSpace: "nowrap",
+                    }}
+                  >
+                    {e}
+                  </span>
+                ))}
+                {(item.context_entities ?? []).map((e) => (
+                  <span
+                    key={`context:${e}`}
+                    style={{
+                      display: "inline-block", padding: "2px 8px", fontSize: "0.72rem", lineHeight: 1.4,
+                      color: "var(--text-secondary)", background: "transparent",
                       border: "1px solid var(--border)", borderRadius: 4, whiteSpace: "nowrap",
                     }}
                   >

@@ -64,12 +64,25 @@ export function MapCanvas({
   cards,
   onMarkRead,
 }: MapCanvasProps) {
+  const entityScope = useMapStore((s) => s.entity_scope);
+  const routeCards = useMemo(
+    () =>
+      cards.map((card) => {
+        const core = card.entities ?? [];
+        const context = card.context_entities ?? [];
+        const routeEntities =
+          entityScope === "all" ? Array.from(new Set([...core, ...context])) : core;
+        return { ...card, entities: routeEntities };
+      }),
+    [cards, entityScope],
+  );
+
   // Validate (throws on structural errors so failures are loud).
-  validate(dsl, cards);
+  validate(dsl, routeCards);
 
   const layout = useMemo(
-    () => computeLayout(dsl, cards, MAP_CANVAS),
-    [dsl, cards],
+    () => computeLayout(dsl, routeCards, MAP_CANVAS),
+    [dsl, routeCards],
   );
 
   const hovered = useMapStore((s) => s.hovered_card_id);
@@ -343,6 +356,10 @@ export function MapCanvas({
     if (!routesVisible && routeFocus) setRouteFocus(null);
   }, [routesVisible, routeFocus]);
 
+  useEffect(() => {
+    setRouteFocus(null);
+  }, [entityScope]);
+
   // When user hides the focused entity, drop the focus (its lines just
   // disappeared, so the constellation has nothing to highlight).
   useEffect(() => {
@@ -362,17 +379,17 @@ export function MapCanvas({
   // Each gets its own popover, not just the 2 endpoints of the triggering pair.
   const focusedCards = useMemo(() => {
     if (!routeFocus) return [];
-    return cards.filter((c) =>
+    return routeCards.filter((c) =>
       c.card_id && c.entities?.includes(routeFocus.entity),
     );
-  }, [cards, routeFocus]);
+  }, [routeCards, routeFocus]);
 
   // Entity → card_ids index, for the left-side MapEntityList. Built from
   // entities (formerly shared_entities), so every entry here will
   // produce at least one route on the map.
   const entitiesIndex = useMemo(() => {
     const m = new Map<string, string[]>();
-    for (const c of cards) {
+    for (const c of routeCards) {
       if (!c.card_id || !c.entities) continue;
       for (const e of c.entities) {
         if (!m.has(e)) m.set(e, []);
@@ -384,7 +401,7 @@ export function MapCanvas({
       .filter(([, ids]) => ids.length >= 2)
       .map(([name, ids]) => ({ name, cardIds: ids }))
       .sort((a, b) => b.cardIds.length - a.cardIds.length);
-  }, [cards]);
+  }, [routeCards]);
 
   const handleEntitySelect = (entityName: string) => {
     const e = entitiesIndex.find((x) => x.name === entityName);
@@ -531,7 +548,7 @@ export function MapCanvas({
       >
         <MapSvg
           dsl={dsl}
-          cards={cards}
+          cards={routeCards}
           layout={layout}
           isCardRead={isCardReadFn}
           onSettlementHover={(id) => setHovered(id)}

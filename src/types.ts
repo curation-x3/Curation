@@ -181,8 +181,12 @@ export interface InboxItem {
   title: string;
   description: string | null;
   /** Canonical entity names extracted by the agent (companies, products,
-   *  papers, lab teams, …). Empty array for legacy / queued items. */
+   *  papers, lab teams, …) that reconstruct the core event/cognition.
+   *  Empty array for legacy / queued items. */
   entities: string[];
+  /** Supporting wiki-style entities that recover card body context without
+   *  changing the core event/cognition. */
+  context_entities?: string[];
   /** Inline map taxonomy (denormalized from topic + domain). Nullable until tagging pipeline lands. */
   topic?: TopicRef | null;
   /** User-visible reading burden: card markdown, plus article markdown for original-content push cards. */

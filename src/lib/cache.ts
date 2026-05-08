@@ -33,6 +33,8 @@ export interface CachedCard {
   /** JSON-encoded array of canonical entity name strings, exactly as stored
    *  in the local SQLite TEXT column. Parse with `parseEntities()` below. */
   entities: string | string[] | null;
+  /** JSON-encoded array of supporting entity name strings. */
+  context_entities?: string | string[] | null;
   topic?: TopicRef | null;
 }
 

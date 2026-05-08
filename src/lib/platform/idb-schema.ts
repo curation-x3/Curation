@@ -40,7 +40,9 @@ export const DB_NAME = "curation_cache_v3";
 // v9 (2026-05-08): /sync cards now carry card-level word_count and
 // reading_minutes. Reset card rows once so existing cached cards receive
 // the new display + Atlas sizing fields.
-export const CACHE_DATA_VERSION = 9;
+// v10 (2026-05-08): /sync cards now carry context_entities. Reset card rows
+// once so ReaderPane and Atlas receive the split entity fields.
+export const CACHE_DATA_VERSION = 10;
 
 export interface ArticleContentRow {
   article_id: string;

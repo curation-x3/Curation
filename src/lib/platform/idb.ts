@@ -196,6 +196,10 @@ async function runDataMigrations(
     clearStore("cards");
     resetSyncCursor();
   }
+  if (fromVersion < 10) {
+    clearStore("cards");
+    resetSyncCursor();
+  }
 
   tx.objectStore("sync_state").put({
     key: DATA_VERSION_KEY,

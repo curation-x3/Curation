@@ -289,11 +289,37 @@ function SourceBar({
 /**
  * Inline strip of entity chips, rendered above the card body.
  *
- * Sourced from `InboxItem.entities` (the agent's per-card entity extraction).
+ * Sourced from `InboxItem.entities` / `context_entities`.
  * Renders nothing when the list is empty so legacy / queued items stay clean.
  */
-function EntityChips({ entities }: { entities: string[] }) {
-  if (!entities || entities.length === 0) return null;
+function EntityChips({
+  entities,
+  contextEntities,
+}: {
+  entities: string[];
+  contextEntities?: string[];
+}) {
+  const core = entities ?? [];
+  const context = contextEntities ?? [];
+  if (core.length === 0 && context.length === 0) return null;
+  const renderChip = (e: string, variant: "core" | "context") => (
+    <span
+      key={`${variant}:${e}`}
+      style={{
+        display: "inline-block",
+        padding: "2px 8px",
+        fontSize: "0.74rem",
+        lineHeight: 1.4,
+        color: variant === "core" ? "var(--accent-gold)" : "var(--text-secondary)",
+        background: variant === "core" ? "rgba(201, 162, 92, 0.13)" : "transparent",
+        border: variant === "core" ? "1px solid rgba(201, 162, 92, 0.44)" : "1px solid var(--border)",
+        borderRadius: 4,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {e}
+    </span>
+  );
   return (
     <div
       style={{
@@ -306,24 +332,8 @@ function EntityChips({ entities }: { entities: string[] }) {
       }}
       aria-label="entities"
     >
-      {entities.map((e) => (
-        <span
-          key={e}
-          style={{
-            display: "inline-block",
-            padding: "2px 8px",
-            fontSize: "0.74rem",
-            lineHeight: 1.4,
-            color: "var(--text-secondary)",
-            background: "var(--bg-elev)",
-            border: "1px solid var(--border)",
-            borderRadius: 4,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {e}
-        </span>
-      ))}
+      {core.map((e) => renderChip(e, "core"))}
+      {context.map((e) => renderChip(e, "context"))}
     </div>
   );
 }
@@ -781,7 +791,10 @@ ${notesSection}
               label={showsOriginalAlongside(item.routing) ? "AI 卡片" : undefined}
               force={showsOriginalAlongside(item.routing)}
             >
-              <EntityChips entities={item.entities ?? []} />
+              <EntityChips
+                entities={item.entities ?? []}
+                contextEntities={(item as InboxItem).context_entities ?? []}
+              />
               <CardContentView cardId={item.card_id} />
             </CardFrame>
           )}

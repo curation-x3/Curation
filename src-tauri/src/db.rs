@@ -75,6 +75,8 @@ pub struct CardRow {
     /// JSON-encoded array of canonical entity name strings, e.g. `["Anthropic","Claude Mythos"]`.
     /// Stored as TEXT in SQLite; the frontend parses it back to `string[]`.
     pub entities: Option<String>,
+    /// JSON-encoded array of supporting entity name strings.
+    pub context_entities: Option<String>,
     pub topic: Option<serde_json::Value>,
 }
 
@@ -200,6 +202,7 @@ impl CacheDb {
                 reading_minutes INTEGER,
                 is_original INTEGER,
                 entities TEXT,
+                context_entities TEXT,
                 topic TEXT
             );
             CREATE TABLE IF NOT EXISTS wechat_articles (
@@ -339,6 +342,10 @@ impl CacheDb {
                 "ALTER TABLE cards ADD COLUMN template_reason TEXT",
             ),
             ("entities", "ALTER TABLE cards ADD COLUMN entities TEXT"),
+            (
+                "context_entities",
+                "ALTER TABLE cards ADD COLUMN context_entities TEXT",
+            ),
             (
                 "additional_content",
                 "ALTER TABLE cards ADD COLUMN additional_content TEXT",
@@ -632,6 +639,29 @@ impl CacheDb {
             .ok();
         }
 
+        // 2026-05-08: /sync now carries context_entities. Rebuild cards once
+        // so ReaderPane and Atlas receive the split entity fields.
+        const CONTEXT_ENTITIES_SYNC_MARKER: &str = "context_entities_sync_v1";
+        let context_entities_done: bool = conn
+            .query_row(
+                "SELECT 1 FROM sync_state WHERE key = ?1",
+                [CONTEXT_ENTITIES_SYNC_MARKER],
+                |r| r.get::<_, i64>(0),
+            )
+            .is_ok();
+        if !context_entities_done {
+            let _ = conn.execute_batch(
+                "DELETE FROM cards;
+                 DELETE FROM cards_fts;
+                 DELETE FROM sync_state WHERE key = 'last_sync_ts';",
+            );
+            conn.execute(
+                "INSERT OR REPLACE INTO sync_state (key, value) VALUES (?1, '1')",
+                [CONTEXT_ENTITIES_SYNC_MARKER],
+            )
+            .ok();
+        }
+
         Ok(())
     }
 
@@ -649,7 +679,7 @@ impl CacheDb {
             "SELECT card_id, article_id, kind, source_card_ids, source_article_ids,
                     title, article_title, content_md, additional_content, description, routing,
                     template, template_reason, card_date, account, author, url, read_at, updated_at, publish_time,
-                    account_id, biz, cover_url, digest, word_count, reading_minutes, is_original, entities, topic
+                    account_id, biz, cover_url, digest, word_count, reading_minutes, is_original, entities, context_entities, topic
              FROM cards WHERE routing IS NOT NULL",
         );
         if let Some(_) = account {
@@ -693,7 +723,8 @@ impl CacheDb {
                     reading_minutes: row.get(25)?,
                     is_original: row.get(26)?,
                     entities: row.get(27)?,
-                    topic: decode_json_value(row.get::<_, Option<String>>(28)?),
+                    context_entities: row.get(28)?,
+                    topic: decode_json_value(row.get::<_, Option<String>>(29)?),
                 })
             })
             .map_err(|e| e.to_string())?
@@ -730,7 +761,8 @@ impl CacheDb {
                     reading_minutes: row.get(25)?,
                     is_original: row.get(26)?,
                     entities: row.get(27)?,
-                    topic: decode_json_value(row.get::<_, Option<String>>(28)?),
+                    context_entities: row.get(28)?,
+                    topic: decode_json_value(row.get::<_, Option<String>>(29)?),
                 })
             })
             .map_err(|e| e.to_string())?
@@ -1099,6 +1131,9 @@ impl CacheDb {
             let entities_json: Option<String> = match &card["entities"] {
                 v => encode_string_array(v),
             };
+            let context_entities_json: Option<String> = match &card["context_entities"] {
+                v => encode_string_array(v),
+            };
             let topic_json = encode_json_object(&card["topic"]);
             // UPSERT. Server /sync owns content_md and additional_content;
             // both overwrite local values so card bodies and rich original
@@ -1108,8 +1143,8 @@ impl CacheDb {
                  (card_id, article_id, kind, source_card_ids, source_article_ids,
                   title, article_title, content_md, additional_content, description, routing,
                   template, template_reason, card_date, account, author, url, read_at, updated_at, publish_time,
-                  account_id, biz, cover_url, digest, word_count, reading_minutes, is_original, entities, topic)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29)
+                  account_id, biz, cover_url, digest, word_count, reading_minutes, is_original, entities, context_entities, topic)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30)
                  ON CONFLICT(card_id) DO UPDATE SET
                    article_id      = excluded.article_id,
                    kind            = excluded.kind,
@@ -1138,6 +1173,7 @@ impl CacheDb {
                    reading_minutes = excluded.reading_minutes,
                    is_original     = excluded.is_original,
                    entities        = excluded.entities,
+                   context_entities = excluded.context_entities,
                    topic           = excluded.topic",
                 rusqlite::params![
                     card_id,
@@ -1168,6 +1204,7 @@ impl CacheDb {
                     card["reading_minutes"].as_i64(),
                     card["is_original"].as_bool().map(|b| if b { 1i64 } else { 0i64 }),
                     entities_json,
+                    context_entities_json,
                     topic_json,
                 ],
             )

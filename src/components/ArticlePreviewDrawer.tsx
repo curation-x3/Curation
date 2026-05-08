@@ -14,6 +14,27 @@ function RoutingPill({ routing }: { routing: string | null }) {
   return <span style={{ background: v.bg, color: v.color, padding: "1px 8px", borderRadius: 10, fontSize: "0.68rem" }}>{v.text}</span>;
 }
 
+function EntityChips({ core, context }: { core?: string[]; context?: string[] }) {
+  const c = core ?? [];
+  const ctx = context ?? [];
+  if (c.length === 0 && ctx.length === 0) return null;
+  const chip = (e: string, kind: "core" | "context") => (
+    <span
+      key={`${kind}:${e}`}
+      style={{
+        display: "inline-block", padding: "2px 8px", fontSize: "0.72rem", lineHeight: 1.4,
+        color: kind === "core" ? "var(--accent-gold)" : "var(--text-secondary)",
+        background: kind === "core" ? "rgba(201, 162, 92, 0.13)" : "transparent",
+        border: kind === "core" ? "1px solid rgba(201, 162, 92, 0.44)" : "1px solid var(--border)",
+        borderRadius: 4, whiteSpace: "nowrap",
+      }}
+    >
+      {e}
+    </span>
+  );
+  return <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{c.map((e) => chip(e, "core"))}{ctx.map((e) => chip(e, "context"))}</div>;
+}
+
 function CardMarkdownView({ articleId }: { articleId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["articleServingCard", articleId],
@@ -32,7 +53,7 @@ function CardMarkdownView({ articleId }: { articleId: string }) {
 
   return (
     <div className="markdown-body">
-      {cards.map((card: { card_id: string; title: string; description?: string | null; entities?: string[]; content: string }, i: number) => (
+      {cards.map((card: { card_id: string; title: string; description?: string | null; entities?: string[]; context_entities?: string[]; content: string }, i: number) => (
         <div key={card.card_id}>
           {i > 0 && <hr style={{ margin: "24px 0", border: "none", height: 2, background: "linear-gradient(90deg, transparent, var(--border-strong), transparent)" }} />}
           {cards.length > 1 && (
@@ -44,29 +65,14 @@ function CardMarkdownView({ articleId }: { articleId: string }) {
               {card.title && <span style={{ marginLeft: 8, fontWeight: 400 }}>{card.title}</span>}
             </div>
           )}
-          {(card.description || (card.entities && card.entities.length > 0)) && (
+          {(card.description || (card.entities && card.entities.length > 0) || (card.context_entities && card.context_entities.length > 0)) && (
             <div style={{ marginBottom: 14 }}>
               {card.description && (
-                <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.55, marginBottom: card.entities?.length ? 8 : 0 }}>
+                <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.55, marginBottom: ((card.entities?.length ?? 0) + (card.context_entities?.length ?? 0)) ? 8 : 0 }}>
                   {card.description}
                 </div>
               )}
-              {card.entities && card.entities.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {card.entities.map((e) => (
-                    <span
-                      key={e}
-                      style={{
-                        display: "inline-block", padding: "2px 8px", fontSize: "0.72rem", lineHeight: 1.4,
-                        color: "var(--text-secondary)", background: "var(--bg-elev)",
-                        border: "1px solid var(--border)", borderRadius: 4, whiteSpace: "nowrap",
-                      }}
-                    >
-                      {e}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <EntityChips core={card.entities} context={card.context_entities} />
             </div>
           )}
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={mdComponents}>
