@@ -22,6 +22,16 @@ const MUTED = "#a9a091";
 const PANEL = "#242432";
 const BG = "#111218";
 const SLOGAN = "把每天的信息，整理成可复用的判断。";
+const TITLE_FONT = "700 62px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+const TITLE_LINE_HEIGHT = 78;
+const HEADING_FONT = "700 38px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+const HEADING_LINE_HEIGHT = 52;
+const BODY_FONT = "35px Georgia, 'Times New Roman', 'Songti SC', serif";
+const BODY_LINE_HEIGHT = 54;
+const BULLET_FONT = "31px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+const BULLET_LINE_HEIGHT = 48;
+const CHIP_FONT = "30px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+const CHIP_HEIGHT = 46;
 
 type TextBlock = {
   kind: "heading" | "paragraph" | "bullet";
@@ -200,8 +210,8 @@ function drawWrappedText(
 }
 
 function chipWidth(ctx: CanvasRenderingContext2D, label: string): number {
-  ctx.font = "28px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
-  return Math.ceil(ctx.measureText(label).width) + 34;
+  ctx.font = CHIP_FONT;
+  return Math.ceil(ctx.measureText(label).width) + 36;
 }
 
 function drawChip(
@@ -210,15 +220,15 @@ function drawChip(
   x: number,
   y: number,
 ): number {
-  ctx.font = "28px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+  ctx.font = CHIP_FONT;
   const width = chipWidth(ctx, chip.label);
-  roundedRect(ctx, x, y, width, 42, 7);
+  roundedRect(ctx, x, y, width, CHIP_HEIGHT, 7);
   ctx.fillStyle = chip.variant === "context" ? "rgba(245, 236, 215, 0.03)" : "rgba(215, 173, 97, 0.13)";
   ctx.fill();
   ctx.strokeStyle = chip.variant === "context" ? "rgba(245, 236, 215, 0.24)" : "rgba(215, 173, 97, 0.42)";
   ctx.stroke();
   ctx.fillStyle = chip.variant === "context" ? MUTED : CREAM;
-  ctx.fillText(chip.label, x + 17, y + 29);
+  ctx.fillText(chip.label, x + 18, y + 32);
   return width;
 }
 
@@ -229,23 +239,23 @@ function makeTextLayout(
 ): TextLayout {
   const style = block.kind === "heading"
     ? {
-        font: "700 32px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif",
+        font: HEADING_FONT,
         color: GOLD,
-        lineHeight: 44,
-        topGap: 42,
+        lineHeight: HEADING_LINE_HEIGHT,
+        topGap: 46,
       }
     : block.kind === "bullet"
       ? {
-          font: "27px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif",
+          font: BULLET_FONT,
           color: "#ddd4c2",
-          lineHeight: 40,
-          topGap: 16,
+          lineHeight: BULLET_LINE_HEIGHT,
+          topGap: 18,
         }
       : {
-          font: "31px Georgia, 'Times New Roman', 'Songti SC', serif",
+          font: BODY_FONT,
           color: "#ded6c4",
-          lineHeight: 47,
-          topGap: 26,
+          lineHeight: BODY_LINE_HEIGHT,
+          topGap: 30,
         };
   ctx.font = style.font;
   const textWidth = block.kind === "bullet" ? contentWidth - 30 : contentWidth;
@@ -312,7 +322,7 @@ export async function renderShareCardImage(data: ShareCardImageData): Promise<Bl
 
   const measure = setupCanvas(IMAGE_WIDTH, 1200).ctx;
   const contentWidth = IMAGE_WIDTH - PADDING_X * 2;
-  measure.font = "700 54px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+  measure.font = TITLE_FONT;
   const titleLines = wrapText(measure, data.title, contentWidth);
   const bodyLayouts = parseShareCardBlocks(data.markdown, data.title)
     .map((block) => makeTextLayout(measure, block, contentWidth));
@@ -324,7 +334,7 @@ export async function renderShareCardImage(data: ShareCardImageData): Promise<Bl
   const footerHeight = 48 + 1 + 48 + 66;
   const height = Math.max(
     1180,
-    PADDING_TOP + 72 + titleLines.length * 68 + 20 + 3 +
+    PADDING_TOP + 72 + titleLines.length * TITLE_LINE_HEIGHT + 20 + 3 +
       bodyHeight + 48 + chipRows * 56 + footerHeight + PADDING_BOTTOM,
   );
 
@@ -358,8 +368,8 @@ export async function renderShareCardImage(data: ShareCardImageData): Promise<Bl
 
   y += 72;
   ctx.fillStyle = CREAM;
-  ctx.font = "700 54px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
-  y = drawWrappedText(ctx, data.title, PADDING_X, y, contentWidth, 68);
+  ctx.font = TITLE_FONT;
+  y = drawWrappedText(ctx, data.title, PADDING_X, y, contentWidth, TITLE_LINE_HEIGHT);
 
   y += 20;
   ctx.strokeStyle = "rgba(215, 173, 97, 0.62)";
@@ -396,7 +406,7 @@ export async function renderShareCardImage(data: ShareCardImageData): Promise<Bl
 
   y += 48;
   ctx.fillStyle = MUTED;
-  ctx.font = "28px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+  ctx.font = "30px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
   ctx.fillText(data.source, PADDING_X, y);
 
   ctx.fillStyle = GOLD;
