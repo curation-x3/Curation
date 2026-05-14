@@ -17,6 +17,7 @@ import { SidebarRail } from './components/SidebarRail';
 import { SidebarDrawer } from './components/SidebarDrawer';
 import { SubscriptionsDrawerBody } from './components/SubscriptionsDrawerBody';
 import { AdminPane } from './components/AdminPane';
+import { DrawerStackContainer } from './components/DrawerStackContainer';
 import { InboxList } from './components/InboxList';
 import { ReaderPane } from './components/ReaderPane';
 import { SearchList } from './components/SearchList';
@@ -694,6 +695,8 @@ function AppMain({ currentUser, onLogout }: {
           setIsDrawerOpen(true);
         }}
       />
+
+      <DrawerStackContainer />
 
       {/* Toast notification */}
       {notification && (
