@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAdminCards } from "../hooks/useFeedback";
-import { ArticlePreviewDrawer } from "./ArticlePreviewDrawer";
+import { useDrawerStack } from "../state/drawerStack";
 import { routingPill } from "../lib/tableHelpers";
 import { formatReadingMinutes } from "../lib/readingMetrics";
 
@@ -15,8 +15,7 @@ export function AdminAnnotationTab() {
   const [routing, setRouting] = useState<string | undefined>(undefined);
   const [order, setOrder] = useState<Order>("recent");
 
-  const [previewArticleId, setPreviewArticleId] = useState<string | null>(null);
-  const [previewRouting, setPreviewRouting] = useState<string | null>(null);
+  const push = useDrawerStack((s) => s.push);
 
   const { data = [], isLoading } = useAdminCards(
     {
@@ -129,8 +128,7 @@ export function AdminAnnotationTab() {
             <div
               key={`${c.item_type}:${c.card_id ?? c.article_id}`}
               onClick={() => {
-                setPreviewArticleId(c.article_id);
-                setPreviewRouting(c.routing);
+                push({ kind: "article", articleId: c.article_id });
               }}
               style={{
                 display: "grid",
@@ -204,12 +202,6 @@ export function AdminAnnotationTab() {
           ))
         )}
       </div>
-
-      <ArticlePreviewDrawer
-        articleId={previewArticleId}
-        routing={previewRouting}
-        onClose={() => setPreviewArticleId(null)}
-      />
     </div>
   );
 }

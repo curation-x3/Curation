@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../lib/api";
 import { fmtTime, statusLabel, routingPill } from "../lib/tableHelpers";
 import { useBizArticles } from "../hooks/useBizArticles";
-import { ArticlePreviewDrawer } from "./ArticlePreviewDrawer";
+import { useDrawerStack } from "../state/drawerStack";
 import type { BizSummary } from "../hooks/useAdminSubscriptions";
 
 type Tab = "articles" | "subscribers";
@@ -18,8 +18,7 @@ interface Props {
 
 export function BizDrawer({ biz, includeEnded, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("articles");
-  const [previewArticleId, setPreviewArticleId] = useState<string | null>(null);
-  const [previewRouting, setPreviewRouting] = useState<string | null>(null);
+  const push = useDrawerStack((s) => s.push);
   const qc = useQueryClient();
 
   const { data: articles = [], isLoading } = useBizArticles(biz?.biz ?? null);
@@ -86,9 +85,8 @@ export function BizDrawer({ biz, includeEnded, onClose }: Props) {
               <ArticleTab
                 loading={isLoading}
                 articles={articles}
-                onArticleClick={(id, routing) => {
-                  setPreviewArticleId(id);
-                  setPreviewRouting(routing);
+                onArticleClick={(id) => {
+                  push({ kind: "article", articleId: id });
                 }}
               />
             )}
@@ -102,14 +100,6 @@ export function BizDrawer({ biz, includeEnded, onClose }: Props) {
           </div>
         </div>
       </div>
-
-      {previewArticleId && (
-        <ArticlePreviewDrawer
-          articleId={previewArticleId}
-          routing={previewRouting}
-          onClose={() => { setPreviewArticleId(null); setPreviewRouting(null); }}
-        />
-      )}
     </>
   );
 }
@@ -132,7 +122,7 @@ function ArticleTab({ loading, articles, onArticleClick }: {
   loading: boolean;
   articles: Array<{ short_id: string; title: string | null; publish_time: string | null;
                     routing: string | null; queue_status: string | null }>;
-  onArticleClick: (id: string, routing: string | null) => void;
+  onArticleClick: (id: string) => void;
 }) {
   if (loading) {
     return <div style={{ padding: 20, color: "var(--text-muted)",
@@ -161,7 +151,7 @@ function ArticleTab({ loading, articles, onArticleClick }: {
                       gridTemplateColumns: "minmax(200px,1fr) 100px 80px 80px",
                       padding: "8px 16px", alignItems: "center",
                       borderBottom: "1px solid var(--bg-panel)" }}>
-          <a onClick={() => onArticleClick(a.short_id, a.routing)}
+          <a onClick={() => onArticleClick(a.short_id)}
              style={{ color: "var(--accent-blue)", cursor: "pointer",
                       fontSize: "var(--fs-sm)", textDecoration: "none",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

@@ -6,7 +6,7 @@ import {
   triggerQueueRun, retryQueueEntry, fetchArticleRuns, deleteRun, setServingRun,
   dismissQueueEntry,
 } from "../lib/api";
-import { ArticlePreviewDrawer } from "./ArticlePreviewDrawer";
+import { useDrawerStack } from "../state/drawerStack";
 import { RunDetailDrawer } from "./RunDetailDrawer";
 import type { QueueEntry, Run, AgentBackends } from "../types";
 import {
@@ -43,8 +43,7 @@ export function ArticleQueuePanel() {
   const [sortDir, setSortDir]               = useState<"asc" | "desc">("desc");
   const [expandedId, setExpandedId]         = useState<string | null>(null);
 
-  const [previewArticleId, setPreviewArticleId] = useState<string | null>(null);
-  const [previewRouting, setPreviewRouting]      = useState<string | null>(null);
+  const push = useDrawerStack((s) => s.push);
   const [detailRunId, setDetailRunId]            = useState<number | null>(null);
 
   const { data: articleRuns = [], isLoading: loadingRuns } = useQuery<Run[]>({
@@ -217,7 +216,7 @@ export function ArticleQueuePanel() {
                     <Lock size={12} style={{ color: "var(--accent-gold)", flexShrink: 0 }} />
                   )}
                   <a
-                    onClick={() => { setPreviewArticleId(entry.article_id); setPreviewRouting(entry.routing); }}
+                    onClick={() => push({ kind: "article", articleId: entry.article_id })}
                     style={{ color: "var(--accent-blue)", cursor: "pointer", textDecoration: "none", fontSize: "var(--fs-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                   >
                     {entry.article_title}
@@ -300,11 +299,6 @@ export function ArticleQueuePanel() {
         )}
       </div>
 
-      <ArticlePreviewDrawer
-        articleId={previewArticleId}
-        routing={previewRouting}
-        onClose={() => setPreviewArticleId(null)}
-      />
       <RunDetailDrawer
         runId={detailRunId}
         onClose={() => setDetailRunId(null)}
