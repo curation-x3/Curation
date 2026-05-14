@@ -169,6 +169,27 @@ export function useSyncManager(isLoggedIn: boolean) {
     return () => clearTimeout(timer);
   }, [isLoggedIn, triggerSync]);
 
+  // When the app regains visibility/focus, sync immediately and reconnect WS
+  // if it died while backgrounded. macOS aggressively throttles background
+  // WebKit/WebSocket activity, so push events can be missed silently.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const onActive = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        connectWs();
+      }
+      triggerSync();
+    };
+    document.addEventListener("visibilitychange", onActive);
+    window.addEventListener("focus", onActive);
+    return () => {
+      document.removeEventListener("visibilitychange", onActive);
+      window.removeEventListener("focus", onActive);
+    };
+  }, [isLoggedIn, connectWs, triggerSync]);
+
   // Progressive invalidation: each committed page triggers query invalidation
   // immediately rather than waiting for the full sync to complete.
   useEffect(() => {
