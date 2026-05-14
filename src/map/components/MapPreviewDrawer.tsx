@@ -1,6 +1,5 @@
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { ReaderPane } from "../../components/ReaderPane";
-import { openExternal } from "../../lib/platform/url-opener";
 import type { MapCard } from "../types";
 
 type Props = {
@@ -19,11 +18,6 @@ export function MapPreviewDrawer({ open, card, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const openArticle = useCallback(() => {
-    const url = card?.article_meta?.url;
-    if (url) void openExternal(url);
-  }, [card?.article_meta?.url]);
-
   if (!open || !card) return null;
 
   return (
@@ -34,8 +28,6 @@ export function MapPreviewDrawer({ open, card, onClose }: Props) {
           selectedDiscardedItem={null}
           isDiscardedView={false}
           isHomeView={false}
-          onOpenDrawer={openArticle}
-          onOpenSources={undefined}
         />
       </aside>
     </div>

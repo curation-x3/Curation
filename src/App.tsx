@@ -655,8 +655,6 @@ function AppMain({ currentUser, onLogout }: {
           isDiscardedView={isDiscardedView}
           isHomeView={selectedView === "home"}
           cacheReady={cacheReady}
-          onOpenDrawer={() => setIsDrawerOpen(true)}
-          onOpenSources={() => setIsSourcesOpen(true)}
           onOpenSubs={handleToggleSubs}
         />
       )}

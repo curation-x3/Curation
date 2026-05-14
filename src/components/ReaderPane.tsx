@@ -29,6 +29,7 @@ import type { ShareCardImageData } from "../lib/shareCardImage";
 import type { InboxItem, DiscardedItem, Routing } from "../types";
 import { ORIGINAL_ALONGSIDE_ROUTINGS } from "../types";
 import { isAggregateKind, routingPresentation } from "../lib/routingPresentation";
+import { useDrawerStack } from "../state/drawerStack";
 
 /** True when the routing is one of the "show original article alongside our card" variants. */
 function showsOriginalAlongside(routing: Routing): boolean {
@@ -169,8 +170,6 @@ interface ReaderPaneProps {
   isDiscardedView: boolean;
   isHomeView?: boolean;
   cacheReady?: boolean;
-  onOpenDrawer: () => void;
-  onOpenSources?: () => void;
   onOpenSubs?: () => void;
 }
 
@@ -179,9 +178,8 @@ function SourceBar({
   meta,
   routing,
   isDiscarded,
-  onOpenDrawer,
-  onOpenSources,
   cardId,
+  articleId,
   kind,
   sourceCount,
   cardDate,
@@ -195,9 +193,8 @@ function SourceBar({
   meta: { title: string; account: string; author: string | null; publish_time: string | null; url: string };
   routing: Routing;
   isDiscarded: boolean;
-  onOpenDrawer?: () => void;
-  onOpenSources?: () => void;
   cardId?: string;
+  articleId?: string;
   kind?: string;
   sourceCount?: number;
   cardDate?: string | null;
@@ -207,6 +204,7 @@ function SourceBar({
   wordCount?: number | null;
   readingMinutes?: number | null;
 }) {
+  const push = useDrawerStack((s) => s.push);
   const isAggregated = isAggregateKind(kind);
   const aggregateMeta = sourceCount && sourceCount > 0
     ? `聚合 ${sourceCount} 张相似卡片${formatDate(cardDate ?? null) ? ` · ${formatDate(cardDate ?? null)}` : ""}`
@@ -261,9 +259,9 @@ function SourceBar({
             </>
           )}
           {routing === "ai_curation" && (
-            isAggregated && onOpenSources ? (
+            isAggregated ? (
               <button
-                onClick={onOpenSources}
+                onClick={() => cardId && push({ kind: "sourceCards", cardId })}
                 style={{
                   background: "none", border: "1px solid var(--border)", borderRadius: 6,
                   color: "var(--text-muted)", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
@@ -271,9 +269,9 @@ function SourceBar({
               >
                 查看原卡片
               </button>
-            ) : onOpenDrawer ? (
+            ) : (
               <button
-                onClick={onOpenDrawer}
+                onClick={() => push({ kind: "article", articleId: articleId ?? "" })}
                 style={{
                   background: "none", border: "1px solid var(--border)", borderRadius: 6,
                   color: "var(--text-muted)", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
@@ -281,7 +279,7 @@ function SourceBar({
               >
                 查看原文
               </button>
-            ) : null
+            )
           )}
         </div>
       </div>
@@ -431,8 +429,6 @@ export function ReaderPane({
   isDiscardedView,
   isHomeView,
   cacheReady,
-  onOpenDrawer,
-  onOpenSources,
   onOpenSubs,
 }: ReaderPaneProps) {
   const { state: authState } = useAuth();
@@ -766,9 +762,8 @@ ${notesSection}
         title={item.title}
         routing={item.routing}
         isDiscarded={isDiscardedView}
-        onOpenDrawer={item.routing === "ai_curation" ? onOpenDrawer : undefined}
-        onOpenSources={item.routing === "ai_curation" ? onOpenSources : undefined}
         cardId={item.card_id ?? undefined}
+        articleId={item.article_id ?? undefined}
         kind={(item as InboxItem).kind}
         sourceCount={(item as InboxItem).source_card_ids?.length ?? 0}
         cardDate={item.card_date}
