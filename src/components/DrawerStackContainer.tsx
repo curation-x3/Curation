@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { X, ChevronLeft } from "lucide-react";
 import { useDrawerStack, type ViewTarget } from "../state/drawerStack";
+import { CardContentView } from "./drawer-views/CardContentView";
+import { SourceCardsView } from "./drawer-views/SourceCardsView";
+import { ArticleBodyView } from "./drawer-views/ArticleBodyView";
 
 function titleFor(target: ViewTarget): string {
   switch (target.kind) {
@@ -89,9 +92,9 @@ export function DrawerStackContainer() {
           </button>
         </header>
         <div style={{ flex: 1, overflow: "auto", padding: "16px 0" }}>
-          <div style={{ padding: "0 16px", color: "var(--text-muted)" }}>
-            (view body for {top.kind} will be rendered here in Task 6)
-          </div>
+          {top.kind === "card"        && <CardContentView   cardId={top.cardId} />}
+          {top.kind === "sourceCards" && <SourceCardsView   cardId={top.cardId} />}
+          {top.kind === "article"     && <ArticleBodyView   articleId={top.articleId} />}
         </div>
       </div>
     </div>
