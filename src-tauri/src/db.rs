@@ -1292,6 +1292,29 @@ impl CacheDb {
         Ok(())
     }
 
+    /// Drop tombstoned cards from local cache. Called when /sync returns
+    /// `deleted_card_ids`. Removes from `cards`, the FTS shadow, and any
+    /// favorites that pointed at them. Idempotent — re-running with a
+    /// card_id that's already gone is a no-op.
+    pub fn delete_cards(&self, card_ids: &[String]) -> Result<(), String> {
+        if card_ids.is_empty() {
+            return Ok(());
+        }
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        for id in card_ids {
+            conn.execute("DELETE FROM cards WHERE card_id = ?1", [id])
+                .map_err(|e| e.to_string())?;
+            conn.execute("DELETE FROM cards_fts WHERE card_id = ?1", [id])
+                .map_err(|e| e.to_string())?;
+            conn.execute(
+                "DELETE FROM favorites WHERE item_type = 'card' AND item_id = ?1",
+                [id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
     pub fn apply_card_favorites_sync(&self, cards: &[serde_json::Value]) -> Result<bool, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut changed = false;

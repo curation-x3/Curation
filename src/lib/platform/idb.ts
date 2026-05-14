@@ -307,6 +307,20 @@ export async function getCardById(card_id: string): Promise<CachedCard | null> {
   return (await db.get("cards", card_id)) ?? null;
 }
 
+/**
+ * Drop tombstoned cards from local IDB. Called when /sync returns
+ * `deleted_card_ids`. Idempotent — missing rows are a no-op.
+ */
+export async function deleteCards(card_ids: string[]): Promise<void> {
+  if (card_ids.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction("cards", "readwrite");
+  for (const id of card_ids) {
+    await tx.store.delete(id);
+  }
+  await tx.done;
+}
+
 export async function updateCardRow(
   card_id: string,
   patch: Partial<CachedCard>,

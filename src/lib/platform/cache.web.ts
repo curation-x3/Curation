@@ -265,6 +265,7 @@ const FOLLOWUP_PAGE_SIZE = 200;
 interface SyncBatch {
   cards?: CachedCard[];
   favorites?: Array<{ item_type: string; item_id: string; created_at: string; deleted: boolean }>;
+  deleted_card_ids?: string[];
   cursor?: number | null;
   has_more?: boolean;
   sync_ts?: string;
@@ -393,6 +394,20 @@ async function runSyncUnlocked(): Promise<string[]> {
           await idb.deleteFavorite("card", card.card_id);
         }
       }
+      changed.add("favorites");
+      pageChanged.add("favorites");
+    }
+
+    // Card tombstones: server emits `deleted_card_ids` on the first page
+    // of every sync (cursor=0) — drop these from local IDB. Apply AFTER
+    // writeCardDelta so a same-id race resolves with the tombstone winning.
+    if (data.deleted_card_ids && data.deleted_card_ids.length > 0) {
+      await idb.deleteCards(data.deleted_card_ids);
+      for (const id of data.deleted_card_ids) {
+        await idb.deleteFavorite("card", id);
+      }
+      changed.add("cards");
+      pageChanged.add("cards");
       changed.add("favorites");
       pageChanged.add("favorites");
     }

@@ -371,6 +371,10 @@ impl SyncClient {
                 let page = PullResult {
                     cards: body["cards"].as_array().cloned().unwrap_or_default(),
                     favorites: body["favorites"].as_array().cloned().unwrap_or_default(),
+                    deleted_card_ids: body["deleted_card_ids"]
+                        .as_array()
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                        .unwrap_or_default(),
                     sync_ts: body["sync_ts"].as_str().map(|s| s.to_string()),
                 };
 
@@ -405,6 +409,7 @@ const PAGE_SIZE: i64 = 50;
 struct PullResult {
     cards: Vec<serde_json::Value>,
     favorites: Vec<serde_json::Value>,
+    deleted_card_ids: Vec<String>,
     sync_ts: Option<String>,
 }
 
@@ -448,6 +453,16 @@ fn apply_pull_result(db: &CacheDb, pull: &PullResult) -> Result<Vec<String>, Str
         if db.apply_card_favorites_sync(&pull.cards)? {
             changed.insert("favorites".to_string());
         }
+    }
+    // Apply tombstones AFTER upserts. If a card_id appears in both arrays
+    // (race: same sync window has it both visible and tombstoned), the
+    // tombstone wins — server-side a card can't be both undeleted and
+    // tombstoned, so this only happens at concurrent transaction boundaries
+    // and the safe resolution is "trust the more recent delete".
+    if !pull.deleted_card_ids.is_empty() {
+        db.delete_cards(&pull.deleted_card_ids)?;
+        changed.insert("cards".to_string());
+        changed.insert("favorites".to_string());
     }
     if !pull.favorites.is_empty() {
         db.apply_favorites_sync(&pull.favorites)?;
