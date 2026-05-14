@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MapCanvas } from "./components/MapCanvas";
 import { MapTablePage } from "./components/MapTablePage";
 import { useMapStore } from "./state/store";
+import { useDrawerStack } from "../state/drawerStack";
 import { taggedCards } from "./data/tag-data";
 import { tagCardContent } from "./data/tag-card-content";
 import {
@@ -273,15 +274,16 @@ export function MapPreviewApp() {
     } catch {}
   }, [theme]);
 
-  // Tab-change cleanup: hovered/drawer state lives in the global zustand
-  // store (not in MapTabContent), so even with `key`-based remount they
-  // can persist with stale card_ids from the previous date. Force-clear.
+  // Tab-change cleanup: hovered state lives in the global zustand store
+  // (not in MapTabContent), so even with `key`-based remount it can persist
+  // with stale card_ids from the previous date. Force-clear. Drawer state
+  // lives in the unified drawer stack — clear that too.
   const setHoveredStore = useMapStore((s) => s.setHoveredCard);
-  const closeDrawerStore = useMapStore((s) => s.closeDrawer);
+  const clearDrawerStack = useDrawerStack((s) => s.clear);
   useEffect(() => {
     setHoveredStore(null);
-    closeDrawerStore();
-  }, [activeIdx, setHoveredStore, closeDrawerStore]);
+    clearDrawerStack();
+  }, [activeIdx, setHoveredStore, clearDrawerStack]);
 
   // Override layer
   const [overrides, setOverridesState] = useState<MapOverrides>(() =>

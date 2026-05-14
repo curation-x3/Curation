@@ -69,7 +69,7 @@ export function MapShell() {
   // Reset map internal state when shell unmounts (user switches view).
   useEffect(
     () => () => {
-      useMapStore.setState({ drawer_card_id: null, hovered_card_id: null });
+      useMapStore.setState({ hovered_card_id: null });
     },
     [],
   );

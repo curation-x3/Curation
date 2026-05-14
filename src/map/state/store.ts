@@ -1,6 +1,9 @@
 // Map — session state.
 //
-// Holds hover / drawer / read state for one viewing session.
+// Holds hover / read state for one viewing session. Drawer/preview state is
+// owned by the unified drawer stack (`src/state/drawerStack.ts`); the map
+// only manages hover, read, route, and entity-scope state.
+//
 // Read state is layered: a card is read if either:
 //   - card.read_at is non-null (initial state from data), or
 //   - the user has marked it read this session (session_read_card_ids)
@@ -9,7 +12,6 @@ import { create } from "zustand";
 
 type MapState = {
   hovered_card_id: string | null;
-  drawer_card_id: string | null;
   session_read_card_ids: Set<string>;
   routes_visible: boolean;
   entity_scope: "core" | "all";
@@ -18,8 +20,6 @@ type MapState = {
   hidden_entities: Set<string>;
 
   setHoveredCard: (id: string | null) => void;
-  openDrawer: (card_id: string) => void;
-  closeDrawer: () => void;
   markCardRead: (card_id: string) => void;
   toggleRoutes: () => void;
   setEntityScope: (scope: "core" | "all") => void;
@@ -28,31 +28,12 @@ type MapState = {
 
 export const useMapStore = create<MapState>((set) => ({
   hovered_card_id: null,
-  drawer_card_id: null,
   session_read_card_ids: new Set<string>(),
   routes_visible: true,
   entity_scope: "core",
   hidden_entities: new Set<string>(),
 
   setHoveredCard: (id) => set({ hovered_card_id: id }),
-
-  openDrawer: (card_id) =>
-    set((s) => ({
-      drawer_card_id: card_id,
-      hovered_card_id: null,
-      // Note: closing the drawer is what marks read (per spec),
-      // not opening it. So we don't add to session_read_card_ids here.
-      session_read_card_ids: s.session_read_card_ids,
-    })),
-
-  closeDrawer: () =>
-    set((s) => {
-      const id = s.drawer_card_id;
-      if (!id) return { drawer_card_id: null };
-      const next = new Set(s.session_read_card_ids);
-      next.add(id);
-      return { drawer_card_id: null, session_read_card_ids: next };
-    }),
 
   markCardRead: (card_id) =>
     set((s) => {

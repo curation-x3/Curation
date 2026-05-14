@@ -35,7 +35,7 @@ import { MapCompass } from "./MapCompass";
 import { MapEntityList } from "./MapEntityList";
 import { MapFloatingCard } from "./MapFloatingCard";
 import { MapLegend } from "./MapLegend";
-import { MapPreviewDrawer } from "./MapPreviewDrawer";
+import { useDrawerStack } from "../../state/drawerStack";
 
 export type MapCanvasProps = {
   dsl: MapDSL;
@@ -87,9 +87,8 @@ export function MapCanvas({
 
   const hovered = useMapStore((s) => s.hovered_card_id);
   const setHovered = useMapStore((s) => s.setHoveredCard);
-  const drawerCardId = useMapStore((s) => s.drawer_card_id);
-  const openDrawer = useMapStore((s) => s.openDrawer);
-  const closeDrawer = useMapStore((s) => s.closeDrawer);
+  const pushDrawer = useDrawerStack((s) => s.push);
+  const drawerOpen = useDrawerStack((s) => s.stack.length > 0);
   const markCardRead = useMapStore((s) => s.markCardRead);
   const sessionRead = useMapStore((s) => s.session_read_card_ids);
   const routesVisible = useMapStore((s) => s.routes_visible);
@@ -344,12 +343,12 @@ export function MapCanvas({
       // The drawer has its own keydown listener that calls onClose. We bail
       // here so the drawer's handler "wins" this keypress; the next ESC
       // will then reach this branch and clear the route focus.
-      if (drawerCardId) return;
+      if (drawerOpen) return;
       if (routeFocus) setRouteFocus(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [routeFocus, drawerCardId]);
+  }, [routeFocus, drawerOpen]);
 
   // When user toggles routes off while a focus is active, drop the focus.
   useEffect(() => {
@@ -475,15 +474,6 @@ export function MapCanvas({
         } => x != null,
       );
   }, [focusedCards, stageSize, computeAnchorScreenPos]);
-  const drawerCard = drawerCardId
-    ? cards.find((c) => c.card_id === drawerCardId)
-    : null;
-
-  // Wrap close-drawer to also propagate mark-read to caller.
-  const handleCloseDrawer = () => {
-    if (drawerCardId) onMarkRead(drawerCardId);
-    closeDrawer();
-  };
   const handleMarkRead = (card_id: string) => {
     markCardRead(card_id);
     onMarkRead(card_id);
@@ -552,7 +542,7 @@ export function MapCanvas({
           layout={layout}
           isCardRead={isCardReadFn}
           onSettlementHover={(id) => setHovered(id)}
-          onSettlementClick={(id) => openDrawer(id)}
+          onSettlementClick={(id) => pushDrawer({ kind: "card", cardId: id })}
           routeFocus={routeFocus}
           routesVisible={routesVisible}
           hiddenEntities={hiddenEntities}
@@ -603,7 +593,7 @@ export function MapCanvas({
           onMarkRead={() => handleMarkRead(hoveredCard.card_id!)}
           onMouseEnter={() => setHovered(hoveredCard.card_id!)}
           onMouseLeave={() => setHovered(null)}
-          onOpenDrawer={() => openDrawer(hoveredCard.card_id!)}
+          onOpenDrawer={() => pushDrawer({ kind: "card", cardId: hoveredCard.card_id! })}
           sourceLabel={sourceLabelForCard(hoveredCard)}
         />
       )}
@@ -622,17 +612,11 @@ export function MapCanvas({
             onMarkRead={() => handleMarkRead(card.card_id!)}
             onMouseEnter={() => {}}
             onMouseLeave={() => {}}
-            onOpenDrawer={() => openDrawer(card.card_id!)}
+            onOpenDrawer={() => pushDrawer({ kind: "card", cardId: card.card_id! })}
             interactive={routeFocus?.pinned ?? false}
             sourceLabel={sourceLabelForCard(card)}
           />
         ))}
-
-      <MapPreviewDrawer
-        open={drawerCardId != null}
-        card={drawerCard ?? null}
-        onClose={handleCloseDrawer}
-      />
     </div>
   );
 }
