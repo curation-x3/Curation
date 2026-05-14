@@ -8,8 +8,7 @@ import {
 import type { AgentBackends, DedupTaskRow, DedupTaskRun, DedupQueueRow } from "../types";
 import { fmtTime, statusLabel } from "../lib/tableHelpers";
 import { RunDetailDrawer } from "./RunDetailDrawer";
-import { SourceCardsDrawer } from "./SourceCardsDrawer";
-import { ArticleDrawer } from "./ArticleDrawer";
+import { useDrawerStack } from "../state/drawerStack";
 import { InlineRunTable, QueueControlBar, QueueDivider, QueueSelect, QueueSpacer, QueueSummaryBar, QueueToggle, RefreshButton, StatusChips, type StatusOption } from "./AdminQueueControls";
 
 function TaskRunHistory({ taskId, onOpenRun }: { taskId: number; onOpenRun: (runId: number) => void }) {
@@ -130,10 +129,7 @@ export function DedupTasksPanel() {
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [detailRunId, setDetailRunId] = useState<number | null>(null);
-  const [drawerSig, setDrawerSig] = useState<string | null>(null);
-  const [articleId, setArticleId] = useState<string | null>(null);
-  const [articleTitle, setArticleTitle] = useState<string | null>(null);
-  const [articleUrl, setArticleUrl] = useState<string | null>(null);
+  const push = useDrawerStack((s) => s.push);
 
   const { data: tasks = [], refetch, isFetching } = useQuery<DedupTaskRow[]>({
     queryKey: ["dedupTasks"],
@@ -298,7 +294,7 @@ export function DedupTasksPanel() {
 
                 {/* Signature */}
                 <button
-                  onClick={() => setDrawerSig(task.signature)}
+                  onClick={() => push({ kind: "clusterSources", clusterSignature: task.signature, subtitle: `${task.signature} · signature` })}
                   title="查看 signature 原卡片"
                   style={{
                     background: "none", border: "none", padding: 0, margin: 0,
@@ -385,28 +381,6 @@ export function DedupTasksPanel() {
       <RunDetailDrawer
         runId={detailRunId}
         onClose={() => setDetailRunId(null)}
-      />
-      <SourceCardsDrawer
-        clusterSignature={drawerSig}
-        isOpen={!!drawerSig}
-        onClose={() => setDrawerSig(null)}
-        subtitle={drawerSig ? `${drawerSig} · signature` : undefined}
-        onOpenArticle={(aid, atitle, aurl) => {
-          setDrawerSig(null);
-          setArticleId(aid);
-          setArticleTitle(atitle ?? null);
-          setArticleUrl(aurl ?? null);
-        }}
-      />
-      <ArticleDrawer
-        isOpen={!!articleId}
-        onClose={() => { setArticleId(null); setArticleTitle(null); setArticleUrl(null); }}
-        item={null}
-        siblingCards={[]}
-        onSelectCard={() => {}}
-        articleIdOverride={articleId}
-        articleTitleOverride={articleTitle}
-        articleUrlOverride={articleUrl}
       />
     </div>
   );

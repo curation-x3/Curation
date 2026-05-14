@@ -1,9 +1,10 @@
 import { create } from "zustand";
 
 export type ViewTarget =
-  | { kind: "card";        cardId: string }
-  | { kind: "sourceCards"; cardId: string }
-  | { kind: "article";     articleId: string };
+  | { kind: "card";           cardId: string }
+  | { kind: "sourceCards";    cardId: string }
+  | { kind: "clusterSources"; clusterSignature: string; subtitle?: string }
+  | { kind: "article";        articleId: string };
 
 interface DrawerStackState {
   stack: ViewTarget[];

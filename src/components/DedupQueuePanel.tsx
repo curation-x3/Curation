@@ -7,8 +7,7 @@ import {
 } from "../lib/api";
 import type { DedupQueueGroup, DedupQueueRow, DedupQueueSummary } from "../types";
 import { cmp, fmtTime, SortableHeader, statusLabel } from "../lib/tableHelpers";
-import { SourceCardsDrawer } from "./SourceCardsDrawer";
-import { ArticleDrawer } from "./ArticleDrawer";
+import { useDrawerStack } from "../state/drawerStack";
 import { DateFilter, QueueButton, QueueControlBar, QueueDivider, QueueSelect, QueueSpacer, QueueSummaryBar, QueueToggle, RefreshButton, StatusChips, type StatusOption } from "./AdminQueueControls";
 
 interface AdminUser {
@@ -119,11 +118,7 @@ export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }
   const [sortKey, setSortKey]           = useState<SortKey>("created_at");
   const [sortDir, setSortDir]           = useState<"asc" | "desc">("desc");
 
-  // Drawer state — owned by this panel so admins can preview without leaving.
-  const [drawerSig, setDrawerSig] = useState<string | null>(null);
-  const [articleId, setArticleId] = useState<string | null>(null);
-  const [articleTitle, setArticleTitle] = useState<string | null>(null);
-  const [articleUrl, setArticleUrl] = useState<string | null>(null);
+  const push = useDrawerStack((s) => s.push);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["dedupQueue"] });
 
@@ -336,7 +331,7 @@ export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }
                       {group.rows.map((row) => (
                         <div key={row.id} style={{ display: "grid", gridTemplateColumns: CLUSTER_COLS, padding: "5px 0", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                           <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>#{row.id}</span>
-                          <a onClick={() => setDrawerSig(row.cluster_signature)}
+                          <a onClick={() => push({ kind: "clusterSources", clusterSignature: row.cluster_signature, subtitle: `${row.cluster_signature} · 原卡片` })}
                             style={{ fontFamily: "monospace", color: "var(--accent-blue)", cursor: "pointer", textDecoration: "none", fontSize: "var(--fs-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {row.cluster_signature}
                           </a>
@@ -367,7 +362,7 @@ export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }
                                 <RotateCcw size={14} />
                               </button>
                             )}
-                            <button onClick={() => setDrawerSig(row.cluster_signature)} title="查看原卡片"
+                            <button onClick={() => push({ kind: "clusterSources", clusterSignature: row.cluster_signature, subtitle: `${row.cluster_signature} · 原卡片` })} title="查看原卡片"
                               style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2 }}>
                               <Eye size={14} />
                             </button>
@@ -390,30 +385,6 @@ export function DedupQueuePanel({ onOpenPreview }: { onOpenPreview: () => void }
         )}
       </div>
 
-      {/* Source-cards drawer (cluster mode) */}
-      <SourceCardsDrawer
-        clusterSignature={drawerSig}
-        isOpen={!!drawerSig}
-        onClose={() => setDrawerSig(null)}
-        subtitle={drawerSig ? `${drawerSig} · 原卡片` : undefined}
-        onOpenArticle={(aid, atitle, aurl) => {
-          setArticleId(aid);
-          setArticleTitle(atitle ?? null);
-          setArticleUrl(aurl ?? null);
-        }}
-      />
-
-      {/* Article drawer reused via override mode */}
-      <ArticleDrawer
-        isOpen={!!articleId}
-        onClose={() => { setArticleId(null); setArticleTitle(null); setArticleUrl(null); }}
-        item={null}
-        siblingCards={[]}
-        onSelectCard={() => {}}
-        articleIdOverride={articleId}
-        articleTitleOverride={articleTitle}
-        articleUrlOverride={articleUrl}
-      />
     </div>
   );
 }

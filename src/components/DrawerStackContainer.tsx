@@ -7,9 +7,10 @@ import { ArticleBodyView } from "./drawer-views/ArticleBodyView";
 
 function titleFor(target: ViewTarget): string {
   switch (target.kind) {
-    case "card":         return "卡片";
-    case "sourceCards":  return "原卡片";
-    case "article":      return "原文";
+    case "card":            return "卡片";
+    case "sourceCards":     return "原卡片";
+    case "clusterSources":  return target.subtitle ?? "原卡片";
+    case "article":         return "原文";
   }
 }
 
@@ -92,9 +93,10 @@ export function DrawerStackContainer() {
           </button>
         </header>
         <div style={{ flex: 1, overflow: "auto", padding: "16px 0" }}>
-          {top.kind === "card"        && <CardContentView   cardId={top.cardId} />}
-          {top.kind === "sourceCards" && <SourceCardsView   cardId={top.cardId} />}
-          {top.kind === "article"     && <ArticleBodyView   articleId={top.articleId} />}
+          {top.kind === "card"           && <CardContentView   cardId={top.cardId} />}
+          {top.kind === "sourceCards"    && <SourceCardsView   mode="card"    cardId={top.cardId} />}
+          {top.kind === "clusterSources" && <SourceCardsView   mode="cluster" clusterSignature={top.clusterSignature} />}
+          {top.kind === "article"        && <ArticleBodyView   articleId={top.articleId} />}
         </div>
       </div>
     </div>

@@ -1,18 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { RotateCw } from "lucide-react";
-import { fetchCardSources } from "../../lib/api";
+import { fetchCardSources, fetchClusterSources } from "../../lib/api";
 import type { CardSource } from "../../types";
 import { useDrawerStack } from "../../state/drawerStack";
 
-interface Props {
-  cardId: string;
-}
+type Props =
+  | { mode: "card";    cardId: string }
+  | { mode: "cluster"; clusterSignature: string };
 
-export function SourceCardsView({ cardId }: Props) {
+export function SourceCardsView(props: Props) {
   const push = useDrawerStack((s) => s.push);
+  const queryKey = props.mode === "card"
+    ? ["cardSources", props.cardId]
+    : ["clusterSources", props.clusterSignature];
+  const queryFn = props.mode === "card"
+    ? () => fetchCardSources(props.cardId)
+    : () => fetchClusterSources(props.clusterSignature);
   const query = useQuery<CardSource[]>({
-    queryKey: ["cardSources", cardId],
-    queryFn: () => fetchCardSources(cardId),
+    queryKey,
+    queryFn,
     staleTime: 60_000,
   });
 

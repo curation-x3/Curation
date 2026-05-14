@@ -51,3 +51,10 @@ test("replaceTop swaps the top without changing depth", () => {
   assert.equal(useDrawerStack.getState().stack.length, 2);
   assert.deepEqual(useDrawerStack.getState().stack[1], { kind: "article", articleId: "a2" });
 });
+
+test("clusterSources kind is accepted on the stack", () => {
+  reset();
+  useDrawerStack.getState().push({ kind: "clusterSources", clusterSignature: "abc123" });
+  assert.equal(useDrawerStack.getState().stack.length, 1);
+  assert.deepEqual(useDrawerStack.getState().stack[0], { kind: "clusterSources", clusterSignature: "abc123" });
+});

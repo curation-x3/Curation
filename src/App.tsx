@@ -23,8 +23,6 @@ import { ReaderPane } from './components/ReaderPane';
 import { SearchList } from './components/SearchList';
 import { MapShell } from './components/MapShell';
 import { useSearch } from './hooks/useSearch';
-import { ArticleDrawer } from './components/ArticleDrawer';
-import { SourceCardsDrawer } from './components/SourceCardsDrawer';
 import { LoginScreen } from './components/LoginScreen';
 import { AuthCallback } from './components/AuthCallback';
 import { useAuth } from './lib/authStore';
@@ -216,14 +214,6 @@ function AppMain({ currentUser, onLogout }: {
   const [selectedBiz, setSelectedBiz] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedDiscardedId, setSelectedDiscardedId] = useState<string | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isSourcesOpen, setIsSourcesOpen] = useState(false);
-  /** When set, ArticleDrawer renders this article (override mode) — used by
-   * SourceCardsDrawer to view a source's article without that source being
-   * in the user's inbox. Null means use the inbox-card path (selectedItem). */
-  const [overrideArticleId, setOverrideArticleId] = useState<string | null>(null);
-  const [overrideArticleTitle, setOverrideArticleTitle] = useState<string | null>(null);
-  const [overrideArticleUrl, setOverrideArticleUrl] = useState<string | null>(null);
   const [selectedFavorite, setSelectedFavorite] = useState<FavoriteItem | null>(null);
   const { data: favoritesData } = useFavorites();
   const search = useSearch();
@@ -400,12 +390,6 @@ function AppMain({ currentUser, onLogout }: {
       });
   }, [favoritesData]);
 
-  // Sibling cards (same article) for drawer
-  const siblingCards = useMemo(() => {
-    if (!selectedItem || !inboxItems) return [];
-    return inboxItems.filter((i) => i.article_id === selectedItem.article_id);
-  }, [selectedItem, inboxItems]);
-
   // Handlers
   function handleSelectInbox() {
     setSelectedView("inbox");
@@ -461,11 +445,6 @@ function AppMain({ currentUser, onLogout }: {
     }
   }
 
-  function handleDrawerSelectCard(cardId: string) {
-    setSelectedCardId(cardId);
-    setIsDrawerOpen(false);
-  }
-
   function handleNavigateToCard(cardId: string) {
     setSelectedView("inbox");
     setSelectedBiz(null);
@@ -474,12 +453,9 @@ function AppMain({ currentUser, onLogout }: {
     setIsAdminMode(false);
   }
 
-  // Keyboard shortcut: Alt+← / Alt+→ (placeholder for nav history if needed later)
+  // Cmd+K toggles search view
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && isDrawerOpen) {
-        setIsDrawerOpen(false);
-      }
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         if (selectedView === "search") {
@@ -491,7 +467,7 @@ function AppMain({ currentUser, onLogout }: {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isDrawerOpen]);
+  }, [selectedView]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -660,39 +636,6 @@ function AppMain({ currentUser, onLogout }: {
       )}
       </>
       )}
-
-      {/* Article Drawer overlay. In override mode (overrideArticleId set), the
-          drawer fetches that article id directly and skips card-level chrome
-          (siblings/favorites/description) since `item` is null. */}
-      <ArticleDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => {
-          setIsDrawerOpen(false);
-          setOverrideArticleId(null);
-          setOverrideArticleTitle(null);
-          setOverrideArticleUrl(null);
-        }}
-        item={overrideArticleId ? null : selectedItem}
-        siblingCards={overrideArticleId ? [] : siblingCards}
-        onSelectCard={handleDrawerSelectCard}
-        articleIdOverride={overrideArticleId}
-        articleTitleOverride={overrideArticleTitle}
-        articleUrlOverride={overrideArticleUrl}
-      />
-
-      {/* Source Cards Drawer — shown for aggregated/residual cards instead of ArticleDrawer */}
-      <SourceCardsDrawer
-        cardId={selectedItem?.card_id ?? null}
-        isOpen={isSourcesOpen}
-        onClose={() => setIsSourcesOpen(false)}
-        onOpenArticle={(articleId, articleTitle, articleUrl) => {
-          setIsSourcesOpen(false);
-          setOverrideArticleId(articleId);
-          setOverrideArticleTitle(articleTitle ?? null);
-          setOverrideArticleUrl(articleUrl ?? null);
-          setIsDrawerOpen(true);
-        }}
-      />
 
       <DrawerStackContainer />
 
