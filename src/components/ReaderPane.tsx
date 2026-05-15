@@ -2,7 +2,8 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { ArrowDown, BookOpen, Copy, Image, Share2 } from "lucide-react";
+import { ArrowDown, BookOpen, Copy, ExternalLink, Image, Share2 } from "lucide-react";
+import { openExternal } from "../lib/platform/url-opener";
 import { stripFrontmatter, mdComponents } from "../lib/markdown";
 import { useCardContent } from "../hooks/useCards";
 import { useArticleContent } from "../hooks/useArticles";
@@ -252,6 +253,19 @@ function SourceBar({
           {readingSummary && <><span>·</span><span>{readingSummary}</span></>}
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          {meta.url && (
+            <button
+              onClick={() => openExternal(meta.url)}
+              title="在浏览器中打开微信原文"
+              style={{
+                background: "none", border: "1px solid var(--border)", borderRadius: 6,
+                color: "var(--text-muted)", padding: "3px 10px", cursor: "pointer", fontSize: "0.76rem",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <ExternalLink size={12} /> 阅读原文
+            </button>
+          )}
           {cardId && (
             <>
               <ShareButton markdown={cardMarkdown} shareData={shareData} />
