@@ -92,7 +92,21 @@ export function DrawerStackContainer() {
             <X size={18} />
           </button>
         </header>
-        <div style={{ flex: 1, overflow: "auto", padding: "16px 0" }}>
+        {/* Body container. For kind:"card" we embed the full <ReaderPane>
+            which already has its own internal scroll (reader-scroll) plus
+            a floating absolute-positioned ChatInput at its bottom. If this
+            wrapper is itself a scroll container, ReaderPane's flex:1 falls
+            back to content height and ChatInput sticks to the END of the
+            content instead of floating at the visible drawer bottom — so
+            switch to a flex column with no overflow for that case. Other
+            views (article body, source-card list) keep the scroll. */}
+        <div
+          style={
+            top.kind === "card"
+              ? { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }
+              : { flex: 1, overflow: "auto", padding: "16px 0" }
+          }
+        >
           {top.kind === "card"           && <CardReaderView    cardId={top.cardId} />}
           {top.kind === "sourceCards"    && <SourceCardsView   mode="card"    cardId={top.cardId} />}
           {top.kind === "clusterSources" && <SourceCardsView   mode="cluster" clusterSignature={top.clusterSignature} />}
