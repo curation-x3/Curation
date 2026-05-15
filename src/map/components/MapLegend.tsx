@@ -59,9 +59,17 @@ export function MapLegend() {
               cx={11}
               cy={7}
               r={5}
-              fill="var(--map-vellum)"
+              fill="var(--map-rust)"
               stroke="var(--map-ink)"
               strokeWidth={1.2}
+            />
+            <circle
+              cx={11}
+              cy={7}
+              r={2}
+              fill="var(--map-gold)"
+              stroke="var(--map-ink)"
+              strokeWidth={0.5}
             />
           </svg>
         }

@@ -95,11 +95,12 @@ export function MapFloatingCard({
           <span
             style={{
               flexShrink: 0,
-              padding: "1px 6px",
+              padding: "1px 7px",
               border: "1px solid var(--map-ink)",
-              background: "var(--map-vellum)",
+              background: "var(--map-gold)",
               color: "var(--map-ink)",
-              letterSpacing: "0.12em",
+              letterSpacing: "0.14em",
+              fontWeight: 600,
             }}
           >
             原文推送

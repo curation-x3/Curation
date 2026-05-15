@@ -675,15 +675,33 @@ function Settlement({
         />
       )}
       {shape === "circle-vellum" && (
-        <circle
-          cx={0}
-          cy={0}
-          r={r}
-          fill="var(--map-vellum)"
-          stroke={isFocused ? "var(--map-crimson)" : "var(--map-ink)"}
-          strokeWidth={isFocused ? 1.8 : isRead ? 0.6 : 1.4}
-          style={{ transition: "all 180ms" }}
-        />
+        // Original-push card ("highest tier" — only the rare article good
+        // enough to warrant pushing to the reader in its entirety). Drawn
+        // as a filled rust circle (the normal "card" base) with a small
+        // gold seal at the center — reads as a city-with-a-stamp, more
+        // prominent than the plain rust dot of ai_curation, without
+        // copying the gold star (favorite) or the aggregation rings.
+        <>
+          <circle
+            cx={0}
+            cy={0}
+            r={r}
+            fill="var(--map-rust)"
+            stroke={isFocused ? "var(--map-crimson)" : "var(--map-ink)"}
+            strokeWidth={isFocused ? 1.8 : isRead ? 0.6 : 1.4}
+            style={{ transition: "all 180ms" }}
+          />
+          <circle
+            cx={0}
+            cy={0}
+            r={Math.max(1.2, r * 0.38)}
+            fill="var(--map-gold)"
+            stroke="var(--map-ink)"
+            strokeWidth={0.5}
+            opacity={isRead ? 0.5 : 1}
+            style={{ transition: "all 180ms" }}
+          />
+        </>
       )}
 
       {/* Invisible enlarged hit-area. Settlement dots render at 4-11px radius
