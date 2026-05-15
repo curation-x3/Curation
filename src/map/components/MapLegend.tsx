@@ -50,7 +50,22 @@ export function MapLegend() {
             />
           </svg>
         }
-        text="单源卡片"
+        text="AI 梳理"
+      />
+      <Row
+        glyph={
+          <svg width={22} height={14}>
+            <circle
+              cx={11}
+              cy={7}
+              r={5}
+              fill="var(--map-vellum)"
+              stroke="var(--map-ink)"
+              strokeWidth={1.2}
+            />
+          </svg>
+        }
+        text="原文推送"
       />
       <Row
         glyph={

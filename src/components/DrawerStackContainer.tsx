@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { X, ChevronLeft } from "lucide-react";
 import { useDrawerStack, type ViewTarget } from "../state/drawerStack";
-import { CardContentView } from "./drawer-views/CardContentView";
+import { CardReaderView } from "./drawer-views/CardReaderView";
 import { SourceCardsView } from "./drawer-views/SourceCardsView";
 import { ArticleBodyView } from "./drawer-views/ArticleBodyView";
 
@@ -93,7 +93,7 @@ export function DrawerStackContainer() {
           </button>
         </header>
         <div style={{ flex: 1, overflow: "auto", padding: "16px 0" }}>
-          {top.kind === "card"           && <CardContentView   cardId={top.cardId} />}
+          {top.kind === "card"           && <CardReaderView    cardId={top.cardId} />}
           {top.kind === "sourceCards"    && <SourceCardsView   mode="card"    cardId={top.cardId} />}
           {top.kind === "clusterSources" && <SourceCardsView   mode="cluster" clusterSignature={top.clusterSignature} />}
           {top.kind === "article"        && <ArticleBodyView   articleId={top.articleId} />}

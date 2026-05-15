@@ -81,9 +81,30 @@ export function MapFloatingCard({
           color: "var(--map-rust)",
           textTransform: "uppercase",
           marginBottom: 4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
         }}
       >
-        {domain?.label ?? "—"} · {topic?.label ?? "—"}
+        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {domain?.label ?? "—"} · {topic?.label ?? "—"}
+        </span>
+        {(card.routing === "original_content_with_pre_card" ||
+          card.routing === "original_content_with_post_card") && (
+          <span
+            style={{
+              flexShrink: 0,
+              padding: "1px 6px",
+              border: "1px solid var(--map-ink)",
+              background: "var(--map-vellum)",
+              color: "var(--map-ink)",
+              letterSpacing: "0.12em",
+            }}
+          >
+            原文推送
+          </span>
+        )}
       </div>
       <h3
         style={{
