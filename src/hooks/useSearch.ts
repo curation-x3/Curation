@@ -33,7 +33,8 @@ export function useSearch() {
           })
           .filter((x): x is SearchResult => x !== null);
         return { results, semanticAvailable: remote.semantic_available };
-      } catch {
+      } catch (err) {
+        console.warn("[useSearch] remote failed, falling back to local FTS5", err);
         const fallback = await searchCards(debouncedQuery);
         return { results: fallback, semanticAvailable: false };
       }
