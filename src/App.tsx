@@ -552,6 +552,7 @@ function AppMain({ currentUser, onLogout }: {
           selectedCardId={selectedCardId}
           onSelect={(cardId) => { setSelectedCardId(cardId); setSelectedDiscardedId(null); }}
           listWidth={listWidth}
+          semanticAvailable={search.semanticAvailable}
         />
       ) : (
         <InboxList

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Search, X, Star } from "lucide-react";
+import { Search, X, Star, AlertCircle } from "lucide-react";
 import type { SearchResult } from "../lib/cache";
 
 interface SearchListProps {
@@ -10,6 +10,7 @@ interface SearchListProps {
   selectedCardId: string | null;
   onSelect: (cardId: string) => void;
   listWidth: number;
+  semanticAvailable: boolean;
 }
 
 function formatDate(d: string | null) {
@@ -25,6 +26,7 @@ export function SearchList({
   selectedCardId,
   onSelect,
   listWidth,
+  semanticAvailable,
 }: SearchListProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -40,11 +42,18 @@ export function SearchList({
           <input
             ref={inputRef}
             className="search-input"
-            placeholder="全文搜索..."
+            placeholder="语义 + 关键词搜索..."
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             style={{ padding: "4px 28px 4px 28px", fontSize: "0.78rem", width: "100%" }}
           />
+          {!semanticAvailable && query.length > 0 && (
+            <AlertCircle
+              size={12}
+              style={{ color: "var(--text-muted)", marginRight: 4 }}
+              aria-label="语义搜索暂不可用，当前为本地关键词模式"
+            />
+          )}
           {query && (
             <button
               onClick={() => onQueryChange("")}
