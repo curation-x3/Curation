@@ -669,3 +669,22 @@ export async function fetchClusterSources(signature: string): Promise<CardSource
   const res = await apiFetch(`/dedup/clusters/${signature}/sources`);
   return res.json();
 }
+
+// ── Hybrid card search ─────────────────────────────────────────────────
+
+export interface RemoteSearchHit {
+  card_id: string;
+  score: number;
+  highlight: string;
+}
+
+export interface RemoteSearchResponse {
+  items: RemoteSearchHit[];
+  semantic_available: boolean;
+}
+
+export async function searchCardsRemote(q: string, limit = 20): Promise<RemoteSearchResponse> {
+  const res = await apiFetch(`/cards/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+  if (!res.ok) throw new Error(`search ${res.status}`);
+  return res.json();
+}

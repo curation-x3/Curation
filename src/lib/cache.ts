@@ -1,4 +1,5 @@
 // Types are owned here; both platform implementations import them.
+import { invoke } from "@tauri-apps/api/core";
 import type { TopicRef } from "../types";
 
 export interface CachedCard {
@@ -84,6 +85,11 @@ export function parseEntities(raw: string | string[] | null | undefined): string
   } catch {
     return [];
   }
+}
+
+export async function hydrateSearchResults(ids: string[]): Promise<SearchResult[]> {
+  if (ids.length === 0) return [];
+  return invoke<SearchResult[]>("get_cards_by_ids", { ids });
 }
 
 export {
