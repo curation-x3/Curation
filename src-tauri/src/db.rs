@@ -942,6 +942,11 @@ impl CacheDb {
         Ok(rows)
     }
 
+    /// Hydrate metadata for a list of card_ids from the local cache. Used by
+    /// the remote-search flow: server returns ranked ids + highlights, then
+    /// this fills in title/account/date/favorite from the local SQLite.
+    /// Returns fewer rows than `ids.len()` when some ids aren't yet synced;
+    /// result order is not preserved — caller reindexes by card_id.
     pub fn get_cards_by_ids(&self, ids: &[String]) -> Result<Vec<SearchResult>, String> {
         if ids.is_empty() {
             return Ok(vec![]);
