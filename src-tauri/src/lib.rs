@@ -381,6 +381,7 @@ pub fn run() {
             commands::get_inbox_cards,
             commands::get_favorites,
             commands::search_cards,
+            commands::get_cards_by_ids,
             commands::mark_read,
             commands::mark_unread,
             commands::mark_all_read,

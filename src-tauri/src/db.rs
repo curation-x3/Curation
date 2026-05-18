@@ -942,6 +942,42 @@ impl CacheDb {
         Ok(rows)
     }
 
+    pub fn get_cards_by_ids(&self, ids: &[String]) -> Result<Vec<SearchResult>, String> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        // SQLite doesn't bind arrays — build placeholders.
+        let placeholders = std::iter::repeat("?").take(ids.len()).collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT c.card_id, c.title, c.article_id, c.account, c.card_date,
+                    '' as highlight,
+                    CASE WHEN fav.item_id IS NOT NULL THEN 1 ELSE 0 END as is_fav
+             FROM cards c
+             LEFT JOIN favorites fav ON fav.item_type = 'card' AND fav.item_id = c.card_id
+             WHERE c.card_id IN ({})",
+            placeholders
+        );
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let params: Vec<&dyn rusqlite::ToSql> = ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        let rows = stmt
+            .query_map(params.as_slice(), |row| {
+                Ok(SearchResult {
+                    card_id: row.get(0)?,
+                    title: row.get(1)?,
+                    article_id: row.get(2)?,
+                    account: row.get(3)?,
+                    card_date: row.get(4)?,
+                    highlight: row.get(5)?,
+                    is_favorite: row.get::<_, i32>(6)? != 0,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
     // -----------------------------------------------------------------------
     // Accounts cache
     // -----------------------------------------------------------------------

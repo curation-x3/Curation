@@ -98,6 +98,14 @@ pub fn search_cards(
 }
 
 #[tauri::command]
+pub fn get_cards_by_ids(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<Vec<SearchResult>, String> {
+    with_db(&state, |db| db.get_cards_by_ids(&ids))
+}
+
+#[tauri::command]
 pub fn mark_read(state: State<'_, AppState>, card_id: String) -> Result<(), String> {
     let now = chrono::Utc::now().to_rfc3339();
     with_db(&state, |db| db.mark_read(&card_id, &now))
